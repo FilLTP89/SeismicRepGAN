@@ -181,6 +181,43 @@ class GiorgiaGAN():
                                         optimizer=rmsprop_optimizer,
                                         loss_weights=[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1])
 
+    def gradient_penalty_loss(self, y_true, y_pred, averaged_samples):
+        """
+        Computes gradient penalty based on prediction and weighted real / fake samples
+        """
+        gradients = K.gradients(y_pred, averaged_samples)[0]
+        # compute the euclidean norm by squaring ...
+        gradients_sqr = K.square(gradients)
+        #   ... summing over the rows ...
+        gradients_sqr_sum = K.sum(gradients_sqr,
+                                  axis=np.arange(1, len(gradients_sqr.shape)))
+        #   ... and sqrt
+        gradient_l2_norm = K.sqrt(gradients_sqr_sum)
+        # compute lambda * (1 - ||grad||)^2 still for each single sample
+        gradient_penalty = K.square(1 - gradient_l2_norm)
+        # return the mean as loss over all the batch samples
+        return K.mean(gradient_penalty)
+
+
+    def wasserstein_loss(self, y_true, y_pred):
+        return K.mean(y_true * y_pred)
+
+    def gaussian_nll(true, pred):
+        """
+         Gaussian negative loglikelihood loss function 
+        """
+        n_dims = int(int(pred.shape[1])/2)
+        mu = pred[:, 0:n_dims]
+        logsigma = pred[:, n_dims:]
+        
+        mse = -0.5*K.sum(K.square((true-mu)/K.exp(logsigma)),axis=1)
+        sigma_trace = -K.sum(logsigma, axis=1)
+        log2pi = -0.5*n_dims*np.log(2*np.pi)
+        
+        log_likelihood = mse+sigma_trace+log2pi
+
+        return K.mean(-log_likelihood)
+
     def build_Fx(self):
         """
             Conv1D Fx structure
