@@ -128,6 +128,58 @@ class GiorgiaGAN():
             self.wasserstein_loss,self.wasserstein_loss], optimizer=rmsprop_optimizer,
             loss_weights=[1, 1, 1, 1, 1, 1, 1, 1])
 
+        #----------------------------------------
+        #      Construct Computational Graph
+        #               for Generator
+        # Reconstruction Losses: RecX, Recc, Recs
+        #----------------------------------------
+
+        # Freeze critics' layers while training generators
+        self.Fx.trainable = True
+        self.Gz.trainable = True
+        self.Dx.trainable = False
+        self.Dc.trainable = False
+        self.Ds.trainable = False
+        self.Dn.trainable = False
+
+        # Fake
+        fakeZ = self.Fx(realX) # encoded z = Fx(X)
+        fakeC = fakeZ[self.latentCidx] # C = Fx(X)|C 
+        fakeS = fakeZ[self.latentSidx] # S = Fx(X)|S
+        fakeN = fakeZ[self.latentNidx] # N = Fx(X)|N
+        fakeX = self.Gz(realZ) # fake X = Gz(Fx(X))
+        
+        # Discriminator determines validity of the real and fake X
+        fakeXcritic = self.Dx(fakeX)
+
+        # Discriminator determines validity of the real and fake C
+        fakeCcritic = self.Dc(fakeC)
+
+        # Discriminator determines validity of the real and fake S
+        fakeScritic = self.Ds(fakeS)
+
+        # Discriminator determines validity of the real and fake N
+        fakeNcritic = self.Dn(fakeN)
+
+        # Reconstruction
+        recX  = self.Gz(fakeZ)
+        recZ  = self.Fx(fakeX)
+        recC = recZ[self.latentCidx]
+        recS = recZ[self.latentSidx]
+
+        # The Representative GAN model
+        self.RegGANgenerative = Model(input = [realX, realZ], 
+            output = [realXcritic,fakeXcritic,realCcritic,fakeCcritic,
+            realScritic,fakeScritic,realNcritic,fakeNcritic,
+            recX,recC,recS])
+
+        self.RepGANgenerative.compile(loss=[self.wasserstein_loss,self.wasserstein_loss,
+                                            self.wasserstein_loss,self.wasserstein_loss,
+                                            self.wasserstein_loss,self.wasserstein_loss,
+                                            self.wasserstein_loss,self.wasserstein_loss,
+                                            'mse','binary_crossentropy',self.gaussian_nll],
+                                        optimizer=rmsprop_optimizer,
+                                        loss_weights=[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1])
 
         model = Sequential()
 
