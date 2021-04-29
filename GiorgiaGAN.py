@@ -8,6 +8,9 @@ from keras.layers.advanced_activations import LeakyReLU
 from keras.layers.convolutional import UpSampling1D, Conv1D
 from keras.models import Sequential, Model
 from keras.optimizers import Adam
+from scipy.stats import entropy
+from numpy.linalg import norm
+import MDOFload as mdof
 
 import matplotlib.pyplot as plt
 
@@ -15,56 +18,45 @@ import sys
 
 import numpy as np
 
+
+class RandomWeightedAverage(_Merge):
+    """Provides a (random) weighted average between real and generated signal samples"""
+    def _merge_function(self, inputs):
+        alpha = K.random_uniform((32, 1, 1, 1))
+        return (alpha * inputs[0]) + ((1 - alpha) * inputs[1])
+
 class GiorgiaGAN():
+    """
+        Flexible implementation of GAN based auto-Fx
+    """
     def __init__(self):
-        # Input shape
-        self.ths_size = 1024
-        self.channels = 2
-        self.ths_shape = (self.ths_size, self.channels)
-        self.latent_dim = 32
 
-        optimizer = Adam(0.0002, 0.5)
+        """
+            Setup
+        """
+        self.stride = 2
+        self.kernel = 3
+        self.nlayers = 5
+        self.Xsize = 1024
+        self.Zsize = self.Xsize//(self.stride**self.nlayers)
+        self.nXchannels = 2
+        self.Xshape = (self.Xsize, self.nXchannels)
+        self.latentZdim = 256
+        self.latentCidx = list(range(5))
+        self.latentSidx = list(range(5,7))
+        self.latentNidx = list(range(7,self.latentZdim))
+        self.latentCdim = len(self.latentCidx)
+        self.latentSdim = len(self.latentSidx)
+        self.latentNdim = len(self.latentNidx)
+        self.batchSize = 128
+        self.n_critic = 5
+        self.clipValue = 0.01
+        self.data_root_ID = '/gpfs/workdir/invsem07/damaged_1_8P' 
+        self.ID_string = 'U'
+        self.ID_pb_string = 'BC'
+        self.case = 'train_model'
 
-        # Build and compile the discriminator
-        self.discriminator = self.build_discriminator()
-        self.discriminator.compile(loss='binary_crossentropy',
-            optimizer=optimizer,
-            metrics=['accuracy'])
-
-        # Build the generator
-        self.generator = self.build_generator()
-
-        # The generator takes noise as input and generates thss
-        z = Input(shape=(self.latent_dim,))
-        ths = self.generator(z)
-
-        # For the combined model we will only train the generator
-        self.discriminator.trainable = False
-
-        # The discriminator takes generated signals as input and determines validity
-        valid = self.discriminator(ths)
-
-        # The combined model  (stacked generator and discriminator)
-        # Trains the generator to fool the discriminator
-        self.combined = Model(z, valid)
-        self.combined.compile(loss='binary_crossentropy', optimizer=optimizer)
-
-    def build_generator(self):
-
-        model = Sequential()
-
-        model.add(Dense(128 * 7 * 7, activation="relu", input_dim=self.latent_dim))
-        model.add(Reshape((7, 7, 128)))
-        model.add(UpSampling1D())
-        model.add(Conv1D(128, kernel_size=3, padding="same"))
-        model.add(BatchNormalization(momentum=0.8))
-        model.add(Activation("relu"))
-        model.add(UpSampling1D())
-        model.add(Conv1D(64, kernel_size=3, padding="same"))
-        model.add(BatchNormalization(momentum=0.8))
-        model.add(Activation("relu"))
-        model.add(Conv1D(self.channels, kernel_size=3, padding="same"))
-        model.add(Activation("tanh"))
+        # assert self.latentZdim >= self.stride**(self.Xsize//self.Zsize)
 
         model.summary()
 
