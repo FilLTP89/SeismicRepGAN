@@ -58,69 +58,176 @@ class GiorgiaGAN():
 
         # assert self.latentZdim >= self.stride**(self.Xsize//self.Zsize)
 
-        model.summary()
+        """
+            Optimizers
+        """
+        adam_optimizer = Adam(0.0002, 0.5)
+        rmsprop_optimizer = RMSprop(lr=0.00005)
 
-        noise = Input(shape=(self.latent_dim,))
-        ths = model(noise)
+        """
+            Build the discriminators
+        """
+        self.Dx = self.build_Dx()
+        self.Dc = self.build_Dc()
+        self.Ds = self.build_Ds()
+        self.Dn = self.build_Dn()
+        """
+            Build Fx/Gz (generators)
+        """
+        self.Fx = self.build_Fx()
+        self.Gz = self.build_Gz()
 
-        return Model(noise, ths)
+        #------------------------------------------------
+        #           Construct Computational Graph
+        #               for the Discriminator
+        # Adversarial Losses: LadvX, Ladvc, Ladvs, Ladvn
+        #------------------------------------------------
 
-    def build_discriminator(self):
+        # Freeze generators' layers while training critics
+        self.Fx.trainable = False
+        self.Gz.trainable = False
+
+
+        # The generator takes the signal, encodes it and reconstructs it
+        # from the encoding
+        # Real
+        realX = Input(shape=self.Xshape) # X data
+        realZ = Input(shape=(self.latentZdim,))
+        realC = realZ[self.latentCidx] # C  
+        realS = realZ[self.latentSidx] # S 
+        realN = realZ[self.latentNidx] # N 
+
+        # Fake
+        fakeZ = self.Fx(realX) # encoded z = Fx(X)
+        fakeC = fakeZ[self.latentCidx] # C = Fx(X)|C 
+        fakeS = fakeZ[self.latentSidx] # S = Fx(X)|S
+        fakeN = fakeZ[self.latentNidx] # N = Fx(X)|N
+        fakeX = self.Gz(realZ) # fake X = Gz(Fx(X))
+        
+
+        # Discriminator determines validity of the real and fake X
+        (fakeXcritic, realXcritic) = self.Dx(fakeX), self.Dx(realX)
+
+        # Discriminator determines validity of the real and fake C
+        (fakeCcritic, realCcritic) = self.Dc(fakeC), self.Dc(realC)
+
+        # Discriminator determines validity of the real and fake S
+        (fakeScritic, realScritic) = self.Ds(fakeS), self.Ds(realS)
+
+        # Discriminator determines validity of the real and fake N
+        (fakeNcritic, realNcritic) = self.Dn(fakeN), self.Dn(realN)
+
+
+        self.RepGANcritic = Model(inputs  = [realX,realZ],
+            outputs = [realXcritic,fakeXcritic,realCcritic,fakeCcritic,
+            realScritic,fakeScritic,realNcritic,fakeNcritic])        
+        
+
+        self.RepGANcritic.compile(loss=[self.wasserstein_loss,self.wasserstein_loss,
+            self.wasserstein_loss,self.wasserstein_loss, self.wasserstein_loss,self.wasserstein_loss,
+            self.wasserstein_loss,self.wasserstein_loss], optimizer=rmsprop_optimizer,
+            loss_weights=[1, 1, 1, 1, 1, 1, 1, 1])
+
 
         model = Sequential()
 
         model.add(Conv1D(32, kernel_size=3, strides=2, input_shape=self.ths_shape, padding="same"))
+    def build_Dx(self):
+        """
+            Conv1D discriminator structure
+        """
+        model = Sequential()
+        model.add(Conv1D(32,self.kernel,self.stride,
+            input_shape=self.Xshape,padding="same"))
         model.add(LeakyReLU(alpha=0.2))
         model.add(Dropout(0.25))
-        model.add(Conv1D(64, kernel_size=3, strides=2, padding="same"))
-        model.add(ZeroPadding1D(padding=((0,1),(0,1))))
+        model.add(Conv1D(64,self.kernel,self.stride,padding="same"))
+        model.add(ZeroPadding1D(padding=((0,1))))
         model.add(BatchNormalization(momentum=0.8))
         model.add(LeakyReLU(alpha=0.2))
         model.add(Dropout(0.25))
-        model.add(Conv1D(128, kernel_size=3, strides=2, padding="same"))
+        model.add(Conv1D(128,self.kernel,self.stride,padding="same"))
         model.add(BatchNormalization(momentum=0.8))
-        model.add(LeakyReLU(alpha=0.2))
+        model.add(LeakyReLU(alpha=0.0))
         model.add(Dropout(0.25))
-        model.add(Conv1D(256, kernel_size=3, strides=1, padding="same"))
+        model.add(Conv1D(256,self.kernel,strides=1,padding="same"))
         model.add(BatchNormalization(momentum=0.8))
         model.add(LeakyReLU(alpha=0.2))
         model.add(Dropout(0.25))
         model.add(Flatten())
-        model.add(Dense(1, activation='sigmoid'))
+        model.add(Dense(1,activation='sigmoid'))
+        # model.add(Conv1D(64,self.kernel,self.stride,
+        #     input_shape=self.Xshape,padding="same"))
+        # model.add(LeakyReLU(alpha=0.2))
+        # model.add(Conv1D(128,self.kernel,self.stride,
+        #     input_shape=self.Xshape,padding="same"))
+        # model.add(LeakyReLU(alpha=0.2))
+        # model.add(BatchNormalization(momentum=0.8))
+        # model.add(Dense(1024,activation='LeakyReLU'))
+        # model.add(BatchNormalization(momentum=0.8))
+        # model.add(Dense(1,activation='sigmoid'))
 
         model.summary()
 
-        ths = Input(shape=self.ths_shape)
-        validity = model(ths)
+        X = Input(shape=(self.Xshape))
+        D_X = model(X)
 
-        return Model(ths, validity)
+        return Model(X,D_X)
 
-    def train(self, epochs, batch_size=128, save_interval=50):
 
-        # Load the dataset
-        (X_train, _), (_, _) = mnist.load_data()
+    def build_Dc(self):
+        """
+            Dense discriminator structure
+        """
+        model = Sequential()
+        model.add(Dense(3000)) 
+        model.add(LeakyReLU())
+        model.add(Dense(3000)) 
+        model.add(LeakyReLU())
+        model.add(Dense(1))  
 
-        # Rescale -1 to 1
-        #X_train = X_train / 127.5 - 1.
-        X_train = np.expand_dims(X_train, axis=3)
+        model.summary()
 
-        # Adversarial ground truths
-        valid = np.ones((batch_size, 1))
-        fake = np.zeros((batch_size, 1))
+        c = Input(shape=(self.latentCdim,))
+        D_c = model(c)
 
-        for epoch in range(epochs):
+        return Model(c,D_c)
 
-            # ---------------------
-            #  Train Discriminator
-            # ---------------------
+    def build_Dn(self):
+        """
+            Dense discriminator structure
+        """
+        model = Sequential()
+        model.add(Dense(3000)) 
+        model.add(LeakyReLU())
+        model.add(Dense(3000)) 
+        model.add(LeakyReLU()) 
+        model.add(Dense(1))  
 
-            # Select a random half of signals
-            idx = np.random.randint(0, X_train.shape[0], batch_size)
-            thss = X_train[idx]
+        model.summary()
 
-            # Sample noise and generate a batch of new signals
-            noise = np.random.normal(0, 1, (batch_size, self.latent_dim))
-            gen_thss = self.generator.predict(noise)
+        n = Input(shape=(self.latentNdim,))
+        D_n = model(n)
+
+        return Model(n,D_n)
+
+    def build_Ds(self):
+        """
+            Dense discriminator structure
+        """
+        model = Sequential()
+        model.add(Dense(3000)) 
+        model.add(LeakyReLU())
+        model.add(Dense(3000)) 
+        model.add(LeakyReLU())
+        model.add(Dense(1))  
+
+        model.summary()
+
+        s = Input(shape=(self.latentSdim,))
+        D_s = model(s)
+
+        return Model(s,D_s)
 
             # Train the discriminator (real classified as ones and generated as zeros)
             d_loss_real = self.discriminator.train_on_batch(thss, valid)
