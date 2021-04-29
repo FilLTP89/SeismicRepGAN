@@ -386,44 +386,86 @@ class GiorgiaGAN():
 
         return Model(s,D_s)
 
-            # Train the discriminator (real classified as ones and generated as zeros)
-            d_loss_real = self.discriminator.train_on_batch(thss, valid)
-            d_loss_fake = self.discriminator.train_on_batch(gen_thss, fake)
-            d_loss = 0.5 * np.add(d_loss_real, d_loss_fake)
+
+    def train(self, epochs, batchSize=128, save_interval=50):
+
+        # Load the dataset
+        Xtrn,  Xvld, params_trn, params_vld, Ctrn, Cvld, Strn, Svld, Ntrn, Nvld = mdof.load_data()
+
+        # Adversarial ground truths
+        valid = -np.ones((batch_size, 1))
+        fake =  np.ones((batch_size, 1))
+        dummy = np.zeros((batch_size, 1)) # Dummy gt for gradient penalty
+
+        for epoch in range(epochs):
+
+            for _ in range(self.n_critic):
+
+                # ---------------------
+                #  Train Discriminator
+                # ---------------------
+
+                # Select a random batch of images
+                idx = np.random.randint(0, Xtrn.shape[0], batchSize)
+                realX = Xtrn[idx]
+                
+                # Sample noise as generator input
+                realZ = np.random.normal(0, 1, (batchSize, self.latentZdim))
+
+                # Train Discriminator
+                LadvD = self.RepGANcritic.train_on_batch([realX, realZ],
+                    [valid,fake,valid,fake,valid,fake,valid,fake])
+                
+                # Clip critic weights
+                for l in self.Dx.layers:
+                    weights = l.get_weights()
+                    weights = [np.clip(w, -self.clipValue, self.clipValue) for w in weights]
+                    l.set_weights(weights)
+                for l in self.Dc.layers:
+                    weights = l.get_weights()
+                    weights = [np.clip(w, -self.clipValue, self.clipValue) for w in weights]
+                    l.set_weights(weights)
+                for l in self.Ds.layers:
+                    weights = l.get_weights()
+                    weights = [np.clip(w, -self.clipValue, self.clipValue) for w in weights]
+                    l.set_weights(weights)
+                for l in self.Dn.layers:
+                    weights = l.get_weights()
+                    weights = [np.clip(w, -self.clipValue, self.clipValue) for w in weights]
+                    l.set_weights(weights)
+
 
             # ---------------------
             #  Train Generator
             # ---------------------
 
-            # Train the generator (wants discriminator to mistake signals as real)
-            g_loss = self.combined.train_on_batch(noise, valid)
+            LadvG = self.RepGANgenerative.train_on_batch([realX,realZ],
+                    [valid,fake,valid,fake,valid,fake,valid,fake,
+                     realX,realC,realS])
+
 
             # Plot the progress
-            print ("%d [D loss: %f, acc.: %.2f%%] [G loss: %f]" % (epoch, d_loss[0], 100*d_loss[1], g_loss))
+    # def RepGAN_loss(true, pred):
 
-            # If at save interval => save generated signal samples
-            if epoch % save_interval == 0:
-                self.save_thss(epoch)
+    #     # Adversarial part of RepGAN loss
+    #     Adv_c = tf.keras.losses.BinaryCrossentropy(c_true,c_pred)
+    #     Adv_n = tf.keras.losses.BinaryCrossentropy(n_true,n_pred)
+    #     Adv_s = tf.keras.losses.BinaryCrossentropy(s_true,s_pred)
+    #     Adv_X = tf.keras.losses.BinaryCrossentropy(X_true,X_pred)
+    #     Adv_loss = Adv_c + Adv_s + Adv_n + Adv_X
 
-    def save_thss(self, epoch):
-        r, c = 5, 5
-        noise = np.random.normal(0, 1, (r * c, self.latent_dim))
-        gen_thss = self.generator.predict(noise)
+    #     # Reconstruction part of RepGAN loss
+    #     Rec_X = -np.linalg.norm([X_true,X_pred])
+    #     Rec_c = -tf.keras.losses.CategoricalCrossentropy(c_true,c_pred)
+    #     Rec_s = gaussian_nll(s_true,s_pred)
+    #     Rec_loss = Rec_loss = Rec_c + Rec_s + Rec_X
 
-        # Rescale signals 0 - 1
-        gen_thss = 0.5 * gen_thss + 0.5
+    #     # RepGAN loss
+    #     RepGAN_loss = Adv_loss + Rec_loss
 
-        fig, axs = plt.subplots(r, c)
-        cnt = 0
-        for i in range(r):
-            for j in range(c):
-                axs[i,j].imshow(gen_thss[cnt, :,:,0], cmap='gray')
-                axs[i,j].axis('off')
-                cnt += 1
-        fig.savefig("signals/mnist_%d.png" % epoch)
-        plt.close()
+    #     return RepGAN_loss
 
 
 if __name__ == '__main__':
     dcgan = GiorgiaGAN()
-    dcgan.train(epochs=4000, batch_size=32, save_interval=50)
+    dcgan.train(epochs=4000, batchSize=32, save_interval=50)
