@@ -181,9 +181,77 @@ class GiorgiaGAN():
                                         optimizer=rmsprop_optimizer,
                                         loss_weights=[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1])
 
+    def build_Fx(self):
+        """
+            Conv1D Fx structure
+        """
         model = Sequential()
+        for n in range(self.nlayers):
+            model.add(Conv1D(self.latentZdim*self.stride**self.nlayers-n,
+                self.kernel,self.stride,padding="same",activation="tanh"))
+            model.add(LeakyReLU(alpha=0.5))
+            model.add(BatchNormalization())
+        
+        #model.add(Conv1D(self.latentZdim,self.kernel,1,padding="same"))
+        model.add(Flatten())
+        model.add(Dense(self.latentZdim))
+        model.summary()
 
-        model.add(Conv1D(32, kernel_size=3, strides=2, input_shape=self.ths_shape, padding="same"))
+        X = Input(shape=(self.Xsize,self.nXchannels))
+        z = model(X)
+
+        # variable s
+        mu = Dense(self.latentSdim)(z[self.latentSidx])
+        log_var = Dense(self.latentSdim)(z[self.latentSidx])
+
+        mu = BatchNormalization(mu)
+        log_var = BatchNormalization(log_var)
+
+        s = merge([mu, log_var],
+            mode=lambda p: p[0] + K.random_normal(K.shape(p[0])) * K.exp(p[1] / 2),
+            output_shape=lambda p: p[0])
+
+        # variable c
+        c = Dense(self.latentCdim, activation='softmax')(z[self.latentCidx])
+        c = BatchNormalization(c)
+        
+        # variable n
+        n = Dense(self.latentNdim)(z[self.latentNidx])
+        n = BatchNormalization(n)
+
+        # concatenation of variables c, s and n
+        z = Input(shape=(self.latentZdim,))
+        z[self.latentCidx] = c
+        z[self.latentSidx] = s
+        z[self.latentNidx] = n
+
+        return Model(X,z) 
+
+    def build_Gz(self):
+        """
+            Conv1D Gz structure
+        """
+        model = Sequential()          
+        model.add(Dense(self.Zsize*self.latentZdim,
+            activation="tanh",
+            input_dim=self.latentZdim,
+            use_bias=False))
+        model.add(Reshape((self.Zsize,self.latentZdim)))
+        model.add(BatchNormalization())
+        for n in range(self.Xsize//self.Zsize):
+            model.add(Conv1DTranspose(self.latentZdim//self.stride**n,
+                self.kernel,self.stride,padding="same",activation="relu"))
+            model.add(BatchNormalization())
+        
+        model.add(Conv1DTranspose(1,self.kernel,1,padding="same"))
+
+        model.summary()
+
+        z = Input(shape=(self.latentZdim,))
+        X = model(z)
+
+        return Module(z,X)
+        
     def build_Dx(self):
         """
             Conv1D discriminator structure
