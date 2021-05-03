@@ -1,10 +1,11 @@
 from __future__ import print_function, division
 
 #from keras.datasets import mnist
-
-from keras.layers import Input, Dense, Reshape, Flatten, Dropout
+import keras.layers as layers
+from keras.layers import Input, Dense, Reshape, Flatten, Dropout 
+from keras.layers import Lambda, Concatenate, merge
 from keras.layers import BatchNormalization, Activation, ZeroPadding1D
-from keras.layers.advanced_activations import LeakyReLU
+from keras.layers.advanced_activations import LeakyReLU, Softmax
 from keras.layers.convolutional import UpSampling1D, Conv1D
 from keras.models import Sequential, Model
 from keras.optimizers import Adam, RMSprop
@@ -32,6 +33,15 @@ class RandomWeightedAverage(tf.keras.layers.Layer):
         alpha = tf.random_uniform((32, 1, 1, 1))
         return (alpha * inputs[0]) + ((1 - alpha) * inputs[1])
 
+class Sampling(layers.Layer):
+    """Uses (z_mean, z_log_var) to sample z, the vector encoding a digit."""
+
+    def call(self, inputs):
+        z_mean, z_log_var = inputs
+        batch = tf.shape(z_mean)[0]
+        dim = tf.shape(z_mean)[1]
+        epsilon = tf.keras.backend.random_normal(shape=(batch, dim))
+        return z_mean + tf.exp(0.5 * z_log_var) * epsilon
 
 class GiorgiaGAN():
     """
@@ -46,10 +56,13 @@ class GiorgiaGAN():
         self.kernel = 3
         self.nlayers = 5
         self.Xsize = 1024
-        self.Zsize = self.Xsize//(self.stride**self.nlayers)
         self.nXchannels = 2
         self.Xshape = (self.Xsize, self.nXchannels)
-        self.latentZdim = 256
+
+        self.latentZdim = 2048
+        self.Zsize = self.Xsize//(self.stride**self.nlayers)
+        self.nZchannels = self.latentZdim/self.Zsize
+
         self.latentCidx = list(range(5))
         self.latentSidx = list(range(5,7))
         self.latentNidx = list(range(7,self.latentZdim))
@@ -64,7 +77,9 @@ class GiorgiaGAN():
         self.ID_pb_string = 'BC'
         self.case = 'train_model'
 
-        # assert self.latentZdim >= self.stride**(self.Xsize//self.Zsize)
+        assert self.nZchannels >= 1
+        assert self.nZchannels >= self.stride**self.nlayers
+        assert self.latentZdim >= self.Xsize//(self.stride**self.nlayers)
 
         """
             Optimizers
@@ -271,67 +286,107 @@ class GiorgiaGAN():
         """
             Conv1D Fx structure
         """
+        
+        X = Input(shape=self.Xshape)
+
+        # for n in range(self.nlayers):
+        #     X = Conv1D((self.latentZdim/self.Zsize)*self.stride**(-self.nlayers+n),
+        #         self.kernel,self.stride,padding="same",
+        #         input_shape=self.Xshape,data_format="channels_last")(X)
+        #     X = BatchNormalization(momentum=0.95)(inputs=X)
+        #     X = LeakyReLU(alpha=0.1)(X)
+        #     X = Dropout(rate=0.2)(X)
+        # z = Flatten()(X)
+        # z = Dense(self.latentZdim)(z)
+        # z = BatchNormalization(momentum=0.95)(inputs=z)
+        # z = LeakyReLU(alpha=0.1)(z)
+
+
         model = Sequential()
         for n in range(self.nlayers):
-            model.add(Conv1D(self.latentZdim*self.stride**self.nlayers-n,
-                self.kernel,self.stride,padding="same",activation="tanh"))
-            model.add(LeakyReLU(alpha=0.5))
-            model.add(BatchNormalization())
+            model.add(Conv1D((self.latentZdim/self.Zsize)*self.stride**(-self.nlayers+n),
+                self.kernel,self.stride,padding="same",
+                input_shape=self.Xshape,data_format="channels_last"))
+            model.add(BatchNormalization(momentum=0.95))
+            model.add(LeakyReLU(alpha=0.1))
+            model.add(Dropout(0.2))
         
-        #model.add(Conv1D(self.latentZdim,self.kernel,1,padding="same"))
         model.add(Flatten())
         model.add(Dense(self.latentZdim))
-        #model.summary()
-
-        X = Input(shape=(self.Xsize,self.nXchannels))
+        model.add(BatchNormalization(momentum=0.95))
+        model.add(LeakyReLU(alpha=0.1))
+        model.summary()
+        
         z = model(X)
+        
+               
 
-        # variable s
-        mu = Dense(self.latentSdim)(z[self.latentSidx])
-        log_var = Dense(self.latentSdim)(z[self.latentSidx])
+        # sampleS = Sequential()
+        # sampleS.add(Lambda(lambda t: t,(self.latentSidx[0]),(self.latentSidx[-1])))
 
-        mu = BatchNormalization(mu)
-        log_var = BatchNormalization(log_var)
+        # sampleC = Sequential()
+        # sampleC.add(Lambda(lambda t: t,(self.latentCidx[0]),(self.latentCidx[-1])))
 
-        s = merge([mu, log_var],
-            mode=lambda p: p[0] + K.random_normal(K.shape(p[0])) * K.exp(p[1] / 2),
-            output_shape=lambda p: p[0])
+        # sampleN = Sequential()
+        # sampleN.add(Lambda(lambda t: t,(self.latentNidx[0]),(self.latentNidx[-1])))
+
+
+        # variable s 
+        # MuS = Sequential()
+        # LVS = Sequential()
+        # MuS.add(Dense(self.latentSdim))
+        # MuS.add(BatchNormalization(momentum=0.95))
+        # LVS.add(Dense(self.latentSdim))
+        # LVS.add(BatchNormalization(momentum=0.95))
+
+        # mu = MuS(z)
+        # lv = LVS(z)
+
+        h = Dense(self.latentSdim)(z)
+        Zmu = BatchNormalization(momentum=0.95)(inputs=h)
+
+        h = Dense(self.latentSdim)(z)
+        Zlv = BatchNormalization(momentum=0.95)(inputs=h)
+
+        s = Sampling()([Zmu,Zlv])
 
         # variable c
-        c = Dense(self.latentCdim, activation='softmax')(z[self.latentCidx])
-        c = BatchNormalization(c)
+        sampleC = Sequential()
+        sampleC.add(Dense(self.latentCdim))
+        sampleC.add(BatchNormalization(momentum=0.95))
+        sampleC.add(Softmax())
+        c = sampleC(z)
         
         # variable n
-        n = Dense(self.latentNdim)(z[self.latentNidx])
-        n = BatchNormalization(n)
+        sampleN = Sequential()
+        sampleN.add(Dense(self.latentNdim))
+        sampleN.add(BatchNormalization(momentum=0.95))
+        n = sampleN(z)
 
         # concatenation of variables c, s and n
-        z = Input(shape=(self.latentZdim,))
-        z[self.latentCidx] = c
-        z[self.latentSidx] = s
-        z[self.latentNidx] = n
+        # z = Concatenate()([c,s,n])
 
-        return Model(X,z) 
+
+        return Model(X,[c,s,n])
 
     def build_Gz(self):
         """
             Conv1D Gz structure
         """
         model = Sequential()          
-        model.add(Dense(self.Zsize*self.latentZdim,
-            activation="tanh",
-            input_dim=self.latentZdim,
+        model.add(Dense(self.Zsize*self.nZchannels,input_dim=(self.latentZdim,),
             use_bias=False))
-        model.add(Reshape((self.Zsize,self.latentZdim)))
-        model.add(BatchNormalization())
+        model.add(Reshape((self.Zsize,self.nZchannels)))
+        model.add(BatchNormalization(momentum=0.95))
+        model.add(ReLU())
         for n in range(self.Xsize//self.Zsize):
             model.add(Conv1DTranspose(self.latentZdim//self.stride**n,
-                self.kernel,self.stride,padding="same",activation="relu"))
-            model.add(BatchNormalization())
+                self.kernel,self.stride,padding="same"))
+            model.add(BatchNormalization(momentum=0.95))
+            model.add(ReLU())
         
         model.add(Conv1DTranspose(1,self.kernel,1,padding="same"))
-
-        #model.summary()
+        model.summary()
 
         z = Input(shape=(self.latentZdim,))
         X = model(z)
@@ -349,15 +404,15 @@ class GiorgiaGAN():
         model.add(Dropout(0.25))
         model.add(Conv1D(64,self.kernel,self.stride,padding="same"))
         model.add(ZeroPadding1D(padding=((0,1))))
-        model.add(BatchNormalization(momentum=0.8))
+        model.add(BatchNormalization(momentum=0.95))
         model.add(LeakyReLU(alpha=0.2))
         model.add(Dropout(0.25))
         model.add(Conv1D(128,self.kernel,self.stride,padding="same"))
-        model.add(BatchNormalization(momentum=0.8))
+        model.add(BatchNormalization(momentum=0.95))
         model.add(LeakyReLU(alpha=0.0))
         model.add(Dropout(0.25))
         model.add(Conv1D(256,self.kernel,strides=1,padding="same"))
-        model.add(BatchNormalization(momentum=0.8))
+        model.add(BatchNormalization(momentum=0.95))
         model.add(LeakyReLU(alpha=0.2))
         model.add(Dropout(0.25))
         model.add(Flatten())
@@ -368,9 +423,9 @@ class GiorgiaGAN():
         # model.add(Conv1D(128,self.kernel,self.stride,
         #     input_shape=self.Xshape,padding="same"))
         # model.add(LeakyReLU(alpha=0.2))
-        # model.add(BatchNormalization(momentum=0.8))
+        # model.add(BatchNormalization(momentum=0.95))
         # model.add(Dense(1024,activation='LeakyReLU'))
-        # model.add(BatchNormalization(momentum=0.8))
+        # model.add(BatchNormalization(momentum=0.95))
         # model.add(Dense(1,activation='sigmoid'))
 
         #model.summary()
