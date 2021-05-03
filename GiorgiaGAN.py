@@ -7,23 +7,31 @@ from keras.layers import BatchNormalization, Activation, ZeroPadding1D
 from keras.layers.advanced_activations import LeakyReLU
 from keras.layers.convolutional import UpSampling1D, Conv1D
 from keras.models import Sequential, Model
-from keras.optimizers import Adam
+from keras.optimizers import Adam, RMSprop
 from scipy.stats import entropy
 from numpy.linalg import norm
 import MDOFload as mdof
-
 import matplotlib.pyplot as plt
+import tensorflow as tf
+import visualkeras
 
 import sys
 
 import numpy as np
 
 
-class RandomWeightedAverage(_Merge):
+#class RandomWeightedAverage(_Merge):
+    #"""Provides a (random) weighted average between real and generated signal samples"""
+    #def _merge_function(self, inputs):
+    #    alpha = K.random_uniform((32, 1, 1, 1))
+    #    return (alpha * inputs[0]) + ((1 - alpha) * inputs[1])
+
+class RandomWeightedAverage(tf.keras.layers.Layer):
     """Provides a (random) weighted average between real and generated signal samples"""
-    def _merge_function(self, inputs):
-        alpha = K.random_uniform((32, 1, 1, 1))
+    def _merge_function(self, inputs, **kwargs):
+        alpha = tf.random_uniform((32, 1, 1, 1))
         return (alpha * inputs[0]) + ((1 - alpha) * inputs[1])
+
 
 class GiorgiaGAN():
     """
@@ -117,6 +125,36 @@ class GiorgiaGAN():
         # Discriminator determines validity of the real and fake N
         (fakeNcritic, realNcritic) = self.Dn(fakeN), self.Dn(realN)
 
+        # # Use Python partial to provide loss function with additional
+        # # 'averaged_samples' argument
+        # partial_gp_loss = partial(self.gradient_penalty_loss,
+        #                   averaged_samples=interpolated_img)
+        # partial_gp_loss.__name__ = 'gradient_penalty' # Keras requires function names
+
+
+        # # Construct weighted average between real and fake X
+        # interpolatedX = RandomWeightedAverage()([realX, fakeX])
+        # # Determine validity of weighted sample X
+        # validity_interpolatedX = self.critic(interpolatedX)
+
+        # # Construct weighted average between real and fake c
+        # interpolatedC = RandomWeightedAverage()([realC, fakeC])
+        # # Determine validity of weighted sample C
+        # validity_interpolatedC = self.critic(interpolatedC)
+
+        # # Construct weighted average between real and fake S
+        # interpolatedS = RandomWeightedAverage()([realS, fakeS])
+        # # Determine validity of weighted sample S
+        # validity_interpolatedS = self.critic(interpolatedS)
+
+        # # Construct weighted average between real and fake N
+        # interpolatedN = RandomWeightedAverage()([realN, fakeN])
+        # # Determine validity of weighted sample N
+        # validity_interpolatedN = self.critic(interpolatedN)
+
+
+        #self.adversarialCritic = Model(inputs=[real_img, z_disc],
+        #                    outputs=[valid, fake, validity_interpolated])
 
         self.RepGANcritic = Model(inputs  = [realX,realZ],
             outputs = [realXcritic,fakeXcritic,realCcritic,fakeCcritic,
@@ -181,6 +219,17 @@ class GiorgiaGAN():
                                         optimizer=rmsprop_optimizer,
                                         loss_weights=[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1])
 
+        ## For the combined model we will only train the generator
+        #self.discriminator.trainable = False
+
+        ## The discriminator takes generated signals as input and determines validity
+        #valid = self.discriminator(ths)
+
+        ## The combined model  (stacked generator and discriminator)
+        ## Trains the generator to fool the discriminator
+        #self.combined = Model(z, valid)
+        #self.combined.compile(loss='binary_crossentropy', optimizer=optimizer)
+
     def gradient_penalty_loss(self, y_true, y_pred, averaged_samples):
         """
         Computes gradient penalty based on prediction and weighted real / fake samples
@@ -232,7 +281,7 @@ class GiorgiaGAN():
         #model.add(Conv1D(self.latentZdim,self.kernel,1,padding="same"))
         model.add(Flatten())
         model.add(Dense(self.latentZdim))
-        model.summary()
+        #model.summary()
 
         X = Input(shape=(self.Xsize,self.nXchannels))
         z = model(X)
@@ -282,7 +331,7 @@ class GiorgiaGAN():
         
         model.add(Conv1DTranspose(1,self.kernel,1,padding="same"))
 
-        model.summary()
+        #model.summary()
 
         z = Input(shape=(self.latentZdim,))
         X = model(z)
@@ -324,7 +373,7 @@ class GiorgiaGAN():
         # model.add(BatchNormalization(momentum=0.8))
         # model.add(Dense(1,activation='sigmoid'))
 
-        model.summary()
+        #model.summary()
 
         X = Input(shape=(self.Xshape))
         D_X = model(X)
@@ -343,7 +392,7 @@ class GiorgiaGAN():
         model.add(LeakyReLU())
         model.add(Dense(1))  
 
-        model.summary()
+        #model.summary()
 
         c = Input(shape=(self.latentCdim,))
         D_c = model(c)
@@ -361,7 +410,7 @@ class GiorgiaGAN():
         model.add(LeakyReLU()) 
         model.add(Dense(1))  
 
-        model.summary()
+        #model.summary()
 
         n = Input(shape=(self.latentNdim,))
         D_n = model(n)
@@ -379,7 +428,7 @@ class GiorgiaGAN():
         model.add(LeakyReLU())
         model.add(Dense(1))  
 
-        model.summary()
+        #model.summary()
 
         s = Input(shape=(self.latentSdim,))
         D_s = model(s)
@@ -445,6 +494,31 @@ class GiorgiaGAN():
 
 
             # Plot the progress
+            print ("{} [D loss: {}] [G loss: {}]" % (epoch, LadvD, LadvG))
+
+            # If at save interval => save generated image samples
+            # if epoch % sample_interval == 0:
+            #     self.sampleX(epoch)
+
+    # def sampleX(self, epoch):
+    #     r, c = 5, 5
+    #     noise = np.random.normal(0, 1, (r * c, self.latent_dim))
+    #     gen_imgs = self.generator.predict(noise)
+
+    #     # Rescale images 0 - 1
+    #     gen_imgs = 0.5 * gen_imgs + 0.5
+
+    #     fig, axs = plt.subplots(r, c)
+    #     cnt = 0
+    #     for i in range(r):
+    #         for j in range(c):
+    #             axs[i,j].imshow(gen_imgs[cnt, :,:,0], cmap='gray')
+    #             axs[i,j].axis('off')
+    #             cnt += 1
+    #     fig.savefig("images/mnist_%d.png" % epoch)
+    #     plt.close()
+
+
     # def RepGAN_loss(true, pred):
 
     #     # Adversarial part of RepGAN loss
@@ -469,3 +543,5 @@ class GiorgiaGAN():
 if __name__ == '__main__':
     dcgan = GiorgiaGAN()
     dcgan.train(epochs=4000, batchSize=32, save_interval=50)
+
+visualkeras.layered_view(GiorgiaGAN)
