@@ -116,15 +116,21 @@ class GiorgiaGAN():
         # Real
         realX = Input(shape=self.Xshape) # X data
         realZ = Input(shape=(self.latentZdim,))
-        realC = realZ[self.latentCidx] # C  
-        realS = realZ[self.latentSidx] # S 
-        realN = realZ[self.latentNidx] # N 
+
+        realC = np.zeros((self.batchSize,self.latentCdim))
+        rand_idx = np.random.randint(0,self.latentCdim,self.batchSize)
+        realC[np.arange(self.batchSize),rand_idx]=1.0
+
+        realS = np.random.normal(loc=0.0, scale=0.5, size=(self.batchSize,self.latentSdim))
+
+        realN = np.random.normal(loc=0.0, scale=0.3, size=(self.batchSize,self.latentNdim))
+
+        #realC = realZ[self.latentCidx] # C  
+        #realS = realZ[self.latentSidx] # S 
+        #realN = realZ[self.latentNidx] # N 
 
         # Fake
-        fakeZ = self.Fx(realX) # encoded z = Fx(X)
-        fakeC = fakeZ[self.latentCidx] # C = Fx(X)|C 
-        fakeS = fakeZ[self.latentSidx] # S = Fx(X)|S
-        fakeN = fakeZ[self.latentNidx] # N = Fx(X)|N
+        (fakeC,fakeS,fakeN) = self.Fx(realX) # encoded z = Fx(X)
         fakeX = self.Gz(realZ) # fake X = Gz(Fx(X))
         
 
@@ -196,10 +202,7 @@ class GiorgiaGAN():
         self.Dn.trainable = False
 
         # Fake
-        fakeZ = self.Fx(realX) # encoded z = Fx(X)
-        fakeC = fakeZ[self.latentCidx] # C = Fx(X)|C 
-        fakeS = fakeZ[self.latentSidx] # S = Fx(X)|S
-        fakeN = fakeZ[self.latentNidx] # N = Fx(X)|N
+        (fakeC,fakeS,fakeN) = self.Fx(realX) # encoded z = Fx(X)
         fakeX = self.Gz(realZ) # fake X = Gz(Fx(X))
         
         # Discriminator determines validity of the real and fake X
@@ -367,7 +370,7 @@ class GiorgiaGAN():
         # z = Concatenate()([c,s,n])
 
 
-        return Model(X,[c,s,n])
+        return Model(X,(c,s,n))
 
     def build_Gz(self):
         """
@@ -379,13 +382,13 @@ class GiorgiaGAN():
         model.add(Reshape((self.Zsize,self.nZchannels)))
         model.add(BatchNormalization(momentum=0.95))
         model.add(ReLU())
-        for n in range(self.Xsize//self.Zsize):
+        for n in range(self.nlayers): #self.Xsize//self.Zsize
             model.add(Conv1DTranspose(self.latentZdim//self.stride**n,
                 self.kernel,self.stride,padding="same"))
             model.add(BatchNormalization(momentum=0.95))
             model.add(ReLU())
         
-        model.add(Conv1DTranspose(1,self.kernel,1,padding="same"))
+        model.add(Conv1DTranspose(2,self.kernel,1,padding="same"))
         model.summary()
 
         z = Input(shape=(self.latentZdim,))
