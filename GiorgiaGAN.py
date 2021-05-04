@@ -1,19 +1,19 @@
 from __future__ import print_function, division
 
-#from keras.datasets import mnist
-import keras.layers as layers
-from keras.layers import Input, Dense, Reshape, Flatten, Dropout 
-from keras.layers import Lambda, Concatenate, merge
-from keras.layers import BatchNormalization, Activation, ZeroPadding1D
-from keras.layers.advanced_activations import LeakyReLU, Softmax
-from keras.layers.convolutional import UpSampling1D, Conv1D
-from keras.models import Sequential, Model
-from keras.optimizers import Adam, RMSprop
+import tensorflow as tf
+from tensorflow import keras
+from tensorflow.keras import layers
+from tensorflow.keras.layers import Input, Dense, Reshape, Flatten, Dropout 
+from tensorflow.keras.layers import Lambda, Concatenate
+from tensorflow.keras.layers import BatchNormalization, Activation, ZeroPadding1D
+from tensorflow.keras.layers import LeakyReLU, ReLU, Softmax
+from tensorflow.keras.layers import UpSampling1D, Conv1D, Conv1DTranspose
+from tensorflow.keras.models import Sequential, Model
+from tensorflow.keras.optimizers import Adam, RMSprop
 from scipy.stats import entropy
 from numpy.linalg import norm
 import MDOFload as mdof
 import matplotlib.pyplot as plt
-import tensorflow as tf
 import visualkeras
 
 import sys
@@ -61,7 +61,7 @@ class GiorgiaGAN():
 
         self.latentZdim = 2048
         self.Zsize = self.Xsize//(self.stride**self.nlayers)
-        self.nZchannels = self.latentZdim/self.Zsize
+        self.nZchannels = self.latentZdim//self.Zsize
 
         self.latentCidx = list(range(5))
         self.latentSidx = list(range(5,7))
@@ -374,7 +374,7 @@ class GiorgiaGAN():
             Conv1D Gz structure
         """
         model = Sequential()          
-        model.add(Dense(self.Zsize*self.nZchannels,input_dim=(self.latentZdim,),
+        model.add(Dense(self.Zsize*self.nZchannels,input_dim=self.latentZdim,
             use_bias=False))
         model.add(Reshape((self.Zsize,self.nZchannels)))
         model.add(BatchNormalization(momentum=0.95))
@@ -391,7 +391,7 @@ class GiorgiaGAN():
         z = Input(shape=(self.latentZdim,))
         X = model(z)
 
-        return Module(z,X)
+        return keras.Model(z,X)
         
     def build_Dx(self):
         """
