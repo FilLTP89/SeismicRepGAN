@@ -131,6 +131,7 @@ class GiorgiaGAN():
 
         # Fake
         (fakeC,fakeS,fakeN) = self.Fx(realX) # encoded z = Fx(X)
+
         fakeX = self.Gz(realZ) # fake X = Gz(Fx(X))
         
 
@@ -218,10 +219,9 @@ class GiorgiaGAN():
         fakeNcritic = self.Dn(fakeN)
 
         # Reconstruction
+        fakeZ = Concatenate([fakeC,fakeS,fakeN])
         recX  = self.Gz(fakeZ)
-        recZ  = self.Fx(fakeX)
-        recC = recZ[self.latentCidx]
-        recS = recZ[self.latentSidx]
+        (recC,recS,_)  = self.Fx(fakeX)
 
         # The Representative GAN model
         self.RegGANgenerative = Model(input = [realX, realZ], 
@@ -370,7 +370,7 @@ class GiorgiaGAN():
         # z = Concatenate()([c,s,n])
 
 
-        return Model(X,(c,s,n))
+        return keras.Model(X,(c,s,n))
 
     def build_Gz(self):
         """
@@ -382,13 +382,13 @@ class GiorgiaGAN():
         model.add(Reshape((self.Zsize,self.nZchannels)))
         model.add(BatchNormalization(momentum=0.95))
         model.add(ReLU())
-        for n in range(self.nlayers): #self.Xsize//self.Zsize
+        for n in range(self.nlayers):
             model.add(Conv1DTranspose(self.latentZdim//self.stride**n,
                 self.kernel,self.stride,padding="same"))
             model.add(BatchNormalization(momentum=0.95))
             model.add(ReLU())
         
-        model.add(Conv1DTranspose(2,self.kernel,1,padding="same"))
+        model.add(Conv1DTranspose(self.nXchannels,self.kernel,1,padding="same"))
         model.summary()
 
         z = Input(shape=(self.latentZdim,))
@@ -436,7 +436,7 @@ class GiorgiaGAN():
         X = Input(shape=(self.Xshape))
         D_X = model(X)
 
-        return Model(X,D_X)
+        return keras.Model(X,D_X)
 
 
     def build_Dc(self):
@@ -455,7 +455,7 @@ class GiorgiaGAN():
         c = Input(shape=(self.latentCdim,))
         D_c = model(c)
 
-        return Model(c,D_c)
+        return keras.Model(c,D_c)
 
     def build_Dn(self):
         """
@@ -473,7 +473,7 @@ class GiorgiaGAN():
         n = Input(shape=(self.latentNdim,))
         D_n = model(n)
 
-        return Model(n,D_n)
+        return keras.Model(n,D_n)
 
     def build_Ds(self):
         """
@@ -491,7 +491,7 @@ class GiorgiaGAN():
         s = Input(shape=(self.latentSdim,))
         D_s = model(s)
 
-        return Model(s,D_s)
+        return keras.Model(s,D_s)
 
 
     def train(self, epochs, batchSize=128, save_interval=50):
