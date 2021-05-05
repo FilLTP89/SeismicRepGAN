@@ -2,15 +2,14 @@ from __future__ import print_function, division
 
 import tensorflow as tf
 from tensorflow import keras
-from tensorflow.keras import layers
+from tensorflow.keras import layers, Layer, Sequential, Model
 from tensorflow.keras.layers import Input, Dense, Reshape, Flatten, Dropout 
 from tensorflow.keras.layers import Lambda, Concatenate
 from tensorflow.keras.layers import BatchNormalization, Activation, ZeroPadding1D
 from tensorflow.keras.layers import LeakyReLU, ReLU, Softmax
 from tensorflow.keras.layers import UpSampling1D, Conv1D, Conv1DTranspose
-from tensorflow.keras.models import Sequential, Model
+
 from tensorflow.keras.optimizers import Adam, RMSprop
-from scipy.stats import entropy
 from numpy.linalg import norm
 import MDOFload as mdof
 import matplotlib.pyplot as plt
@@ -27,13 +26,13 @@ import numpy as np
     #    alpha = K.random_uniform((32, 1, 1, 1))
     #    return (alpha * inputs[0]) + ((1 - alpha) * inputs[1])
 
-class RandomWeightedAverage(tf.keras.layers.Layer):
+class RandomWeightedAverage(Layer):
     """Provides a (random) weighted average between real and generated signal samples"""
     def _merge_function(self, inputs, **kwargs):
         alpha = tf.random_uniform((32, 1, 1, 1))
         return (alpha * inputs[0]) + ((1 - alpha) * inputs[1])
 
-class Sampling(layers.Layer):
+class Sampling(Layer):
     """Uses (z_mean, z_log_var) to sample z, the vector encoding a digit."""
 
     def call(self, inputs):
@@ -43,12 +42,17 @@ class Sampling(layers.Layer):
         epsilon = tf.keras.backend.random_normal(shape=(batch, dim))
         return z_mean + tf.exp(0.5 * z_log_var) * epsilon
 
+
+
+class RepGAN(Model):
+
+
+
 class GiorgiaGAN():
     """
         Flexible implementation of GAN based auto-Fx
     """
     def __init__(self):
-
         """
             Setup
         """
@@ -228,7 +232,7 @@ class GiorgiaGAN():
         (recC,recS,_)  = self.Fx(fakeX)
 
         # The Representative GAN model
-        self.RegGANgenerative = Model(input = [realX, realZ], 
+        self.RegGANgenerative = RepGAN(input = [realX, realZ], 
             output = [realXcritic,fakeXcritic,realCcritic,fakeCcritic,
             realScritic,fakeScritic,realNcritic,fakeNcritic,
             recX,recC,recS])
@@ -241,14 +245,14 @@ class GiorgiaGAN():
                                         optimizer=rmsprop_optimizer,
                                         loss_weights=[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1])
 
-        # Compile the model
-        self.RepGANgenerative.compiledoubleopt(realXoptimizer = rmsprop_optimizer,fakeXoptimizer = rmsprop_optimizer,
-                                               realCoptimizer = rmsprop_optimizer,fakeCoptimizer = rmsprop_optimizer,
-                                               realSoptimizer = rmsprop_optimizer,fakeSoptimizer = rmsprop_optimizer,
-                                               realNoptimizer = rmsprop_optimizer,fakeNoptimizer = rmsprop_optimizer,
-                                               recXoptimizer = adam_optimizer,recCoptimizer = adam_optimizer,
-                                               recSoptimizer = adam_optimizer,Advloss = wasserstein_loss, 
-                                               recSloss = gaussian_nll)
+        # # Compile the model
+        # self.RepGANgenerative.compiledoubleopt(realXoptimizer = rmsprop_optimizer,fakeXoptimizer = rmsprop_optimizer,
+        #                                        realCoptimizer = rmsprop_optimizer,fakeCoptimizer = rmsprop_optimizer,
+        #                                        realSoptimizer = rmsprop_optimizer,fakeSoptimizer = rmsprop_optimizer,
+        #                                        realNoptimizer = rmsprop_optimizer,fakeNoptimizer = rmsprop_optimizer,
+        #                                        recXoptimizer = adam_optimizer,recCoptimizer = adam_optimizer,
+        #                                        recSoptimizer = adam_optimizer,Advloss = wasserstein_loss, 
+        #                                        recSloss = gaussian_nll)
 
 
         ## For the combined model we will only train the generator
