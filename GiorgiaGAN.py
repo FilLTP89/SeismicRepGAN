@@ -136,16 +136,20 @@ class GiorgiaGAN():
         
 
         # Discriminator determines validity of the real and fake X
-        (fakeXcritic, realXcritic) = self.Dx(fakeX), self.Dx(realX)
+        fakeXcritic = self.Dx(fakeX)
+        realXcritic = self.Dx(realX)
 
         # Discriminator determines validity of the real and fake C
-        (fakeCcritic, realCcritic) = self.Dc(fakeC), self.Dc(realC)
+        fakeCcritic = self.Dc(fakeC)
+        realCcritic = self.Dc(realC)
 
         # Discriminator determines validity of the real and fake S
-        (fakeScritic, realScritic) = self.Ds(fakeS), self.Ds(realS)
+        fakeScritic = self.Ds(fakeS)
+        realScritic = self.Ds(realS)
 
         # Discriminator determines validity of the real and fake N
-        (fakeNcritic, realNcritic) = self.Dn(fakeN), self.Dn(realN)
+        fakeNcritic = self.Dn(fakeN)
+        realNcritic = self.Dn(realN)
 
         # # Use Python partial to provide loss function with additional
         # # 'averaged_samples' argument
@@ -180,8 +184,8 @@ class GiorgiaGAN():
 
         self.RepGANcritic = Model(inputs  = [realX,realZ],
             outputs = [realXcritic,fakeXcritic,realCcritic,fakeCcritic,
-            realScritic,fakeScritic,realNcritic,fakeNcritic])        
-        
+            realScritic,fakeScritic,realNcritic,fakeNcritic])       
+
 
         self.RepGANcritic.compile(loss=[self.wasserstein_loss,self.wasserstein_loss,
             self.wasserstein_loss,self.wasserstein_loss, self.wasserstein_loss,self.wasserstein_loss,
@@ -219,7 +223,7 @@ class GiorgiaGAN():
         fakeNcritic = self.Dn(fakeN)
 
         # Reconstruction
-        fakeZ = Concatenate([fakeC,fakeS,fakeN])
+        fakeZ = Concatenate(axis=1)([fakeC,fakeS,fakeN])
         recX  = self.Gz(fakeZ)
         (recC,recS,_)  = self.Fx(fakeX)
 
@@ -237,6 +241,16 @@ class GiorgiaGAN():
                                         optimizer=rmsprop_optimizer,
                                         loss_weights=[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1])
 
+        # Compile the model
+        self.RepGANgenerative.compiledoubleopt(realXoptimizer = rmsprop_optimizer,fakeXoptimizer = rmsprop_optimizer,
+                                               realCoptimizer = rmsprop_optimizer,fakeCoptimizer = rmsprop_optimizer,
+                                               realSoptimizer = rmsprop_optimizer,fakeSoptimizer = rmsprop_optimizer,
+                                               realNoptimizer = rmsprop_optimizer,fakeNoptimizer = rmsprop_optimizer,
+                                               recXoptimizer = adam_optimizer,recCoptimizer = adam_optimizer,
+                                               recSoptimizer = adam_optimizer,Advloss = wasserstein_loss, 
+                                               recSloss = gaussian_nll)
+
+
         ## For the combined model we will only train the generator
         #self.discriminator.trainable = False
 
@@ -248,6 +262,30 @@ class GiorgiaGAN():
         #self.combined = Model(z, valid)
         #self.combined.compile(loss='binary_crossentropy', optimizer=optimizer)
 
+    def compiledoubleopt(self,realXoptimizer,fakeXoptimizer,realCoptimizer,
+                         fakeCoptimizer,realSoptimizer,fakeSoptimizer,realNoptimizer,
+                         fakeNoptimizer,recXoptimizer,recCoptimizer,recSoptimizer,
+                         Advloss,recSloss):
+
+        super(RepGANgenerative, self).compiledoubleopt()
+        self.realXoptimizer = realXoptimizer
+        self.fakeXoptimizer = fakeXoptimizer
+        self.realCoptimizer = realCoptimizer
+        self.fakeCoptimizer = fakeCoptimizer
+        self.realSoptimizer = realSoptimizer
+        self.fakeSoptimizer = fakeSoptimizer
+        self.realNoptimizer = realNoptimizer
+        self.fakeNoptimizer = fakeNoptimizer
+        self.recXoptimizer = recXoptimizer
+        self.recCoptimizer = recCoptimizer
+        self.recSoptimizer = recSoptimizer
+
+        self.Advloss = Advloss
+        self.recSloss = recSloss
+        self.recXloss = keras.losses.MeanSquareError()
+        self.recCloss = keras.losses.BinaryCrossentropy()
+
+    
     def gradient_penalty_loss(self, y_true, y_pred, averaged_samples):
         """
         Computes gradient penalty based on prediction and weighted real / fake samples
