@@ -1,4 +1,19 @@
+# -*- coding: utf-8 -*-
+#!/usr/bin/env python3
+u"""General informations"""
+__author__ = "Filippo Gatti"
+__copyright__ = "Copyright 2020, CentraleSupélec (MSSMat UMR CNRS 8579)"
+__credits__ = ["Filippo Gatti"]
+__license__ = "GPL"
+__version__ = "1.0.1"
+__maintainer__ = "Filippo Gatti"
+__email__ = "filippo.gatti-centralesupelec.fr"
+__status__ = "Beta"
+
+
 import sys
+import argparse
+from os.path import join as opj
 import numpy as np
 import tensorflow as tf
 from tensorflow import keras
@@ -13,6 +28,37 @@ from numpy.linalg import norm
 import MDOFload as mdof
 import matplotlib.pyplot as plt
 import visualkeras
+
+
+def ParseOptions():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--epochs",type=int,default=1000,help='Number of epochs')
+    parser.add_argument("--kernel",type=int,default=3,help='CNN kernel size')
+    parser.add_argument("--stride",type=int,default=2,help='CNN stride')
+    parser.add_argument("--nCnnLayers",type=int,default=5,help='Number of CNN layers per Coupling Layer')
+    parser.add_argument("--Xsize",type=int,default=1024,help='Data space size')
+    parser.add_argument("--nXchannels",type=int,default=2,help="Number of data channels")
+    parser.add_argument("--latentZdim",type=int,default=2048,help="Latent space dimension")
+    parser.add_argument("--batchSize",type=int,default=128,help='input batch size')
+    parser.add_argument("--nCritic",type=int,default=5,help='number of discriminator training steps')
+    parser.add_argument("--clipValue",type=float,default=0.01,help='clip weight for WGAN')
+    parser.add_argument("--dataroot",type=str,default="/gpfs/workdir/invsem07/damaged_1_8P",help="Data root folder")
+    parser.add_argument("--id",type=str,default="U",help="case id")
+    parser.add_argument("--pb",type=str,default="BC",help="case pb")
+
+    options = parser.parse_args().__dict__
+
+    options['Xshape'] = (options['Xsize'], options['nXchannels'])
+    options['Zsize']  = options['Xsize']//(options['stride']**options['nCnnLayers'])
+    options['nZchannels'] = options['latentZdim']//options['Zsize']
+    options['latentCidx'] = list(range(5))
+    options['latentSidx'] = list(range(5,7))
+    options['latentNidx'] = list(range(7,options['latentZdim']))
+    options['latentCdim'] = len(options['latentCidx'])
+    options['latentSdim'] = len(options['latentSidx'])
+    options['latentNdim'] = len(options['latentNidx'])
+
+    return options
 
 class RandomWeightedAverage(Layer):
     """Provides a (random) weighted average between real and generated signal samples"""
@@ -42,20 +88,19 @@ def WassersteinGeneratorLoss(fake_img):
     return -tf.reduce_mean(fake_img)
 
 
-class GANMonitor(keras.callbacks.Callback):
-    def __init__(self, num_img=6, latent_dim=128):
-        self.num_img = num_img
-        self.latent_dim = latent_dim
+# class GANMonitor(keras.callbacks.Callback):
+#     def __init__(self,num_img=6,latent_dim=128):
+#         self.num_img = num_img
+#         self.latent_dim = latent_dim
 
-    def on_epoch_end(self, epoch, logs=None):
-        random_latent_vectors = tf.random.normal(shape=(self.num_img, self.latent_dim))
-        generated_images = self.model.generator(random_latent_vectors)
-        generated_images = (generated_images * 127.5) + 127.5
+#     def on_epoch_end(self, epoch, logs=None):
+#         random_latent_vectors = tf.random.normal(shape=(self.num_img, self.latent_dim))
+#         generated_images = self.model.generator(random_latent_vectors)
 
-        for i in range(self.num_img):
-            img = generated_images[i].numpy()
-            img = keras.preprocessing.image.array_to_img(img)
-            img.save("generated_img_{i}_{epoch}.png".format(i=i, epoch=epoch))
+#         for i in range(self.num_img):
+#             img = generated_images[i].numpy()
+#             img = keras.preprocessing.image.array_to_img(img)
+#             img.save("generated_img_{i}_{epoch}.png".format(i=i, epoch=epoch))
 
 
 def GaussianNLL(true, pred):
@@ -85,8 +130,8 @@ class RepGAN(Model):
         self.__dict__.update(options)
 
         assert self.nZchannels >= 1
-        assert self.nZchannels >= self.stride**self.nlayers
-        assert self.latentZdim >= self.Xsize//(self.stride**self.nlayers)
+        assert self.nZchannels >= self.stride**self.nCnnLayers
+        assert self.latentZdim >= self.Xsize//(self.stride**self.nCnnLayers)
 
         """
             Build the discriminators
@@ -113,27 +158,27 @@ class RepGAN(Model):
         """
         self.__dict__.update(losses)
 
-    def gradient_penalty(self, batch_size, real_images, fake_images):
+    def GradientPenaltyX(self,batchSize,realX,fakeX):
         """ Calculates the gradient penalty.
 
         This loss is calculated on an interpolated image
         and added to the discriminator loss.
         """
         # Get the interpolated image
-        alpha = tf.random.normal([batch_size, 1, 1, 1], 0.0, 1.0)
-        diff = fake_images - real_images
-        interpolated = real_images + alpha * diff
+        alpha = tf.random.normal([batchSize, 1, 1, 1], 0.0, 1.0)
+        diffX = fakeX - realX
+        intX = realX + alpha * diff
 
         with tf.GradientTape() as gp_tape:
-            gp_tape.watch(interpolated)
+            gp_tape.watch(intX)
             # 1. Get the discriminator output for this interpolated image.
-            pred = self.discriminator(interpolated, training=True)
+            predX = self.Dx(intX,training=True)
 
         # 2. Calculate the gradients w.r.t to this interpolated image.
-        grads = gp_tape.gradient(pred, [interpolated])[0]
+        GradX = gp_tape.gradient(predX, [intX])[0]
         # 3. Calculate the norm of the gradients.
-        norm = tf.sqrt(tf.reduce_sum(tf.square(grads), axis=[1, 2, 3]))
-        gp = tf.reduce_mean((norm - 1.0) ** 2)
+        NormGradX = tf.sqrt(tf.reduce_sum(tf.square(GradX), axis=[1, 2, 3]))
+        gp = tf.reduce_mean((NormGradX - 1.0) ** 2)
         return gp
 
     def train_step(self, realX, realC):
@@ -158,7 +203,17 @@ class RepGAN(Model):
         self.Ds.trainable = True
         self.Dn.trainable = True
 
-        for _ in range(self.n_critic):
+
+        # # Adversarial ground truths
+        # valid = -np.ones((batch_size, 1))
+        # fake =  np.ones((batch_size, 1))
+        # dummy = np.zeros((batch_size, 1)) # Dummy gt for gradient penalty
+        #         # Sample noise as generator input
+        #         realZ = np.random.normal(0, 1, (batchSize, self.latentZdim))
+        
+        
+
+        for _ in range(self.nCritic):
         	
         # The generator takes the signal, encodes it and reconstructs it
         # from the encoding
@@ -193,14 +248,15 @@ class RepGAN(Model):
 
 		        # Discriminator determines validity of the real and fake N
 		        fakeNcritic = self.Dn(fakeN)
-		        realNcritic = self.Dn(realN)
+		        realNcritic = self.Dn(realN) 
 
 
 	        # Calculate the discriminator loss using the fake and real logits
 			AdvDloss = self.AdvDloss(realXcritic,fakeXcritic)*self.PenAdvXloss +
 	        	self.AdvDloss(realCcritic,fakeCcritic)*self.PenAdvCloss +
 	        	self.AdvDloss(realScritic,fakeScritic)*self.PenAdvSloss +
-	        	self.AdvDloss(realNcritic,fakeNcritic)*self.PenAdvNloss
+	        	self.AdvDloss(realNcritic,fakeNcritic)*self.PenAdvNloss +
+                self.GradientPenaltyX(batchSize,realX,fakeX)*self.PenGradX
 
 	       	# Get the gradients w.r.t the discriminator loss
 	       	gradDx = tape.gradient(AdvDloss, self.Dx.trainable_variables)
@@ -215,10 +271,10 @@ class RepGAN(Model):
         	self.DnOpt.apply_gradients(zip(gradDn,self.Dn.trainable_variables))
 
         	# Clip critic weights
-            for l in self.Dx.layers:
-                weights = l.get_weights()
-                weights = [np.clip(w, -self.clipValue, self.clipValue) for w in weights]
-                l.set_weights(weights)
+            # for l in self.Dx.layers:
+            #     weights = l.get_weights()
+            #     weights = [np.clip(w, -self.clipValue, self.clipValue) for w in weights]
+            #     l.set_weights(weights)
             for l in self.Dc.layers:
                 weights = l.get_weights()
                 weights = [np.clip(w, -self.clipValue, self.clipValue) for w in weights]
@@ -292,8 +348,8 @@ class RepGAN(Model):
         
         X = Input(shape=self.Xshape)
 
-        # for n in range(self.nlayers):
-        #     X = Conv1D((self.latentZdim/self.Zsize)*self.stride**(-self.nlayers+n),
+        # for n in range(self.nCnnLayers):
+        #     X = Conv1D((self.latentZdim/self.Zsize)*self.stride**(-self.nCnnLayers+n),
         #         self.kernel,self.stride,padding="same",
         #         input_shape=self.Xshape,data_format="channels_last")(X)
         #     X = BatchNormalization(momentum=0.95)(inputs=X)
@@ -306,8 +362,8 @@ class RepGAN(Model):
 
 
         model = Sequential()
-        for n in range(self.nlayers):
-            model.add(Conv1D((self.latentZdim/self.Zsize)*self.stride**(-self.nlayers+n),
+        for n in range(self.nCnnLayers):
+            model.add(Conv1D((self.latentZdim/self.Zsize)*self.stride**(-self.nCnnLayers+n),
                 self.kernel,self.stride,padding="same",
                 input_shape=self.Xshape,data_format="channels_last"))
             model.add(BatchNormalization(momentum=0.95))
@@ -382,7 +438,7 @@ class RepGAN(Model):
         model.add(Reshape((self.Zsize,self.nZchannels)))
         model.add(BatchNormalization(momentum=0.95))
         model.add(ReLU())
-        for n in range(self.nlayers):
+        for n in range(self.nCnnLayers):
             model.add(Conv1DTranspose(self.latentZdim//self.stride**n,
                 self.kernel,self.stride,padding="same"))
             model.add(BatchNormalization(momentum=0.95))
@@ -419,7 +475,9 @@ class RepGAN(Model):
         model.add(LeakyReLU(alpha=0.2))
         model.add(Dropout(0.25))
         model.add(Flatten())
-        model.add(Dense(1,activation='sigmoid'))
+        model.add(Dense(1,activation=None))
+        # model.add(Dense(1,activation='sigmoid'))
+
         # model.add(Conv1D(64,self.kernel,self.stride,
         #     input_shape=self.Xshape,padding="same"))
         # model.add(LeakyReLU(alpha=0.2))
@@ -496,32 +554,7 @@ class RepGAN(Model):
 
 if __name__ == '__main__':
 
-	options = {}
-	options['stride'] = 2
-    options['kernel'] = 3
-    options['nlayers'] = 5
-    options['Xsize'] = 1024
-    options['nXchannels'] = 2
-    options['Xshape'] = (Xsize, nXchannels)
-
-    options['latentZdim'] = 2048
-    options['Zsize'] = Xsize//(stride**nlayers)
-    options['nZchannels'] = latentZdim//Zsize
-
-    options['latentCidx'] = list(range(5))
-    options['latentSidx'] = list(range(5,7))
-    options['latentNidx'] = list(range(7,latentZdim))
-    options['latentCdim'] = len(latentCidx)
-    options['latentSdim']= len(latentSidx)
-    options['latentNdim'] = len(latentNidx)
-    options['batchSize'] = 128
-    options['n_critic'] = 5
-    options['clipValue'] = 0.01
-    # options['data_root_ID'] = '/gpfs/workdir/invsem07/damaged_1_8P' 
-    # options['ID_string'] = 'U'
-    # options['ID_pb_string'] = 'BC'
-    # options['case'] = 'train_model'
-
+    options = ParseOptions()
 
     optimizers = {}
     optmizers['DxOpt'] = RMSprop(lr=0.00005)
@@ -544,6 +577,7 @@ if __name__ == '__main__':
 	losses['PenRecXloss'] = 1.
 	losses['PenRecCloss'] = 1.
 	losses['PenRecSloss'] = 1.
+    losses['PenGradX'] = 10.
 
 	# Instantiate the RepGAN model.
 	GiorgiaGAN = RepGAN(options)
@@ -551,6 +585,10 @@ if __name__ == '__main__':
 	# Compile the RepGAN model.
 	GiorgiaGAN.compile(optimizers,losses)
 
+
+    # Load the dataset
+    Xtrn,  Xvld, params_trn, params_vld, Ctrn, Cvld, Strn, Svld, Ntrn, Nvld = mdof.load_data()
+
+        
 	# Start training the model.
-	# GiorgiaGAN.fit(train_images, batch_size=BATCH_SIZE, epochs=epochs, callbacks=[cbk],
-	# 	epochs=4000, batchSize=32, save_interval=50)
+	GiorgiaGAN.fit(Xtrn,batch_size=options["batchSize"],epochs=options["epochs"])
