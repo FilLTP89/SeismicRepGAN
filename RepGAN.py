@@ -17,8 +17,8 @@ from os.path import join as opj
 import numpy as np
 import tensorflow as tf
 from tensorflow import keras
-from tensorflow.keras import layers, Layer, Sequential, Model
-from tensorflow.keras.layers import Input, Dense, Reshape, Flatten, Dropout 
+from tensorflow.keras import layers, Sequential, Model
+from tensorflow.keras.layers import Input, Dense, Reshape, Flatten, Dropout, Layer
 from tensorflow.keras.layers import Lambda, Concatenate
 from tensorflow.keras.layers import BatchNormalization, Activation, ZeroPadding1D
 from tensorflow.keras.layers import LeakyReLU, ReLU, Softmax
@@ -43,10 +43,20 @@ def ParseOptions():
     parser.add_argument("--nCritic",type=int,default=5,help='number of discriminator training steps')
     parser.add_argument("--clipValue",type=float,default=0.01,help='clip weight for WGAN')
     parser.add_argument("--dataroot",type=str,default="/gpfs/workdir/invsem07/damaged_1_8P",help="Data root folder")
+    parser.add_argument("--which_channel_1",type=int,default=21,help="Channel 1")
+    parser.add_argument("--which_channel_2",type=int,default=39,help="Channel 2")
+    parser.add_argument("--n_params",type=str,default=2,help="Number of parameters")
+    parser.add_argument("--seq_len_input",type=int,default=1000,help="Sequence length input")
+    parser.add_argument("--seq_len",type=int,default=1024,help="Sequence length")
+    parser.add_argument("--seq_len_start",type=int,default=0,help="Sequence length start")
+    parser.add_argument("--seq_sampling",type=int,default=1,help="Sequence Sampling")
+    parser.add_argument("--case",type=str,default="train_model",help="case")
     parser.add_argument("--id",type=str,default="U",help="case id")
     parser.add_argument("--pb",type=str,default="BC",help="case pb")
 
+       
     options = parser.parse_args().__dict__
+    
 
     options['Xshape'] = (options['Xsize'], options['nXchannels'])
     options['Zsize']  = options['Xsize']//(options['stride']**options['nCnnLayers'])
@@ -80,7 +90,7 @@ class Sampling(Layer):
 def WassersteinDiscriminatorLoss(real_img, fake_img):
     real_loss = tf.reduce_mean(real_img)
     fake_loss = tf.reduce_mean(fake_img)
-	return fake_loss - real_loss
+    return fake_loss - real_loss
 
 
 # Define the loss functions for the generator.
@@ -181,14 +191,14 @@ class RepGAN(Model):
         gp = tf.reduce_mean((NormGradX - 1.0) ** 2)
         return gp
 
-    def train_step(self, realX, realC):
+    def train_step(self, realX):
         if isinstance(realX, tuple):
             realX = realX[0]
 
         # Get the batch size
         batchSize = tf.shape(realX)[0]
-        if self.batchSize != batchSize:
-        	self.batchSize = batchSize
+        #if self.batchSize != batchSize:
+        #	self.batchSize = batchSize
 
         #------------------------------------------------
         #           Construct Computational Graph
@@ -204,12 +214,6 @@ class RepGAN(Model):
         self.Dn.trainable = True
 
 
-        # # Adversarial ground truths
-        # valid = -np.ones((batch_size, 1))
-        # fake =  np.ones((batch_size, 1))
-        # dummy = np.zeros((batch_size, 1)) # Dummy gt for gradient penalty
-        #         # Sample noise as generator input
-        #         realZ = np.random.normal(0, 1, (batchSize, self.latentZdim))
         
         
 
