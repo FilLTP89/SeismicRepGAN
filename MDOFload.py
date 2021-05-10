@@ -159,25 +159,28 @@ def load_data(**kwargs):
     X_trn, X_vld, params_trn, params_vld = train_test_split(X, params[:X.shape[0],:], random_state=5)
 
     # Sampling of categorical variables c
-    c = np.zeros((batchSize,latentCdim))
-    rand_idx = np.random.randint(0, latentCdim, batchSize)
-    c[np.arange(batchSize), rand_idx]=1.0
+    c = np.zeros((X.shape[0],latentCdim))
+    rand_idx = np.random.randint(0, latentCdim, X.shape[0])
+    c[np.arange(X.shape[0]), rand_idx]=1.0
+
 
     # Split between train and validation set of categorical variables c
-    c_trn, c_vld = train_test_split(c, random_state=5)
+    c_trn, c_vld = train_test_split(c, train_size=192, random_state=5)
 
+    
     # Sampling of continuous variables s
-    s = np.random.uniform(low=-1.0, high=1.0000001, size=(batchSize, latentSdim))
+    s = np.random.uniform(low=-1.0, high=1.0000001, size=(X.shape[0], latentZdim))
 
     # Split between train and validation set of continuous variables s
-    s_trn, s_vld = train_test_split(s, random_state=5)
+    s_trn, s_vld = train_test_split(s, train_size=192, random_state=5)
 
     #Sampling of noise n
-    noise = np.random.normal(loc=0.0, scale=1.0, size=(batchSize, latentNdim))
+    noise = np.random.normal(loc=0.0, scale=1.0, size=(X.shape[0], latentZdim))
 
     # Split between train and validation set of noise
-    n_trn, n_vld = train_test_split(noise, random_state=5)
+    n_trn, n_vld = train_test_split(noise, train_size=192, random_state=5)
+
+    #import pdb
+    #pdb.set_trace()    
     
-    import pdb
-    pdb.set_trace()
     return X_trn,  X_vld, params_trn, params_vld, c_trn, c_vld, s_trn, s_vld, n_trn, n_vld 
