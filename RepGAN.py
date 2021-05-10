@@ -174,10 +174,11 @@ class RepGAN(Model):
         and added to the discriminator loss.
         """
         # Get the interpolated image
-        alpha = tf.random.normal([batchSize, 1, 1, 1], 0.0, 1.0)
+        alpha = tf.random.normal([batchSize, 1, 1], 0.0, 1.0)
         diffX = fakeX - realX
-        intX = realX + alpha * diff
+        intX = realX + alpha * diffX
 
+        
         with tf.GradientTape() as gp_tape:
             gp_tape.watch(intX)
             # 1. Get the discriminator output for this interpolated image.
@@ -186,19 +187,18 @@ class RepGAN(Model):
         # 2. Calculate the gradients w.r.t to this interpolated image.
         GradX = gp_tape.gradient(predX, [intX])[0]
         # 3. Calculate the norm of the gradients.
-        NormGradX = tf.sqrt(tf.reduce_sum(tf.square(GradX), axis=[1, 2, 3]))
+        NormGradX = tf.sqrt(tf.reduce_sum(tf.square(GradX), axis=[1, 2]))
         gp = tf.reduce_mean((NormGradX - 1.0) ** 2)
         return gp
 
     def train_step(self, realXC):
-        if isinstance(realX, tuple):
-            realX = realXC[0]
-            realC = realXC[1]
 
+        realX, realC = realXC
+        
         # Get the batch size
-        batchSize = tf.shape(realX)[0]
-        if self.batchSize != batchSize:
-            self.batchSize = batchSize
+        #batchSize = tf.shape(realX)[0]
+        #if self.batchSize != batchSize:
+        self.batchSize = tf.shape(realX)[0]
 
         #------------------------------------------------
         #           Construct Computational Graph
@@ -218,7 +218,7 @@ class RepGAN(Model):
         for _ in range(self.nCritic):
 
             # Sample noise as generator input
-            realZ = tf.random.normal(shape=[batchSize, self.latentZdim], mean=0.0, stddev=1.0)
+            realZ = tf.random.normal(shape=[self.batchSize, self.latentZdim], mean=0.0, stddev=1.0)
             
         # The generator takes the signal, encodes it and reconstructs it
         # from the encoding
@@ -228,14 +228,14 @@ class RepGAN(Model):
         # rand_idx = np.random.randint(0,self.latentCdim,self.batchSize)
         # realC[np.arange(self.batchSize),rand_idx]=1.0
 
-            with tf.GradientTape() as tape:
+            with tf.GradientTape(persistent=True) as tape:
 
                 # realC = tf.zeros(shape=(self.batchSize,self.latentCdim))
                 # rand_idx = np.random.randint(0,self.latentCdim,self.batchSize)
                 #realC[np.arange(self.batchSize),rand_idx]=1.0
                 #realC = tf.random.categorical(tf.math.log([[batchSize, 2]]), self.latentCdim)
-                realS = tf.random.normal(mean=0.0,stddev=0.5,shape=[batchSize,self.latentSdim])
-                realN = tf.random.normal(mean=0.0,stddev=0.3,shape=[batchSize,self.latentNdim])
+                realS = tf.random.normal(mean=0.0,stddev=0.5,shape=[self.batchSize,self.latentSdim])
+                realN = tf.random.normal(mean=0.0,stddev=0.3,shape=[self.batchSize,self.latentNdim])
 
                 # # Generate fake latent code from real signals
                 (fakeC,fakeS,fakeN) = self.Fx(realX) # encoded z = Fx(X)
@@ -251,29 +251,28 @@ class RepGAN(Model):
                 fakeCcritic = self.Dc(fakeC)
                 realCcritic = self.Dc(realC)
 
-                # Discriminator determines validity of the real and fake S
-                fakeScritic = self.Ds(fakeS)
-                realScritic = self.Ds(realS)
-
                 # Discriminator determines validity of the real and fake N
                 fakeNcritic = self.Dn(fakeN)
                 realNcritic = self.Dn(realN) 
 
+                # Discriminator determines validity of the real and fake S
+                fakeScritic = self.Ds(fakeS)
+                realScritic = self.Ds(realS)
 
-            # Calculate the discriminator loss using the fake and real logits
-            AdvDlossX = self.AdvDloss(realXcritic,fakeXcritic)*self.PenAdvXloss
-            AdvDlossC = self.AdvDloss(realCcritic,fakeCcritic)*self.PenAdvCloss
-            AdvDlossS = self.AdvDloss(realScritic,fakeScritic)*self.PenAdvSloss
-            AdvDlossN = self.AdvDloss(realNcritic,fakeNcritic)*self.PenAdvNloss
-            AdvDlossPenGradX = self.GradientPenaltyX(batchSize,realX,fakeX)*self.PenGradX
-            AdvDloss = AdvDlossX + AdvDlossC + AdvDlossS + AdvDlossN + AdvDlossPenGradX
+                # Calculate the discriminator loss using the fake and real logits
+                AdvDlossX = self.AdvDloss(realXcritic,fakeXcritic)*self.PenAdvXloss
+                AdvDlossC = self.AdvDloss(realCcritic,fakeCcritic)*self.PenAdvCloss
+                AdvDlossS = self.AdvDloss(realScritic,fakeScritic)*self.PenAdvSloss
+                AdvDlossN = self.AdvDloss(realNcritic,fakeNcritic)*self.PenAdvNloss
+                AdvDlossPenGradX = self.GradientPenaltyX(self.batchSize,realX,fakeX)*self.PenGradX
+                AdvDloss = AdvDlossX + AdvDlossC + AdvDlossS + AdvDlossN + AdvDlossPenGradX
 
             # Get the gradients w.r.t the discriminator loss
-            gradDx = tape.gradient(AdvDloss, self.Dx.trainable_variables)
-            gradDc = tape.gradient(AdvDloss, self.Dc.trainable_variables)
-            gradDs = tape.gradient(AdvDloss, self.Ds.trainable_variables)
-            gradDn = tape.gradient(AdvDloss, self.Dn.trainable_variables)
-
+            
+            gradDx, gradDc, gradDs, gradDn = tape.gradient(AdvDloss, 
+                (self.Dx.trainable_variables, self.Dc.trainable_variables, 
+                self.Ds.trainable_variables, self.Dn.trainable_variables))
+            
             # Update the weights of the discriminator using the discriminator optimizer
             self.DxOpt.apply_gradients(zip(gradDx,self.Dx.trainable_variables))
             self.DcOpt.apply_gradients(zip(gradDc,self.Dc.trainable_variables))
@@ -560,7 +559,7 @@ class RepGAN(Model):
         s = Input(shape=(self.latentSdim,))
         Ds = model(s)
 
-        return keras.Model(s,Ds,"Ds")
+        return keras.Model(s,Ds,name="Ds")
 
 
 if __name__ == '__main__':
@@ -600,6 +599,6 @@ if __name__ == '__main__':
     # Load the dataset
     Xtrn,  Xvld, params_trn, params_vld, Ctrn, Cvld, Strn, Svld, Ntrn, Nvld = mdof.load_data(**options)
 
-        
+            
     # Start training the model.
-    GiorgiaGAN.fit((Xtrn,Ctrn),batch_size=options["batchSize"],epochs=options["epochs"])
+    GiorgiaGAN.fit(x=Xtrn,y=Ctrn,batch_size=options["batchSize"],epochs=options["epochs"])
