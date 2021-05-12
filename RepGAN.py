@@ -19,15 +19,19 @@ import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers, Sequential, Model
 from tensorflow.keras.layers import Input, Dense, Reshape, Flatten, Dropout, Layer
-from tensorflow.keras.layers import Lambda, Concatenate
+from tensorflow.keras.layers import Lambda, Concatenate,concatenate, Activation
 from tensorflow.keras.layers import BatchNormalization, Activation, ZeroPadding1D
 from tensorflow.keras.layers import LeakyReLU, ReLU, Softmax
 from tensorflow.keras.layers import UpSampling1D, Conv1D, Conv1DTranspose
 from tensorflow.keras.optimizers import Adam, RMSprop
+from tensorflow.keras.constraints import Constraint, min_max_norm
 from numpy.linalg import norm
 import MDOFload as mdof
 import matplotlib.pyplot as plt
 import visualkeras
+# tf.compat.v1.disable_eager_execution()
+AdvDLoss_tracker = keras.metrics.Mean(name="loss")
+AdvGLoss_tracker = keras.metrics.Mean(name="loss")
 
 
 def ParseOptions():
@@ -60,13 +64,16 @@ def ParseOptions():
 
     options['Xshape'] = (options['Xsize'], options['nXchannels'])
     options['Zsize']  = options['Xsize']//(options['stride']**options['nCnnLayers'])
-    options['nZchannels'] = options['latentZdim']//options['Zsize']
     options['latentCidx'] = list(range(5))
     options['latentSidx'] = list(range(5,7))
     options['latentNidx'] = list(range(7,options['latentZdim']))
     options['latentCdim'] = len(options['latentCidx'])
     options['latentSdim'] = len(options['latentSidx'])
     options['latentNdim'] = len(options['latentNidx'])
+    options['nZchannels'] = options['latentZdim']//options['Zsize']
+    options['nCchannels'] = options['latentCdim']//options['Zsize']
+    options['nSchannels'] = options['latentSdim']//options['Zsize']
+    options['nNchannels'] = options['latentNdim']//options['Zsize']
 
     return options
 
@@ -155,6 +162,15 @@ class RepGAN(Model):
         """
         self.Fx = self.build_Fx()
         self.Gz = self.build_Gz()
+
+    @property
+    def metrics(self):
+        # We list our `Metric` objects here so that `reset_states()` can be
+        # called automatically at the start of each epoch
+        # or at the start of `evaluate()`.
+        # If you don't implement this property, you have to call
+        # `reset_states()` yourself at the time of your choosing.
+        return [AdvDLoss_tracker,AdvGLoss_tracker]
 
     def compile(self,optimizers,losses):
         super(RepGAN, self).compile()
@@ -332,14 +348,14 @@ class RepGAN(Model):
             recX  = self.Gz(fakeZ)
             (recC,recS,_)  = self.Fx(fakeX)
 
-        AdvGLossX = self.AdvGloss(fakeXcritic)*self.PenAdvXloss
-        AdvGlossC = self.AdvGloss(fakeCcritic)*self.PenAdvCloss
-        AdvGlossS = self.AdvGloss(fakeScritic)*self.PenAdvSloss
-        AdvGlossN = self.AdvGloss(fakeNcritic)*self.PenAdvNloss
-        RecGlossX = self.RecXloss(recX)*self.PenRecXloss
-        RecGlossC = self.RecCloss(recC)*self.PenRecCloss
-        RecGlossS = self.RecSloss(recS)*self.PenRecSloss
-        AdvGloss = AdvGLossX + AdvGLossC + AdvGLossS + AdvGLossN + RecGlossX + RecGlossC + RecGlossS
+            AdvGlossX = self.AdvGloss(fakeXcritic)*self.PenAdvXloss
+            AdvGlossC = self.AdvGloss(fakeCcritic)*self.PenAdvCloss
+            AdvGlossS = self.AdvGloss(fakeScritic)*self.PenAdvSloss
+            AdvGlossN = self.AdvGloss(fakeNcritic)*self.PenAdvNloss
+            RecGlossX = self.RecXloss(realX,recX)*self.PenRecXloss
+            RecGlossC = self.RecCloss(realC,recC)*self.PenRecCloss
+            RecGlossS = self.RecSloss(realS,recS)*self.PenRecSloss
+            AdvGloss = AdvGlossX + AdvGlossC + AdvGlossS + AdvGlossN + RecGlossX + RecGlossC + RecGlossS
 
         # Get the gradients w.r.t the generator loss
         gradFx = tape.gradient(AdvGLoss, self.Fx.trainable_variables)
@@ -348,7 +364,16 @@ class RepGAN(Model):
         self.FxOpt.apply_gradients(zip(gradFx,self.Fx.trainable_variables))
         self.GzOpt.apply_gradients(zip(gradGz,self.Gz.trainable_variables))
 
-        return {"AdvDLoss": AdvDLoss, "AdvGLoss": AdvGLoss}
+        ## Compute our own metrics
+        #AdvDloss_tracker.update_state(AdvDloss)
+        #AdvGloss_tracker.update_state(AdvGloss)
+
+        #return {"AdvDloss": AdvDloss_tracker.result(), 
+        #    "AdvGloss": AdvGloss_tracker.results()}
+
+        
+        return {"AdvDloss": AdvDloss, 
+            "AdvGloss": AdvGloss}
 
 
     def build_Fx(self):
@@ -588,6 +613,38 @@ if __name__ == '__main__':
     losses['PenRecCloss'] = 1.
     losses['PenRecSloss'] = 1.
     losses['PenGradX'] = 10.
+    
+
+    # extra_options = {}
+    # extra_options['metrics'] = [tf.keras.metrics.Accuracy()]
+    # extra_options['weighted_metrics'] = None
+    # extra_options['loss_weights'] = None
+    # extra_options['run_eagerly'] = None
+    # extra_options['steps_per_execution'] = None
+    # extra_options['target_tensors'] = None
+    # extra_options['sample_weight_mode'] = None
+    # extra_options['experimental_run_tf_function'] = None
+    #metrics = {}
+    #metrics['Accuracy'] = tf.keras.metrics.Accuracy()
+
+    #weighted_metrics = {}
+
+    #loss_weights = {}
+
+    #run_eagerly = {}
+    #run_eagerly['run_eagerly'] = None
+
+    #steps_per_execution = {}
+    #steps_per_execution['steps_per_execution'] = None
+
+    #target_tensors = {}
+    #target_tensors['target_tensors'] = None
+
+    #sample_weight_mode = {}
+    #sample_weight_mode['sample_weight_mode'] = None
+
+    #experimental_run_tf_function = {}
+    #experimental_run_tf_function['experimental_run_tf_function'] = None
 
     # Instantiate the RepGAN model.
     GiorgiaGAN = RepGAN(options)
@@ -599,6 +656,13 @@ if __name__ == '__main__':
     # Load the dataset
     Xtrn,  Xvld, params_trn, params_vld, Ctrn, Cvld, Strn, Svld, Ntrn, Nvld = mdof.load_data(**options)
 
-            
+
+    Xtrn = Xtrn.astype("float32") 
+    Xvld = Xvld.astype("float32")
+    
+    # Xtrn = tf.data.Dataset.from_tensor_slices(Xtrn)
+    # Xtrn = Xtrn.shuffle(buffer_size=1024).batch(options['batchSize'])
+
     # Start training the model.
-    GiorgiaGAN.fit(x=Xtrn,y=Ctrn,batch_size=options["batchSize"],epochs=options["epochs"])
+    #GiorgiaGAN.fit(x=Xtrn,y=Ctrn,batch_size=options["batchSize"],epochs=options["epochs"])
+    GiorgiaGAN.fit(Xtrn,Ctrn,batch_size=options["batchSize"],epochs=options["epochs"])
