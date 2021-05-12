@@ -234,8 +234,9 @@ class RepGAN(Model):
         for _ in range(self.nCritic):
 
             # Sample noise as generator input
-            realZ = tf.random.normal(shape=[self.batchSize, self.latentZdim], mean=0.0, stddev=1.0)
-            
+            # realZ = tf.random.normal(shape=[self.batchSize, self.latentZdim], mean=0.0, stddev=1.0)
+            # realS = tf.random.normal(shape=[self.batchSize, self.latentSdim], mean=0.0, stddev=1.0)
+            # realN = tf.random.normal(shape=[self.batchSize, self.latentNdim], mean=0.0, stddev=1.0)
         # The generator takes the signal, encodes it and reconstructs it
         # from the encoding
         # Real c,s,n
@@ -256,7 +257,7 @@ class RepGAN(Model):
                 # # Generate fake latent code from real signals
                 (fakeC,fakeS,fakeN) = self.Fx(realX) # encoded z = Fx(X)
 
-                fakeX = self.Gz(realZ) # fake X = Gz(Fx(X))
+                fakeX = self.Gz((realC,realS,realN)) # fake X = Gz(Fx(X))
                 
 
                 # Discriminator determines validity of the real and fake X
@@ -326,7 +327,7 @@ class RepGAN(Model):
         with tf.GradientTape() as tape:
             # Fake
             (fakeC,fakeS,fakeN) = self.Fx(realX) # encoded z = Fx(X)
-            fakeX = self.Gz(realZ) # fake X = Gz(Fx(X))
+            fakeX = self.Gz((fakeC,fakeS,fakeN)) # fake X = Gz(Fx(X))
             
             # Discriminator determines validity of the real and fake X
             fakeXcritic = self.Dx(fakeX)
@@ -341,8 +342,8 @@ class RepGAN(Model):
             fakeNcritic = self.Dn(fakeN)
 
             # Reconstruction
-            fakeZ = Concatenate([fakeC,fakeS,fakeN])
-            recX  = self.Gz(fakeZ)
+            # fakeZ = Concatenate([fakeC,fakeS,fakeN])
+            recX  = self.Gz((fakeC,fakeS,fakeN))
             (recC,recS,_)  = self.Fx(fakeX)
 
             AdvGlossX = self.AdvGloss(fakeXcritic)*self.PenAdvXloss
@@ -464,25 +465,41 @@ class RepGAN(Model):
         """
             Conv1D Gz structure
         """
-        model = Sequential()          
-        model.add(Dense(self.Zsize*self.nZchannels,input_dim=self.latentZdim,
-            use_bias=False))
-        model.add(Reshape((self.Zsize,self.nZchannels)))
-        model.add(BatchNormalization(momentum=0.95))
-        model.add(ReLU())
+        c = tf.keras.Input(shape=(self.latentCdim,))
+        s = tf.keras.Input(shape=(self.latentSdim,))
+        n = tf.keras.Input(shape=(self.latentNdim,))
+             
+        GzC = Dense(self.Zsize*self.nCchannels,use_bias=False)(c)
+        GzC = Reshape((self.Zsize,self.nCchannels))(GzC)
+        GzC = Model(c,GzC)
+
+        GzS = Dense(self.Zsize*self.nSchannels,use_bias=False)(s)
+        GzS = Reshape((self.Zsize,self.nSchannels))(GzS)
+        GzS = Model(s,GzS)
+
+        GzN = Dense(self.Zsize*self.nNchannels,use_bias=False)(n)
+        GzN = Reshape((self.Zsize,self.nNchannels))(GzN)
+        GzN = Model(n,GzN)
+
+        z = concatenate([GzC.output,GzS.output,GzN.output])
+
+
+        #Gz = Reshape((self.Zsize,self.nZchannels))(z)
+        Gz = BatchNormalization(axis=-1,momentum=0.95)(z)
+        Gz = Activation('relu')(Gz)
+
         for n in range(self.nCnnLayers):
-            model.add(Conv1DTranspose(self.latentZdim//self.stride**n,
-                self.kernel,self.stride,padding="same"))
-            model.add(BatchNormalization(momentum=0.95))
-            model.add(ReLU())
+            Gz = Conv1DTranspose(self.latentZdim//self.stride**n,
+                self.kernel,self.stride,padding="same")(Gz)
+            Gz = BatchNormalization(axis=-1,momentum=0.95)(Gz)
+            Gz = Activation('relu')(Gz)
         
-        model.add(Conv1DTranspose(self.nXchannels,self.kernel,1,padding="same"))
-        model.summary()
+        Gz = Conv1DTranspose(self.nXchannels,self.kernel,1,padding="same")(Gz)
 
-        z = Input(shape=(self.latentZdim,))
-        X = model(z)
-
-        return keras.Model(z,X,name="Gz")
+        #model.summary()
+         
+              
+        return keras.Model([GzC.input,GzS.input,GzN.input],Gz,name="Gz")
         
     def build_Dx(self):
         """
