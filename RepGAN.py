@@ -29,6 +29,7 @@ from numpy.linalg import norm
 import MDOFload as mdof
 import matplotlib.pyplot as plt
 import visualkeras
+import keras.backend as K
 # tf.compat.v1.disable_eager_execution()
 AdvDLoss_tracker = keras.metrics.Mean(name="loss")
 AdvGLoss_tracker = keras.metrics.Mean(name="loss")
@@ -324,7 +325,7 @@ class RepGAN(Model):
         self.Ds.trainable = False
         self.Dn.trainable = False
 
-        with tf.GradientTape() as tape:
+        with tf.GradientTape(persistent=True) as tape:
             # Fake
             (fakeC,fakeS,fakeN) = self.Fx(realX) # encoded z = Fx(X)
             fakeX = self.Gz((fakeC,fakeS,fakeN)) # fake X = Gz(Fx(X))
@@ -356,8 +357,8 @@ class RepGAN(Model):
             AdvGloss = AdvGlossX + AdvGlossC + AdvGlossS + AdvGlossN + RecGlossX + RecGlossC + RecGlossS
 
         # Get the gradients w.r.t the generator loss
-        gradFx = tape.gradient(AdvGLoss, self.Fx.trainable_variables)
-        gradGz = tape.gradient(AdvGLoss, self.Gz.trainable_variables)
+        gradFx, gradGz = tape.gradient(AdvGloss, 
+                (self.Fx.trainable_variables, self.Gz.trainable_variables))
         # Update the weights of the generator using the generator optimizer
         self.FxOpt.apply_gradients(zip(gradFx,self.Fx.trainable_variables))
         self.GzOpt.apply_gradients(zip(gradGz,self.Gz.trainable_variables))
