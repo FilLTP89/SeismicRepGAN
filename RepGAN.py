@@ -300,18 +300,15 @@ class RepGAN(Model):
             #     weights = l.get_weights()
             #     weights = [np.clip(w, -self.clipValue, self.clipValue) for w in weights]
             #     l.set_weights(weights)
-            for l in self.Dc.layers:
-                weights = l.get_weights()
-                weights = [np.clip(w, -self.clipValue, self.clipValue) for w in weights]
-                l.set_weights(weights)
-            for l in self.Ds.layers:
-                weights = l.get_weights()
-                weights = [np.clip(w, -self.clipValue, self.clipValue) for w in weights]
-                l.set_weights(weights)
-            for l in self.Dn.layers:
-                weights = l.get_weights()
-                weights = [np.clip(w, -self.clipValue, self.clipValue) for w in weights]
-                l.set_weights(weights)
+            # for l in self.Dc.layers:
+            #     weights = [np.clip(w, -self.clipValue, self.clipValue) for w in weights]
+            #     l.set_weights(weights)
+            # for l in self.Ds.layers:
+            #     weights = [np.clip(w, -self.clipValue, self.clipValue) for w in weights]
+            #     l.set_weights(weights)
+            # for l in self.Dn.layers:
+            #     weights = [np.clip(w, -self.clipValue, self.clipValue) for w in weights]
+                # l.set_weights(weights)
 
         #----------------------------------------
         #      Construct Computational Graph
@@ -537,9 +534,9 @@ class RepGAN(Model):
             Dense discriminator structure
         """
         model = Sequential()
-        model.add(Dense(3000)) 
+        model.add(Dense(3000,kernel_constraint=min_max_norm(2.)))
         model.add(LeakyReLU())
-        model.add(Dense(3000)) 
+        model.add(Dense(3000,kernel_constraint=min_max_norm(2.)))
         model.add(LeakyReLU())
         model.add(Dense(1))  
 
@@ -555,9 +552,9 @@ class RepGAN(Model):
             Dense discriminator structure
         """
         model = Sequential()
-        model.add(Dense(3000)) 
+        model.add(Dense(3000,kernel_constraint=min_max_norm(2.)))
         model.add(LeakyReLU())
-        model.add(Dense(3000)) 
+        model.add(Dense(3000,kernel_constraint=min_max_norm(2.)))
         model.add(LeakyReLU()) 
         model.add(Dense(1))  
 
@@ -573,9 +570,9 @@ class RepGAN(Model):
             Dense discriminator structure
         """
         model = Sequential()
-        model.add(Dense(3000)) 
+        model.add(Dense(3000,kernel_constraint=min_max_norm(2.)))
         model.add(LeakyReLU())
-        model.add(Dense(3000)) 
+        model.add(Dense(3000,kernel_constraint=min_max_norm(2.)))
         model.add(LeakyReLU())
         model.add(Dense(1))  
 
