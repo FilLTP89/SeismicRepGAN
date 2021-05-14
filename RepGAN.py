@@ -689,9 +689,6 @@ def main(DeviceName):
 
 if __name__ == '__main__':
     DeviceName = tf.test.gpu_device_name()
-    print(DeviceName)
-    import pdb
-    pdb.set_trace()
     main(DeviceName)
 
 # # We run each op once to warm up; see: https://stackoverflow.com/a/45067900
