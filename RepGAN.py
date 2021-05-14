@@ -11,11 +11,14 @@ __email__ = "filippo.gatti-centralesupelec.fr"
 __status__ = "Beta"
 
 
+
+import tensorflow as tf
+import timeit
 import sys
 import argparse
 from os.path import join as opj
 import numpy as np
-import tensorflow as tf
+
 from tensorflow import keras
 from tensorflow.keras import layers, Sequential, Model
 from tensorflow.keras.layers import Input, Dense, Reshape, Flatten, Dropout, Layer
@@ -602,82 +605,106 @@ class RepGAN(Model):
         return keras.Model(s,Ds,name="Ds")
 
 
+def main(DeviceName):
+
+    with tf.device(DeviceName):
+
+        options = ParseOptions()
+
+        optimizers = {}
+        optimizers['DxOpt'] = RMSprop(lr=0.00005)
+        optimizers['DcOpt'] = RMSprop(lr=0.00005)
+        optimizers['DsOpt'] = RMSprop(lr=0.00005)
+        optimizers['DnOpt'] = RMSprop(lr=0.00005)
+        optimizers['FxOpt'] = Adam(learning_rate=0.0002, beta_1=0.5, beta_2=0.9)
+        optimizers['GzOpt'] = Adam(learning_rate=0.0002, beta_1=0.5, beta_2=0.9)
+
+        losses = {}
+        losses['AdvDloss'] = WassersteinDiscriminatorLoss
+        losses['AdvGloss'] = WassersteinGeneratorLoss
+        losses['RecSloss'] = GaussianNLL
+        losses['RecXloss'] = tf.keras.losses.MeanSquaredError()
+        losses['RecCloss'] = tf.keras.losses.BinaryCrossentropy()
+        losses['PenAdvXloss'] = 1.
+        losses['PenAdvCloss'] = 1.
+        losses['PenAdvSloss'] = 1.
+        losses['PenAdvNloss'] = 1.
+        losses['PenRecXloss'] = 1.
+        losses['PenRecCloss'] = 1.
+        losses['PenRecSloss'] = 1.
+        losses['PenGradX'] = 10.
+        
+        # extra_options = {}
+        # extra_options['metrics'] = [tf.keras.metrics.Accuracy()]
+        # extra_options['weighted_metrics'] = None
+        # extra_options['loss_weights'] = None
+        # extra_options['run_eagerly'] = None
+        # extra_options['steps_per_execution'] = None
+        # extra_options['target_tensors'] = None
+        # extra_options['sample_weight_mode'] = None
+        # extra_options['experimental_run_tf_function'] = None
+        #metrics = {}
+        #metrics['Accuracy'] = tf.keras.metrics.Accuracy()
+
+        #weighted_metrics = {}
+
+        #loss_weights = {}
+
+        #run_eagerly = {}
+        #run_eagerly['run_eagerly'] = None
+
+        #steps_per_execution = {}
+        #steps_per_execution['steps_per_execution'] = None
+
+        #target_tensors = {}
+        #target_tensors['target_tensors'] = None
+
+        #sample_weight_mode = {}
+        #sample_weight_mode['sample_weight_mode'] = None
+
+        #experimental_run_tf_function = {}
+        #experimental_run_tf_function['experimental_run_tf_function'] = None
+
+        # Instantiate the RepGAN model.
+        GiorgiaGAN = RepGAN(options)
+
+        # Compile the RepGAN model.
+        GiorgiaGAN.compile(optimizers,losses)
+
+
+        # Load the dataset
+        Xtrn,  Xvld, params_trn, params_vld, Ctrn, Cvld, Strn, Svld, Ntrn, Nvld = mdof.load_data(**options)
+
+
+        Xtrn = Xtrn.astype("float32") 
+        Xvld = Xvld.astype("float32")
+        
+        # Xtrn = tf.data.Dataset.from_tensor_slices(Xtrn)
+        # Xtrn = Xtrn.shuffle(buffer_size=1024).batch(options['batchSize'])
+
+        # Start training the model.
+        #GiorgiaGAN.fit(x=Xtrn,y=Ctrn,batch_size=options["batchSize"],epochs=options["epochs"])
+        GiorgiaGAN.fit(Xtrn,Ctrn,batch_size=options["batchSize"],epochs=options["epochs"])
+
+
 if __name__ == '__main__':
+    DeviceName = tf.test.gpu_device_name()
+    print(DeviceName)
+    import pdb
+    pdb.set_trace()
+    main(DeviceName)
 
-    options = ParseOptions()
+# # We run each op once to warm up; see: https://stackoverflow.com/a/45067900
+# cpu()
+# gpu()
 
-    optimizers = {}
-    optimizers['DxOpt'] = RMSprop(lr=0.00005)
-    optimizers['DcOpt'] = RMSprop(lr=0.00005)
-    optimizers['DsOpt'] = RMSprop(lr=0.00005)
-    optimizers['DnOpt'] = RMSprop(lr=0.00005)
-    optimizers['FxOpt'] = Adam(learning_rate=0.0002, beta_1=0.5, beta_2=0.9)
-    optimizers['GzOpt'] = Adam(learning_rate=0.0002, beta_1=0.5, beta_2=0.9)
-
-    losses = {}
-    losses['AdvDloss'] = WassersteinDiscriminatorLoss
-    losses['AdvGloss'] = WassersteinGeneratorLoss
-    losses['RecSloss'] = GaussianNLL
-    losses['RecXloss'] = tf.keras.losses.MeanSquaredError()
-    losses['RecCloss'] = tf.keras.losses.BinaryCrossentropy()
-    losses['PenAdvXloss'] = 1.
-    losses['PenAdvCloss'] = 1.
-    losses['PenAdvSloss'] = 1.
-    losses['PenAdvNloss'] = 1.
-    losses['PenRecXloss'] = 1.
-    losses['PenRecCloss'] = 1.
-    losses['PenRecSloss'] = 1.
-    losses['PenGradX'] = 10.
-    
-
-    # extra_options = {}
-    # extra_options['metrics'] = [tf.keras.metrics.Accuracy()]
-    # extra_options['weighted_metrics'] = None
-    # extra_options['loss_weights'] = None
-    # extra_options['run_eagerly'] = None
-    # extra_options['steps_per_execution'] = None
-    # extra_options['target_tensors'] = None
-    # extra_options['sample_weight_mode'] = None
-    # extra_options['experimental_run_tf_function'] = None
-    #metrics = {}
-    #metrics['Accuracy'] = tf.keras.metrics.Accuracy()
-
-    #weighted_metrics = {}
-
-    #loss_weights = {}
-
-    #run_eagerly = {}
-    #run_eagerly['run_eagerly'] = None
-
-    #steps_per_execution = {}
-    #steps_per_execution['steps_per_execution'] = None
-
-    #target_tensors = {}
-    #target_tensors['target_tensors'] = None
-
-    #sample_weight_mode = {}
-    #sample_weight_mode['sample_weight_mode'] = None
-
-    #experimental_run_tf_function = {}
-    #experimental_run_tf_function['experimental_run_tf_function'] = None
-
-    # Instantiate the RepGAN model.
-    GiorgiaGAN = RepGAN(options)
-
-    # Compile the RepGAN model.
-    GiorgiaGAN.compile(optimizers,losses)
-
-
-    # Load the dataset
-    Xtrn,  Xvld, params_trn, params_vld, Ctrn, Cvld, Strn, Svld, Ntrn, Nvld = mdof.load_data(**options)
-
-
-    Xtrn = Xtrn.astype("float32") 
-    Xvld = Xvld.astype("float32")
-    
-    # Xtrn = tf.data.Dataset.from_tensor_slices(Xtrn)
-    # Xtrn = Xtrn.shuffle(buffer_size=1024).batch(options['batchSize'])
-
-    # Start training the model.
-    #GiorgiaGAN.fit(x=Xtrn,y=Ctrn,batch_size=options["batchSize"],epochs=options["epochs"])
-    GiorgiaGAN.fit(Xtrn,Ctrn,batch_size=options["batchSize"],epochs=options["epochs"])
+# # Run the op several times.
+# print('Time (s) to convolve 32x7x7x3 filter over random 100x100x100x3 images '
+#       '(batch x height x width x channel). Sum of ten runs.')
+# print('CPU (s):')
+# cpu_time = timeit.timeit('cpu()', number=10, setup="from __main__ import cpu")
+# print(cpu_time)
+# print('GPU (s):')
+# gpu_time = timeit.timeit('gpu()', number=10, setup="from __main__ import gpu")
+# print(gpu_time)
+# print('GPU speedup over CPU: {}x'.format(int(cpu_time/gpu_time)))
