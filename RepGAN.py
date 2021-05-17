@@ -10,13 +10,16 @@ __maintainer__ = "Filippo Gatti"
 __email__ = "filippo.gatti-centralesupelec.fr"
 __status__ = "Beta"
 
-
+import os
+from os.path import join as opj
+os.environ['CUDA_VISIBLE_DEVICES'] = "0"
 
 import tensorflow as tf
+tf.config.experimental.disable_mlir_graph_optimization()
+
 import timeit
 import sys
 import argparse
-from os.path import join as opj
 import numpy as np
 
 from tensorflow import keras
@@ -31,7 +34,7 @@ from tensorflow.keras.constraints import Constraint, min_max_norm
 from numpy.linalg import norm
 import MDOFload as mdof
 import matplotlib.pyplot as plt
-import visualkeras
+#import visualkeras
 import keras.backend as K
 # tf.compat.v1.disable_eager_execution()
 AdvDLoss_tracker = keras.metrics.Mean(name="loss")
@@ -45,23 +48,20 @@ def ParseOptions():
     parser.add_argument("--stride",type=int,default=2,help='CNN stride')
     parser.add_argument("--nCnnLayers",type=int,default=5,help='Number of CNN layers per Coupling Layer')
     parser.add_argument("--Xsize",type=int,default=1024,help='Data space size')
+    parser.add_argument("--nX",type=int,default=32000,help='Number of signals')
     parser.add_argument("--nXchannels",type=int,default=2,help="Number of data channels")
-    parser.add_argument("--latentZdim",type=int,default=2048,help="Latent space dimension")
-    parser.add_argument("--batchSize",type=int,default=24,help='input batch size')
+    parser.add_argument("--latentZdim",type=int,default=1024,help="Latent space dimension")
+    parser.add_argument("--batchSize",type=int,default=12,help='input batch size')
     parser.add_argument("--nCritic",type=int,default=5,help='number of discriminator training steps')
     parser.add_argument("--clipValue",type=float,default=0.01,help='clip weight for WGAN')
     parser.add_argument("--dataroot",type=str,default="/gpfs/workdir/invsem07/damaged_1_8P",help="Data root folder")
-    parser.add_argument("--which_channel_1",type=int,default=21,help="Channel 1")
-    parser.add_argument("--which_channel_2",type=int,default=39,help="Channel 2")
-    parser.add_argument("--n_params",type=str,default=2,help="Number of parameters")
-    parser.add_argument("--seq_len_input",type=int,default=1000,help="Sequence length input")
-    parser.add_argument("--seq_len",type=int,default=1024,help="Sequence length")
-    parser.add_argument("--seq_len_start",type=int,default=0,help="Sequence length start")
-    parser.add_argument("--seq_sampling",type=int,default=1,help="Sequence Sampling")
+    parser.add_argument("--idChannels",type=int,nargs='+',default=[21,39],help="Channel 1")
+    parser.add_argument("--nParams",type=str,default=2,help="Number of parameters")
     parser.add_argument("--case",type=str,default="train_model",help="case")
-    parser.add_argument("--id",type=str,default="U",help="case id")
+    parser.add_argument("--avu",type=str,nargs='+',default="U",help="case avu")
     parser.add_argument("--pb",type=str,default="BC",help="case pb")
-
+    parser.add_argument("--CreateData",action='store_true',default=False,help='Create data flag')
+    parser.add_argument("--cuda",action='store_true',default=False,help='Use cuda powered GPU')
        
     options = parser.parse_args().__dict__
     
@@ -349,7 +349,7 @@ class RepGAN(Model):
             # fakeZ = Concatenate([fakeC,fakeS,fakeN])
             recX  = self.Gz((fakeC,fakeS,fakeN))
             (recC,recS,_)  = self.Fx(fakeX)
-
+            
             AdvGlossX = self.AdvGloss(fakeXcritic)*self.PenAdvXloss
             AdvGlossC = self.AdvGloss(fakeCcritic)*self.PenAdvCloss
             AdvGlossS = self.AdvGloss(fakeScritic)*self.PenAdvSloss
@@ -358,24 +358,18 @@ class RepGAN(Model):
             RecGlossC = self.RecCloss(realC,recC)*self.PenRecCloss
             RecGlossS = self.RecSloss(realS,recS)*self.PenRecSloss
             AdvGloss = AdvGlossX + AdvGlossC + AdvGlossS + AdvGlossN + RecGlossX + RecGlossC + RecGlossS
-
+        
         # Get the gradients w.r.t the generator loss
-        gradFx, gradGz = tape.gradient(AdvGloss, 
-                (self.Fx.trainable_variables, self.Gz.trainable_variables))
+        gradFx, gradGz = tape.gradient(AdvGloss,
+            (self.Fx.trainable_variables, self.Gz.trainable_variables))
+        import pdb
+        pdb.set_trace()
+        print("[pass]")
         # Update the weights of the generator using the generator optimizer
         self.FxOpt.apply_gradients(zip(gradFx,self.Fx.trainable_variables))
         self.GzOpt.apply_gradients(zip(gradGz,self.Gz.trainable_variables))
-
-        ## Compute our own metrics
-        #AdvDloss_tracker.update_state(AdvDloss)
-        #AdvGloss_tracker.update_state(AdvGloss)
-
-        #return {"AdvDloss": AdvDloss_tracker.result(), 
-        #    "AdvGloss": AdvGloss_tracker.results()}
-
         
-        return {"AdvDloss": AdvDloss, 
-            "AdvGloss": AdvGloss}
+        return {"AdvDloss": AdvDloss,"AdvGloss": AdvGloss}
 
 
     def build_Fx(self):
@@ -607,9 +601,13 @@ class RepGAN(Model):
 
 def main(DeviceName):
 
-    with tf.device(DeviceName):
+    options = ParseOptions()
 
-        options = ParseOptions()
+    if not options['cuda']:
+        DeviceName = "/cpu:0"
+
+    with tf.device(DeviceName):
+        
 
         optimizers = {}
         optimizers['DxOpt'] = RMSprop(lr=0.00005)
@@ -633,58 +631,38 @@ def main(DeviceName):
         losses['PenRecCloss'] = 1.
         losses['PenRecSloss'] = 1.
         losses['PenGradX'] = 10.
-        
-        # extra_options = {}
-        # extra_options['metrics'] = [tf.keras.metrics.Accuracy()]
-        # extra_options['weighted_metrics'] = None
-        # extra_options['loss_weights'] = None
-        # extra_options['run_eagerly'] = None
-        # extra_options['steps_per_execution'] = None
-        # extra_options['target_tensors'] = None
-        # extra_options['sample_weight_mode'] = None
-        # extra_options['experimental_run_tf_function'] = None
-        #metrics = {}
-        #metrics['Accuracy'] = tf.keras.metrics.Accuracy()
-
-        #weighted_metrics = {}
-
-        #loss_weights = {}
-
-        #run_eagerly = {}
-        #run_eagerly['run_eagerly'] = None
-
-        #steps_per_execution = {}
-        #steps_per_execution['steps_per_execution'] = None
-
-        #target_tensors = {}
-        #target_tensors['target_tensors'] = None
-
-        #sample_weight_mode = {}
-        #sample_weight_mode['sample_weight_mode'] = None
-
-        #experimental_run_tf_function = {}
-        #experimental_run_tf_function['experimental_run_tf_function'] = None
-
+       
+    # strategy = tf.distribute.MirroredStrategy()
+    # print('Number of devices: {}'.format(strategy.num_replicas_in_sync))
+    # # Open a strategy scope.
+    # with strategy.scope():
+        # Everything that creates variables should be under the strategy scope.
+        # In general this is only model construction & `compile()`.  
+          
         # Instantiate the RepGAN model.
         GiorgiaGAN = RepGAN(options)
 
         # Compile the RepGAN model.
         GiorgiaGAN.compile(optimizers,losses)
 
+        if options['CreateData']:
+            # Create the dataset
+            Xtrn,  Xvld, _ = mdof.CreateData(**options)
+        else:
+            # Load the dataset
+            Xtrn,  Xvld, _ = mdof.LoadData(**options)
+        
 
-        # Load the dataset
-        Xtrn,  Xvld, params_trn, params_vld, Ctrn, Cvld, Strn, Svld, Ntrn, Nvld = mdof.load_data(**options)
 
-
-        Xtrn = Xtrn.astype("float32") 
-        Xvld = Xvld.astype("float32")
+        #Xtrn = Xtrn.astype("float32") 
+        #Xvld = Xvld.astype("float32")
         
         # Xtrn = tf.data.Dataset.from_tensor_slices(Xtrn)
         # Xtrn = Xtrn.shuffle(buffer_size=1024).batch(options['batchSize'])
 
         # Start training the model.
         #GiorgiaGAN.fit(x=Xtrn,y=Ctrn,batch_size=options["batchSize"],epochs=options["epochs"])
-        GiorgiaGAN.fit(Xtrn,Ctrn,batch_size=options["batchSize"],epochs=options["epochs"])
+        GiorgiaGAN.fit(Xtrn,epochs=options["epochs"],validation_data=Xvld)
 
 
 if __name__ == '__main__':
