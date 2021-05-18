@@ -12,7 +12,7 @@ __status__ = "Beta"
 
 import os
 from os.path import join as opj
-os.environ['CUDA_VISIBLE_DEVICES'] = "0"
+os.environ['CUDA_VISIBLE_DEVICES'] = "1"
 
 import tensorflow as tf
 tf.config.experimental.disable_mlir_graph_optimization()
@@ -371,6 +371,10 @@ class RepGAN(Model):
         
         return {"AdvDloss": AdvDloss,"AdvGloss": AdvGloss}
 
+
+    def call(self, X):
+        (fakeC,fakeS,fakeN) = self.Fx(X)
+        return fakeC
 
     def build_Fx(self):
         """
