@@ -54,14 +54,14 @@ def ParseOptions():
     parser.add_argument("--batchSize",type=int,default=12,help='input batch size')
     parser.add_argument("--nCritic",type=int,default=5,help='number of discriminator training steps')
     parser.add_argument("--clipValue",type=float,default=0.01,help='clip weight for WGAN')
-    parser.add_argument("--dataroot",type=str,default="/gpfs/workdir/invsem07/damaged_1_8P",help="Data root folder")
+    parser.add_argument("--dataroot",type=str,default="/gpfs/workdir/invsem07/damaged_1_5P",help="Data root folder")
     parser.add_argument("--idChannels",type=int,nargs='+',default=[21,39],help="Channel 1")
     parser.add_argument("--nParams",type=str,default=2,help="Number of parameters")
     parser.add_argument("--case",type=str,default="train_model",help="case")
     parser.add_argument("--avu",type=str,nargs='+',default="U",help="case avu")
     parser.add_argument("--pb",type=str,default="BC",help="case pb")
-    parser.add_argument("--CreateData",action='store_true',default=False,help='Create data flag')
-    parser.add_argument("--cuda",action='store_true',default=False,help='Use cuda powered GPU')
+    parser.add_argument("--CreateData",action='store_true',default=True,help='Create data flag')
+    parser.add_argument("--cuda",action='store_true',default=True,help='Use cuda powered GPU')
        
     options = parser.parse_args().__dict__
     
