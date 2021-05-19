@@ -12,10 +12,37 @@ __status__ = "Beta"
 
 import os
 from os.path import join as opj
-os.environ['CUDA_VISIBLE_DEVICES'] = "1"
+os.environ['CUDA_VISIBLE_DEVICES'] = "0"
 
 import tensorflow as tf
-tf.config.experimental.disable_mlir_graph_optimization()
+
+#physical_devices = tf.config.experimental.list_physical_devices('GPU')
+#print("Num GPUs:", len(physical_devices))
+##tf.config.experimental.disable_mlir_graph_optimization()
+#print("Num GPUs Available: ", len(tf.test.gpu_device_name()))
+#from tensorflow.python.eager.context import get_config
+# tf.compat.v1.disable_eager_execution()
+
+#tf.debugging.set_log_device_placement(True)
+
+#
+#print(c)
+#
+#gpus = tf.config.list_physical_devices('GPU')
+#if gpus:
+#  # Restrict TensorFlow to only use the first GPU
+#  try:
+#    tf.config.experimental.set_visible_devices(gpus[0], 'GPU')
+#    logical_gpus = tf.config.experimental.list_logical_devices('GPU')
+#    print(len(gpus), "Physical GPUs,", len(logical_gpus), "Logical GPU")
+#  except RuntimeError as e:
+#    # Visible devices must be set before GPUs have been initialized
+#    print(e)
+# @tf_export('config.experimental.disable_mlir_bridge')
+# def disable_mlir_bridge():
+#   ##Disables experimental MLIR-Based TensorFlow Compiler Bridge.
+#   context.context().enable_mlir_bridge = False
+#import visualkeras
 
 import timeit
 import sys
@@ -31,12 +58,14 @@ from tensorflow.keras.layers import LeakyReLU, ReLU, Softmax
 from tensorflow.keras.layers import UpSampling1D, Conv1D, Conv1DTranspose
 from tensorflow.keras.optimizers import Adam, RMSprop
 from tensorflow.keras.constraints import Constraint, min_max_norm
+from tensorflow.python.eager import context
+
 from numpy.linalg import norm
 import MDOFload as mdof
 import matplotlib.pyplot as plt
-#import visualkeras
-import keras.backend as K
-# tf.compat.v1.disable_eager_execution()
+
+from tensorflow.keras import backend as K
+from tensorflow.python.util.tf_export import tf_export
 AdvDLoss_tracker = keras.metrics.Mean(name="loss")
 AdvGLoss_tracker = keras.metrics.Mean(name="loss")
 
@@ -48,13 +77,13 @@ def ParseOptions():
     parser.add_argument("--stride",type=int,default=2,help='CNN stride')
     parser.add_argument("--nCnnLayers",type=int,default=5,help='Number of CNN layers per Coupling Layer')
     parser.add_argument("--Xsize",type=int,default=1024,help='Data space size')
-    parser.add_argument("--nX",type=int,default=32000,help='Number of signals')
+    parser.add_argument("--nX",type=int,default=512,help='Number of signals')
     parser.add_argument("--nXchannels",type=int,default=2,help="Number of data channels")
     parser.add_argument("--latentZdim",type=int,default=1024,help="Latent space dimension")
     parser.add_argument("--batchSize",type=int,default=12,help='input batch size')
     parser.add_argument("--nCritic",type=int,default=5,help='number of discriminator training steps')
     parser.add_argument("--clipValue",type=float,default=0.01,help='clip weight for WGAN')
-    parser.add_argument("--dataroot",type=str,default="/gpfs/workdir/invsem07/damaged_1_5P",help="Data root folder")
+    parser.add_argument("--dataroot",type=str,default="/gpfs/workdir/invsem07/damaged_1_8P",help="Data root folder")
     parser.add_argument("--idChannels",type=int,nargs='+',default=[21,39],help="Channel 1")
     parser.add_argument("--nParams",type=str,default=2,help="Number of parameters")
     parser.add_argument("--case",type=str,default="train_model",help="case")
@@ -167,6 +196,13 @@ class RepGAN(Model):
         self.Fx = self.build_Fx()
         self.Gz = self.build_Gz()
 
+    def get_config(self):
+        config = super().get_config().copy()
+        config.update({
+            'size': self.size
+        })
+        return config    
+
     @property
     def metrics(self):
         # We list our `Metric` objects here so that `reset_states()` can be
@@ -234,7 +270,6 @@ class RepGAN(Model):
         self.Dn.trainable = True
 
 
-
         for _ in range(self.nCritic):
 
             # Sample noise as generator input
@@ -258,6 +293,7 @@ class RepGAN(Model):
                 realS = tf.random.normal(mean=0.0,stddev=0.5,shape=[self.batchSize,self.latentSdim])
                 realN = tf.random.normal(mean=0.0,stddev=0.3,shape=[self.batchSize,self.latentNdim])
 
+                
                 # # Generate fake latent code from real signals
                 (fakeC,fakeS,fakeN) = self.Fx(realX) # encoded z = Fx(X)
 
@@ -294,6 +330,9 @@ class RepGAN(Model):
                 (self.Dx.trainable_variables, self.Dc.trainable_variables, 
                 self.Ds.trainable_variables, self.Dn.trainable_variables))
             
+            import pdb
+            pdb.set_trace()
+
             # Update the weights of the discriminator using the discriminator optimizer
             self.DxOpt.apply_gradients(zip(gradDx,self.Dx.trainable_variables))
             self.DcOpt.apply_gradients(zip(gradDc,self.Dc.trainable_variables))
@@ -359,12 +398,12 @@ class RepGAN(Model):
             RecGlossS = self.RecSloss(realS,recS)*self.PenRecSloss
             AdvGloss = AdvGlossX + AdvGlossC + AdvGlossS + AdvGlossN + RecGlossX + RecGlossC + RecGlossS
         
+
         # Get the gradients w.r.t the generator loss
         gradFx, gradGz = tape.gradient(AdvGloss,
             (self.Fx.trainable_variables, self.Gz.trainable_variables))
         import pdb
         pdb.set_trace()
-        print("[pass]")
         # Update the weights of the generator using the generator optimizer
         self.FxOpt.apply_gradients(zip(gradFx,self.Fx.trainable_variables))
         self.GzOpt.apply_gradients(zip(gradGz,self.Gz.trainable_variables))
@@ -412,7 +451,8 @@ class RepGAN(Model):
         model.summary()
         
         z = model(X)
-        
+
+             
                
 
         # sampleS = Sequential()
@@ -459,6 +499,10 @@ class RepGAN(Model):
 
         # concatenation of variables c, s and n
         # z = Concatenate()([c,s,n])
+
+        model = keras.Model(X,(c,s,n),name="Fx")
+        dot_img_file = '/tmp/Fx.png'
+        #tf.keras.utils.plot_model(model, to_file=dot_img_file, show_shapes=True)
 
 
         return keras.Model(X,(c,s,n),name="Fx")
@@ -614,10 +658,10 @@ def main(DeviceName):
         
 
         optimizers = {}
-        optimizers['DxOpt'] = RMSprop(lr=0.00005)
-        optimizers['DcOpt'] = RMSprop(lr=0.00005)
-        optimizers['DsOpt'] = RMSprop(lr=0.00005)
-        optimizers['DnOpt'] = RMSprop(lr=0.00005)
+        optimizers['DxOpt'] = RMSprop(learning_rate=0.00005)
+        optimizers['DcOpt'] = RMSprop(learning_rate=0.00005)
+        optimizers['DsOpt'] = RMSprop(learning_rate=0.00005)
+        optimizers['DnOpt'] = RMSprop(learning_rate=0.00005)
         optimizers['FxOpt'] = Adam(learning_rate=0.0002, beta_1=0.5, beta_2=0.9)
         optimizers['GzOpt'] = Adam(learning_rate=0.0002, beta_1=0.5, beta_2=0.9)
 
