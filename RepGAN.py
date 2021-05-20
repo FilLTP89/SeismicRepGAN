@@ -12,6 +12,7 @@ __status__ = "Beta"
 
 import os
 from os.path import join as opj
+os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 os.environ['CUDA_VISIBLE_DEVICES'] = "0"
 
 import tensorflow as tf
@@ -69,6 +70,7 @@ from tensorflow.python.util.tf_export import tf_export
 AdvDLoss_tracker = keras.metrics.Mean(name="loss")
 AdvGLoss_tracker = keras.metrics.Mean(name="loss")
 
+gpu_devices = tf.config.experimental.list_physical_devices('GPU')
 
 def ParseOptions():
     parser = argparse.ArgumentParser()
@@ -80,7 +82,7 @@ def ParseOptions():
     parser.add_argument("--nX",type=int,default=512,help='Number of signals')
     parser.add_argument("--nXchannels",type=int,default=2,help="Number of data channels")
     parser.add_argument("--latentZdim",type=int,default=1024,help="Latent space dimension")
-    parser.add_argument("--batchSize",type=int,default=12,help='input batch size')
+    parser.add_argument("--batchSize",type=int,default=128,help='input batch size')
     parser.add_argument("--nCritic",type=int,default=5,help='number of discriminator training steps')
     parser.add_argument("--clipValue",type=float,default=0.01,help='clip weight for WGAN')
     parser.add_argument("--dataroot",type=str,default="/gpfs/workdir/invsem07/damaged_1_8P",help="Data root folder")
@@ -330,9 +332,7 @@ class RepGAN(Model):
                 (self.Dx.trainable_variables, self.Dc.trainable_variables, 
                 self.Ds.trainable_variables, self.Dn.trainable_variables))
             
-            import pdb
-            pdb.set_trace()
-
+            
             # Update the weights of the discriminator using the discriminator optimizer
             self.DxOpt.apply_gradients(zip(gradDx,self.Dx.trainable_variables))
             self.DcOpt.apply_gradients(zip(gradDc,self.Dc.trainable_variables))
@@ -370,16 +370,21 @@ class RepGAN(Model):
         with tf.GradientTape(persistent=True) as tape:
             # Fake
             (fakeC,fakeS,fakeN) = self.Fx(realX) # encoded z = Fx(X)
-            fakeX = self.Gz((fakeC,fakeS,fakeN)) # fake X = Gz(Fx(X))
-            
+            fakeX = self.Gz((realC,realS,realN)) # fake X = Gz(Fx(X))
+
+                        
             # Discriminator determines validity of the real and fake X
             fakeXcritic = self.Dx(fakeX)
+
 
             # Discriminator determines validity of the real and fake C
             fakeCcritic = self.Dc(fakeC)
 
             # Discriminator determines validity of the real and fake S
             fakeScritic = self.Ds(fakeS)
+
+            import pdb
+            pdb.set_trace()
 
             # Discriminator determines validity of the real and fake N
             fakeNcritic = self.Dn(fakeN)
@@ -402,12 +407,14 @@ class RepGAN(Model):
         # Get the gradients w.r.t the generator loss
         gradFx, gradGz = tape.gradient(AdvGloss,
             (self.Fx.trainable_variables, self.Gz.trainable_variables))
-        import pdb
-        pdb.set_trace()
+        #import pdb
+        #pdb.set_trace()
         # Update the weights of the generator using the generator optimizer
         self.FxOpt.apply_gradients(zip(gradFx,self.Fx.trainable_variables))
         self.GzOpt.apply_gradients(zip(gradGz,self.Gz.trainable_variables))
         
+        
+
         return {"AdvDloss": AdvDloss,"AdvGloss": AdvGloss}
 
 
