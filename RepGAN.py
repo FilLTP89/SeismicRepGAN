@@ -12,7 +12,7 @@ __status__ = "Beta"
 
 import os
 from os.path import join as opj
-os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
+# os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 os.environ['CUDA_VISIBLE_DEVICES'] = "0"
 
 import tensorflow as tf
@@ -23,7 +23,8 @@ import tensorflow as tf
 #print("Num GPUs Available: ", len(tf.test.gpu_device_name()))
 #from tensorflow.python.eager.context import get_config
 # tf.compat.v1.disable_eager_execution()
-
+gpu = tf.config.experimental.list_physical_devices('GPU')
+tf.config.experimental.set_memory_growth(gpu[0], True)
 #tf.debugging.set_log_device_placement(True)
 
 #
@@ -67,10 +68,29 @@ import matplotlib.pyplot as plt
 
 from tensorflow.keras import backend as K
 from tensorflow.python.util.tf_export import tf_export
+from copy import deepcopy
+
 AdvDLoss_tracker = keras.metrics.Mean(name="loss")
 AdvGLoss_tracker = keras.metrics.Mean(name="loss")
 
 gpu_devices = tf.config.experimental.list_physical_devices('GPU')
+
+
+checkpoint_dir = "./ckpt"
+if not os.path.exists(checkpoint_dir):
+    os.makedirs(checkpoint_dir)
+
+
+def make_or_restore_model():
+    # Either restore the latest model, or create a fresh one
+    # if there is no checkpoint available.
+    checkpoints = [checkpoint_dir + "/" + name for name in os.listdir(checkpoint_dir)]
+    if checkpoints:
+        latest_checkpoint = max(checkpoints, key=os.path.getctime)
+        print("Restoring from", latest_checkpoint)
+        return keras.models.load_model(latest_checkpoint)
+    print("Creating a new model")
+    return get_compiled_model()
 
 def ParseOptions():
     parser = argparse.ArgumentParser()
@@ -98,6 +118,7 @@ def ParseOptions():
     
 
     options['Xshape'] = (options['Xsize'], options['nXchannels'])
+    options['batchXshape'] = (options['batchSize'],options['Xsize'],options['nXchannels'])
     options['Zsize']  = options['Xsize']//(options['stride']**options['nCnnLayers'])
     options['latentCidx'] = list(range(5))
     options['latentSidx'] = list(range(5,7))
@@ -257,6 +278,7 @@ class RepGAN(Model):
         #batchSize = tf.shape(realX)[0]
         #if self.batchSize != batchSize:
         self.batchSize = tf.shape(realX)[0]
+
 
         #------------------------------------------------
         #           Construct Computational Graph
@@ -427,7 +449,7 @@ class RepGAN(Model):
             Conv1D Fx structure
         """
         
-        X = Input(shape=self.Xshape)
+        X = Input(batch_input_shape=self.batchXshape) #shape=self.Xshape,
 
         # for n in range(self.nCnnLayers):
         #     X = Conv1D((self.latentZdim/self.Zsize)*self.stride**(-self.nCnnLayers+n),
@@ -441,12 +463,18 @@ class RepGAN(Model):
         # z = BatchNormalization(momentum=0.95)(inputs=z)
         # z = LeakyReLU(alpha=0.1)(z)
 
-
+        nXchannels = deepcopy(self.nXchannels)
         model = Sequential()
-        for n in range(self.nCnnLayers):
-            model.add(Conv1D((self.latentZdim/self.Zsize)*self.stride**(-self.nCnnLayers+n),
+        model.add(Conv1D(self.nZchannels*self.stride**(-self.nCnnLayers),
                 self.kernel,self.stride,padding="same",
-                input_shape=self.Xshape,data_format="channels_last"))
+                # input_shape=self.Xshape,
+                # batch_input_shape=self.batchXshape,
+                data_format="channels_last"))
+
+        for n in range(1,self.nCnnLayers):
+            model.add(Conv1D(self.nZchannels*self.stride**(-self.nCnnLayers+n),
+                self.kernel,self.stride,padding="same",
+                data_format="channels_last"))
             model.add(BatchNormalization(momentum=0.95))
             model.add(LeakyReLU(alpha=0.1))
             model.add(Dropout(0.2))
@@ -455,7 +483,7 @@ class RepGAN(Model):
         model.add(Dense(self.latentZdim))
         model.add(BatchNormalization(momentum=0.95))
         model.add(LeakyReLU(alpha=0.1))
-        model.summary()
+        # model.summary()
         
         z = model(X)
 
@@ -617,6 +645,8 @@ class RepGAN(Model):
 
         return keras.Model(c,Dc,name="Dc")
 
+        # self.Dc = m
+
     def build_Dn(self):
         """
             Dense discriminator structure
@@ -717,7 +747,12 @@ def main(DeviceName):
 
         # Start training the model.
         #GiorgiaGAN.fit(x=Xtrn,y=Ctrn,batch_size=options["batchSize"],epochs=options["epochs"])
-        GiorgiaGAN.fit(Xtrn,epochs=options["epochs"],validation_data=Xvld)
+        
+        callbacks = [keras.callbacks.ModelCheckpoint(
+            filepath=checkpoint_dir + "/ckpt-{epoch}", 
+            save_freq="epoch")]
+        GiorgiaGAN.fit(Xtrn,epochs=options["epochs"],validation_data=Xvld,
+            callbacks=callbacks,verbose=2)
 
 
 if __name__ == '__main__':
