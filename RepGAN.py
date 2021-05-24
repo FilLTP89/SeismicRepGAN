@@ -405,9 +405,6 @@ class RepGAN(Model):
             # Discriminator determines validity of the real and fake S
             fakeScritic = self.Ds(fakeS)
 
-            import pdb
-            pdb.set_trace()
-
             # Discriminator determines validity of the real and fake N
             fakeNcritic = self.Dn(fakeN)
 
@@ -500,9 +497,9 @@ class RepGAN(Model):
         """
             Conv1D Gz structure
         """
-        c = tf.keras.Input(shape=(self.latentCdim,))
-        s = tf.keras.Input(shape=(self.latentSdim,))
-        n = tf.keras.Input(shape=(self.latentNdim,))
+        c = Input(shape=(self.latentCdim,))
+        s = Input(shape=(self.latentSdim,))
+        n = Input(shape=(self.latentNdim,))
              
         GzC = Dense(self.Zsize*self.nCchannels,use_bias=False)(c)
         GzC = Reshape((self.Zsize,self.nCchannels))(GzC)
@@ -531,10 +528,9 @@ class RepGAN(Model):
         
         Gz = Conv1DTranspose(self.nXchannels,self.kernel,1,padding="same")(Gz)
 
-        #model.summary()
-         
-              
-        return keras.Model([GzC.input,GzS.input,GzN.input],Gz,name="Gz")
+        model = keras.Model([GzC.input,GzS.input,GzN.input],Gz,name="Gz")
+        model.summary()
+        return model
         
     def build_Dx(self):
         """
