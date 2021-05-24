@@ -141,7 +141,7 @@ class RandomWeightedAverage(Layer):
 
 class Sampling(Layer):
     """Uses (z_mean, z_log_var) to sample z, the vector encoding a digit."""
-
+    
     def call(self, inputs):
         z_mean, z_log_var = inputs
         batch = tf.shape(z_mean)[0]
@@ -536,26 +536,25 @@ class RepGAN(Model):
         """
             Conv1D discriminator structure
         """
-        model = Sequential()
-        model.add(Conv1D(32,self.kernel,self.stride,
-            input_shape=self.Xshape,padding="same"))
-        model.add(LeakyReLU(alpha=0.2))
-        model.add(Dropout(0.25))
-        model.add(Conv1D(64,self.kernel,self.stride,padding="same"))
-        model.add(ZeroPadding1D(padding=((0,1))))
-        model.add(BatchNormalization(momentum=0.95))
-        model.add(LeakyReLU(alpha=0.2))
-        model.add(Dropout(0.25))
-        model.add(Conv1D(128,self.kernel,self.stride,padding="same"))
-        model.add(BatchNormalization(momentum=0.95))
-        model.add(LeakyReLU(alpha=0.0))
-        model.add(Dropout(0.25))
-        model.add(Conv1D(256,self.kernel,strides=1,padding="same"))
-        model.add(BatchNormalization(momentum=0.95))
-        model.add(LeakyReLU(alpha=0.2))
-        model.add(Dropout(0.25))
-        model.add(Flatten())
-        model.add(Dense(1,activation=None))
+        X = Input(shape=self.Xshape,name="X")        
+        h = Conv1D(32,self.kernel,self.stride,input_shape=self.Xshape,padding="same")(X)
+        h = LeakyReLU(alpha=0.2)(h)
+        h = Dropout(0.25)(h)
+        h = Conv1D(64,self.kernel,self.stride,padding="same")(h)
+        h = ZeroPadding1D(padding=((0,1)))(h)
+        h = BatchNormalization(momentum=0.95)(h)
+        h = LeakyReLU(alpha=0.2)(h)
+        h = Dropout(0.25)(h)
+        h = Conv1D(128,self.kernel,self.stride,padding="same")(h)
+        h = BatchNormalization(momentum=0.95)(h)
+        h = LeakyReLU(alpha=0.0)(h)
+        h = Dropout(0.25)(h)
+        h = Conv1D(256,self.kernel,strides=1,padding="same")(h)
+        h = BatchNormalization(momentum=0.95)(h)
+        h = LeakyReLU(alpha=0.2)(h)
+        h = Dropout(0.25)(h)
+        h = Flatten()(h)
+        Dx = Dense(1,activation=None)(h)
         # model.add(Dense(1,activation='sigmoid'))
 
         # model.add(Conv1D(64,self.kernel,self.stride,
@@ -569,12 +568,13 @@ class RepGAN(Model):
         # model.add(BatchNormalization(momentum=0.95))
         # model.add(Dense(1,activation='sigmoid'))
 
+        # model.summary()
+
+        # X = Input(shape=(self.Xshape))
+        # Dx = model(X)
+        model = keras.Model(X,Dx,name="Dx")
         model.summary()
-
-        X = Input(shape=(self.Xshape))
-        Dx = model(X)
-
-        return keras.Model(X,Dx,name="Dx")
+        return model
 
 
     def build_Dc(self):
