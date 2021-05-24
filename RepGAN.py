@@ -448,99 +448,53 @@ class RepGAN(Model):
         """
             Conv1D Fx structure
         """
-        
-        X = Input(batch_input_shape=self.batchXshape) #shape=self.Xshape,
+        # To build this model using the functional API, start by creating an input node:
+        X = Input(shape=self.Xshape,name="X")
 
-        # for n in range(self.nCnnLayers):
-        #     X = Conv1D((self.latentZdim/self.Zsize)*self.stride**(-self.nCnnLayers+n),
-        #         self.kernel,self.stride,padding="same",
-        #         input_shape=self.Xshape,data_format="channels_last")(X)
-        #     X = BatchNormalization(momentum=0.95)(inputs=X)
-        #     X = LeakyReLU(alpha=0.1)(X)
-        #     X = Dropout(rate=0.2)(X)
-        # z = Flatten()(X)
-        # z = Dense(self.latentZdim)(z)
-        # z = BatchNormalization(momentum=0.95)(inputs=z)
-        # z = LeakyReLU(alpha=0.1)(z)
-
-        nXchannels = deepcopy(self.nXchannels)
-        model = Sequential()
-        model.add(Conv1D(self.nZchannels*self.stride**(-self.nCnnLayers),
+        h = Conv1D(self.nZchannels*self.stride**(-self.nCnnLayers),
                 self.kernel,self.stride,padding="same",
-                # input_shape=self.Xshape,
-                # batch_input_shape=self.batchXshape,
-                data_format="channels_last"))
+                data_format="channels_last",name="FxCNN0")(X)
+        h = BatchNormalization(momentum=0.95,name="FxBN0")(h)
+        h = LeakyReLU(alpha=0.1,name="FxA0")(h)
+        h = Dropout(0.2,name="FxDO0")(h)
 
         for n in range(1,self.nCnnLayers):
-            model.add(Conv1D(self.nZchannels*self.stride**(-self.nCnnLayers+n),
+            h = Conv1D(self.nZchannels*self.stride**(-self.nCnnLayers+n),
                 self.kernel,self.stride,padding="same",
-                data_format="channels_last"))
-            model.add(BatchNormalization(momentum=0.95))
-            model.add(LeakyReLU(alpha=0.1))
-            model.add(Dropout(0.2))
+                data_format="channels_last",name="FxCNN{:>d}".format(n))(h)
+            h = BatchNormalization(momentum=0.95,name="FxBN{:>d}".format(n))(h)
+            h = LeakyReLU(alpha=0.1,name="FxA{:>d}".format(n))(h)
+            h = Dropout(0.2,name="FxDO{:>d}".format(n))(h)
         
-        model.add(Flatten())
-        model.add(Dense(self.latentZdim))
-        model.add(BatchNormalization(momentum=0.95))
-        model.add(LeakyReLU(alpha=0.1))
-        # model.summary()
-        
-        z = model(X)
+        h = Flatten(name="FxFL{:>d}".format(n+1))(h)
+        h = Dense(self.latentZdim,name="FxFW{:>d}".format(n+1))(h)
+        h = BatchNormalization(momentum=0.95,name="FxBN{:>d}".format(n+1))(h)
+        z = LeakyReLU(alpha=0.1,name="FxA{:>d}".format(n+1))(h)
 
-             
-               
+        # variable s
+        h = Dense(self.latentSdim,name="FxFWmuS")(z)
+        Zmu = BatchNormalization(momentum=0.95)(h)
 
-        # sampleS = Sequential()
-        # sampleS.add(Lambda(lambda t: t,(self.latentSidx[0]),(self.latentSidx[-1])))
-
-        # sampleC = Sequential()
-        # sampleC.add(Lambda(lambda t: t,(self.latentCidx[0]),(self.latentCidx[-1])))
-
-        # sampleN = Sequential()
-        # sampleN.add(Lambda(lambda t: t,(self.latentNidx[0]),(self.latentNidx[-1])))
-
-
-        # variable s 
-        # MuS = Sequential()
-        # LVS = Sequential()
-        # MuS.add(Dense(self.latentSdim))
-        # MuS.add(BatchNormalization(momentum=0.95))
-        # LVS.add(Dense(self.latentSdim))
-        # LVS.add(BatchNormalization(momentum=0.95))
-
-        # mu = MuS(z)
-        # lv = LVS(z)
-
-        h = Dense(self.latentSdim)(z)
-        Zmu = BatchNormalization(momentum=0.95)(inputs=h)
-
-        h = Dense(self.latentSdim)(z)
-        Zlv = BatchNormalization(momentum=0.95)(inputs=h)
+        h = Dense(self.latentSdim,name="FxFWsiS")(z)
+        Zlv = BatchNormalization(momentum=0.95)(h)
 
         s = Sampling()([Zmu,Zlv])
 
         # variable c
-        sampleC = Sequential()
-        sampleC.add(Dense(self.latentCdim))
-        sampleC.add(BatchNormalization(momentum=0.95))
-        sampleC.add(Softmax())
-        c = sampleC(z)
+        h = Dense(self.latentCdim,name="FxFWC")(z)
+        h = BatchNormalization(momentum=0.95,name="FxBNC")(h)
+        c = Softmax(name="FxAC")(h)
         
         # variable n
-        sampleN = Sequential()
-        sampleN.add(Dense(self.latentNdim))
-        sampleN.add(BatchNormalization(momentum=0.95))
-        n = sampleN(z)
+        h = Dense(self.latentNdim,name="FxFWN")(z)
+        n = BatchNormalization(momentum=0.95,name="FxBNN")(h)
 
         # concatenation of variables c, s and n
         # z = Concatenate()([c,s,n])
 
-        model = keras.Model(X,(c,s,n),name="Fx")
-        dot_img_file = '/tmp/Fx.png'
-        #tf.keras.utils.plot_model(model, to_file=dot_img_file, show_shapes=True)
-
-
-        return keras.Model(X,(c,s,n),name="Fx")
+        model = keras.Model(X,[c,s,n],name="Fx")
+        model.summary()
+        return model
 
     def build_Gz(self):
         """
