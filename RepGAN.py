@@ -611,17 +611,12 @@ class RepGAN(Model):
         """
             Dense discriminator structure
         """
-        model = Sequential()
-        model.add(Dense(3000,kernel_constraint=min_max_norm(2.)))
-        model.add(LeakyReLU())
-        model.add(Dense(3000,kernel_constraint=min_max_norm(2.)))
-        model.add(LeakyReLU())
-        model.add(Dense(1))  
-
-        #model.summary()
-
         s = Input(shape=(self.latentSdim,))
-        Ds = model(s)
+        h = Dense(3000,kernel_constraint=min_max_norm(2.))(s)
+        h = LeakyReLU()(h)
+        h = Dense(3000,kernel_constraint=min_max_norm(2.))(h)
+        h = LeakyReLU()(h)
+        Ds = Dense(1)(h)        
 
         return keras.Model(s,Ds,name="Ds")
 
