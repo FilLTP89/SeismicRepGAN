@@ -280,6 +280,7 @@ class RepGAN(Model):
         self.batchSize = tf.shape(realX)[0]
 
 
+
         #------------------------------------------------
         #           Construct Computational Graph
         #               for the Discriminator
@@ -340,6 +341,7 @@ class RepGAN(Model):
                 fakeScritic = self.Ds(fakeS)
                 realScritic = self.Ds(realS)
 
+                                
                 # Calculate the discriminator loss using the fake and real logits
                 AdvDlossX = self.AdvDloss(realXcritic,fakeXcritic)*self.PenAdvXloss
                 AdvDlossC = self.AdvDloss(realCcritic,fakeCcritic)*self.PenAdvCloss
@@ -348,6 +350,7 @@ class RepGAN(Model):
                 AdvDlossPenGradX = self.GradientPenaltyX(self.batchSize,realX,fakeX)*self.PenGradX
                 AdvDloss = AdvDlossX + AdvDlossC + AdvDlossS + AdvDlossN + AdvDlossPenGradX
 
+            
             # Get the gradients w.r.t the discriminator loss
             
             gradDx, gradDc, gradDs, gradDn = tape.gradient(AdvDloss, 
@@ -434,6 +437,10 @@ class RepGAN(Model):
         
 
         return {"AdvDloss": AdvDloss,"AdvGloss": AdvGloss}
+        
+
+        
+
 
 
     def call(self, X):
@@ -480,7 +487,7 @@ class RepGAN(Model):
         h = Dense(self.latentCdim,name="FxFWC")(z)
         h = BatchNormalization(momentum=0.95,name="FxBNC")(h)
         c = Softmax(name="FxAC")(h)
-        
+                
         # variable n
         h = Dense(self.latentNdim,name="FxFWN")(z)
         n = BatchNormalization(momentum=0.95,name="FxBNN")(h)
@@ -492,7 +499,7 @@ class RepGAN(Model):
         model.summary()
 
         dot_img_file = '/tmp/Fx.png'
-        tf.keras.utils.plot_model(model, to_file=dot_img_file, show_shapes=True)
+        tf.keras.utils.plot_model(model, to_file=dot_img_file, show_shapes=True, show_layer_names=True)
 
 
         return model
@@ -546,7 +553,7 @@ class RepGAN(Model):
         model.summary()
 
         dot_img_file = '/tmp/Gz.png'
-        tf.keras.utils.plot_model(model, to_file=dot_img_file, show_shapes=True)
+        tf.keras.utils.plot_model(model, to_file=dot_img_file, show_shapes=True, show_layer_names=True)
 
         return model
         
@@ -594,7 +601,7 @@ class RepGAN(Model):
         model.summary()
 
         dot_img_file = '/tmp/Dx.png'
-        tf.keras.utils.plot_model(model, to_file=dot_img_file, show_shapes=True)
+        tf.keras.utils.plot_model(model, to_file=dot_img_file, show_shapes=True, show_layer_names=True)
 
         return model
 
@@ -614,7 +621,8 @@ class RepGAN(Model):
         model.summary()
 
         dot_img_file = '/tmp/Dc.png'
-        tf.keras.utils.plot_model(model, to_file=dot_img_file, show_shapes=True)
+        tf.keras.utils.plot_model(model, to_file=dot_img_file, show_shapes=True, show_layer_names=True)
+
         return model
 
     def build_Dn(self):
@@ -632,7 +640,7 @@ class RepGAN(Model):
         model.summary()
 
         dot_img_file = '/tmp/Dn.png'
-        tf.keras.utils.plot_model(model, to_file=dot_img_file, show_shapes=True)
+        tf.keras.utils.plot_model(model, to_file=dot_img_file, show_shapes=True, show_layer_names=True)
 
         return model
 
@@ -651,7 +659,7 @@ class RepGAN(Model):
         model.summary()
 
         dot_img_file = '/tmp/Ds.png'
-        tf.keras.utils.plot_model(model, to_file=dot_img_file, show_shapes=True)      
+        tf.keras.utils.plot_model(model, to_file=dot_img_file, show_shapes=True, show_layer_names=True)      
 
         return keras.Model(s,Ds,name="Ds")
 
