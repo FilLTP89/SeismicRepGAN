@@ -57,7 +57,7 @@ from tensorflow.keras.layers import Input, Dense, Reshape, Flatten, Dropout, Lay
 from tensorflow.keras.layers import Lambda, Concatenate,concatenate, Activation
 from tensorflow.keras.layers import BatchNormalization, Activation, ZeroPadding1D
 from tensorflow.keras.layers import LeakyReLU, ReLU, Softmax
-from tensorflow.keras.layers import UpSampling1D, Conv1D, Conv1DTranspose
+from tensorflow.keras.layers import UpSamplingFxS1D, Conv1D, Conv1DTranspose
 from tensorflow.keras.optimizers import Adam, RMSprop
 from tensorflow.keras.constraints import Constraint, min_max_norm
 from tensorflow.python.eager import context
@@ -139,7 +139,7 @@ class RandomWeightedAverage(Layer):
         alpha = tf.random_uniform((32, 1, 1, 1))
         return (alpha * inputs[0]) + ((1 - alpha) * inputs[1])
 
-class Sampling(Layer):
+class SamplingFxS(Layer):
     """Uses (z_mean, z_log_var) to sample z, the vector encoding a digit."""
     
     def call(self, inputs):
@@ -181,6 +181,7 @@ def GaussianNLL(true, pred):
      Gaussian negative loglikelihood loss function 
     """
     n_dims = int(int(pred.shape[1])/2)
+
     mu = pred[:, 0:n_dims]
     logsigma = pred[:, n_dims:]
     
@@ -192,6 +193,13 @@ def GaussianNLL(true, pred):
 
     return K.mean(-log_likelihood)
 
+def MutualInfoLoss(c, c_given_x):
+    """The mutual information metric we aim to minimize"""
+    eps = 1e-8
+    conditional_entropy = K.mean(- K.sum(K.log(c_given_x + eps) * c, axis=1))
+    entropy = K.mean(- K.sum(K.log(c + eps) * c, axis=1))
+
+    return conditional_entropy + entropy
 
 class RepGAN(Model):
 
@@ -474,7 +482,7 @@ class RepGAN(Model):
         h = Dense(self.latentSdim,name="FxFWsiS")(z)
         Zlv = BatchNormalization(momentum=0.95)(h)
 
-        s = Sampling()([Zmu,Zlv])
+        s = SamplingFxS()([Zmu,Zlv])
 
         # variable c
         h = Dense(self.latentCdim,name="FxFWC")(z)
@@ -488,14 +496,20 @@ class RepGAN(Model):
         # concatenation of variables c, s and n
         # z = Concatenate()([c,s,n])
 
-        model = keras.Model(X,[c,s,n],name="Fx")
-        model.summary()
+        Fx = keras.Model(X,[c,s,n],name="Fx")
+        Fx.summary()
 
-        dot_img_file = '/tmp/Fx.png'
-        tf.keras.utils.plot_model(model, to_file=dot_img_file, show_shapes=True)
+        # [TODO][ADD] concatenateMuLV
+        Qs = keras.Model(X,QsX,name="Qs")
+        dot_img_file = 'Qs.png'
+        tf.keras.utils.plot_model(Qs, to_file=dot_img_file, show_shapes=True)
 
+        # [TODO][ADD] concatenateMuLV
+        Qc = keras.Model(X,QcX,name="Qc")
+        dot_img_file = 'Qc.png'
+        tf.keras.utils.plot_model(Qc, to_file=dot_img_file, show_shapes=True)
 
-        return model
+        return Fx,Qs
 
     def build_Gz(self):
         """
@@ -545,7 +559,7 @@ class RepGAN(Model):
         model = keras.Model([GzC.input,GzS.input,GzN.input],Gz,name="Gz")
         model.summary()
 
-        dot_img_file = '/tmp/Gz.png'
+        dot_img_file = 'Gz.png'
         tf.keras.utils.plot_model(model, to_file=dot_img_file, show_shapes=True)
 
         return model
@@ -593,7 +607,7 @@ class RepGAN(Model):
         model = keras.Model(X,Dx,name="Dx")
         model.summary()
 
-        dot_img_file = '/tmp/Dx.png'
+        dot_img_file = 'Dx.png'
         tf.keras.utils.plot_model(model, to_file=dot_img_file, show_shapes=True)
 
         return model
@@ -613,7 +627,7 @@ class RepGAN(Model):
         model = keras.Model(c,Dc,name="Dc")
         model.summary()
 
-        dot_img_file = '/tmp/Dc.png'
+        dot_img_file = 'Dc.png'
         tf.keras.utils.plot_model(model, to_file=dot_img_file, show_shapes=True)
         return model
 
@@ -631,7 +645,7 @@ class RepGAN(Model):
         model = keras.Model(n,Dn,name="Dn")
         model.summary()
 
-        dot_img_file = '/tmp/Dn.png'
+        dot_img_file = 'Dn.png'
         tf.keras.utils.plot_model(model, to_file=dot_img_file, show_shapes=True)
 
         return model
@@ -650,7 +664,7 @@ class RepGAN(Model):
         model = keras.Model(s,Ds,name="Ds")
         model.summary()
 
-        dot_img_file = '/tmp/Ds.png'
+        dot_img_file = 'Ds.png'
         tf.keras.utils.plot_model(model, to_file=dot_img_file, show_shapes=True)      
 
         return keras.Model(s,Ds,name="Ds")
@@ -667,10 +681,10 @@ def main(DeviceName):
         
 
         optimizers = {}
-        optimizers['DxOpt'] = RMSprop(learning_rate=0.00005)
-        optimizers['DcOpt'] = RMSprop(learning_rate=0.00005)
-        optimizers['DsOpt'] = RMSprop(learning_rate=0.00005)
-        optimizers['DnOpt'] = RMSprop(learning_rate=0.00005)
+        optimizers['DxOpt'] = RMSprop(learning_rate=0.0005)
+        optimizers['DcOpt'] = RMSprop(learning_rate=0.0005)
+        optimizers['DsOpt'] = RMSprop(learning_rate=0.0005)
+        optimizers['DnOpt'] = RMSprop(learning_rate=0.0005)
         optimizers['FxOpt'] = Adam(learning_rate=0.0002, beta_1=0.5, beta_2=0.9)
         optimizers['GzOpt'] = Adam(learning_rate=0.0002, beta_1=0.5, beta_2=0.9)
 
@@ -679,7 +693,7 @@ def main(DeviceName):
         losses['AdvGloss'] = WassersteinGeneratorLoss
         losses['RecSloss'] = GaussianNLL
         losses['RecXloss'] = tf.keras.losses.MeanSquaredError()
-        losses['RecCloss'] = tf.keras.losses.BinaryCrossentropy()
+        losses['RecCloss'] = MutualInfoLoss
         losses['PenAdvXloss'] = 1.
         losses['PenAdvCloss'] = 1.
         losses['PenAdvSloss'] = 1.
@@ -723,8 +737,15 @@ def main(DeviceName):
         callbacks = [keras.callbacks.ModelCheckpoint(
             filepath=checkpoint_dir + "/ckpt-{epoch}", 
             save_freq="epoch")]
-        GiorgiaGAN.fit(Xtrn,epochs=options["epochs"],validation_data=Xvld,
+        history = GiorgiaGAN.fit(Xtrn,epochs=options["epochs"],validation_data=Xvld,
             callbacks=callbacks,verbose=2)
+
+
+        # plt.plot(history.history['AdvDloss'])
+        # plt.plot(history.history['AdvGloss'])
+
+        
+
 
 
 if __name__ == '__main__':
