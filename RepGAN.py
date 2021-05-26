@@ -426,8 +426,7 @@ class RepGAN(Model):
         # Get the gradients w.r.t the generator loss
         gradFx, gradGz = tape.gradient(AdvGloss,
             (self.Fx.trainable_variables, self.Gz.trainable_variables))
-        #import pdb
-        #pdb.set_trace()
+        
         # Update the weights of the generator using the generator optimizer
         self.FxOpt.apply_gradients(zip(gradFx,self.Fx.trainable_variables))
         self.GzOpt.apply_gradients(zip(gradGz,self.Gz.trainable_variables))
@@ -491,6 +490,11 @@ class RepGAN(Model):
 
         model = keras.Model(X,[c,s,n],name="Fx")
         model.summary()
+
+        dot_img_file = '/tmp/Fx.png'
+        tf.keras.utils.plot_model(model, to_file=dot_img_file, show_shapes=True)
+
+
         return model
 
     def build_Gz(self):
@@ -500,24 +504,34 @@ class RepGAN(Model):
         c = Input(shape=(self.latentCdim,))
         s = Input(shape=(self.latentSdim,))
         n = Input(shape=(self.latentNdim,))
-             
-        GzC = Dense(self.Zsize*self.nCchannels,use_bias=False)(c)
-        GzC = Reshape((self.Zsize,self.nCchannels))(GzC)
+
+                     
+        #GzC = Dense(self.Zsize*self.nCchannels,use_bias=False)(c)
+        #GzC = Reshape((self.Zsize,self.nCchannels))(GzC)
+        #GzC = Model(c,GzC)
+
+        GzC = Dense(self.latentCdim,use_bias=False)(c)
         GzC = Model(c,GzC)
 
-        GzS = Dense(self.Zsize*self.nSchannels,use_bias=False)(s)
-        GzS = Reshape((self.Zsize,self.nSchannels))(GzS)
+        #GzS = Dense(self.Zsize*self.nSchannels,use_bias=False)(s)
+        #GzS = Reshape((self.Zsize,self.nSchannels))(GzS)
+        #GzS = Model(s,GzS)
+
+        GzS = Dense(self.latentSdim,use_bias=False)(s)
         GzS = Model(s,GzS)
 
-        GzN = Dense(self.Zsize*self.nNchannels,use_bias=False)(n)
-        GzN = Reshape((self.Zsize,self.nNchannels))(GzN)
+        #GzN = Dense(self.Zsize*self.nNchannels,use_bias=False)(n)
+        #GzN = Reshape((self.Zsize,self.nNchannels))(GzN)
+        #GzN = Model(n,GzN)
+
+        GzN = Dense(self.latentNdim,use_bias=False)(n)
         GzN = Model(n,GzN)
 
         z = concatenate([GzC.output,GzS.output,GzN.output])
 
 
-        #Gz = Reshape((self.Zsize,self.nZchannels))(z)
-        Gz = BatchNormalization(axis=-1,momentum=0.95)(z)
+        Gz = Reshape((self.Zsize,self.nZchannels))(z)
+        Gz = BatchNormalization(axis=-1,momentum=0.95)(Gz)
         Gz = Activation('relu')(Gz)
 
         for n in range(self.nCnnLayers):
@@ -530,6 +544,10 @@ class RepGAN(Model):
 
         model = keras.Model([GzC.input,GzS.input,GzN.input],Gz,name="Gz")
         model.summary()
+
+        dot_img_file = '/tmp/Gz.png'
+        tf.keras.utils.plot_model(model, to_file=dot_img_file, show_shapes=True)
+
         return model
         
     def build_Dx(self):
@@ -574,6 +592,10 @@ class RepGAN(Model):
         # Dx = model(X)
         model = keras.Model(X,Dx,name="Dx")
         model.summary()
+
+        dot_img_file = '/tmp/Dx.png'
+        tf.keras.utils.plot_model(model, to_file=dot_img_file, show_shapes=True)
+
         return model
 
 
@@ -590,6 +612,9 @@ class RepGAN(Model):
 
         model = keras.Model(c,Dc,name="Dc")
         model.summary()
+
+        dot_img_file = '/tmp/Dc.png'
+        tf.keras.utils.plot_model(model, to_file=dot_img_file, show_shapes=True)
         return model
 
     def build_Dn(self):
@@ -605,6 +630,10 @@ class RepGAN(Model):
 
         model = keras.Model(n,Dn,name="Dn")
         model.summary()
+
+        dot_img_file = '/tmp/Dn.png'
+        tf.keras.utils.plot_model(model, to_file=dot_img_file, show_shapes=True)
+
         return model
 
     def build_Ds(self):
@@ -616,7 +645,13 @@ class RepGAN(Model):
         h = LeakyReLU()(h)
         h = Dense(3000,kernel_constraint=min_max_norm(2.))(h)
         h = LeakyReLU()(h)
-        Ds = Dense(1)(h)        
+        Ds = Dense(1)(h)
+
+        model = keras.Model(s,Ds,name="Ds")
+        model.summary()
+
+        dot_img_file = '/tmp/Ds.png'
+        tf.keras.utils.plot_model(model, to_file=dot_img_file, show_shapes=True)      
 
         return keras.Model(s,Ds,name="Ds")
 
