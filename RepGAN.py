@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
 #!/usr/bin/env python3
 u"""General informations"""
-__author__ = "Filippo Gatti"
-__copyright__ = "Copyright 2020, CentraleSupélec (MSSMat UMR CNRS 8579)"
+__author__ = "Filippo Gatti Giorgia Colombera"
+__copyright__ = "Copyright 2021, CentraleSupélec (MSSMat UMR CNRS 8579)"
 __credits__ = ["Filippo Gatti"]
 __license__ = "GPL"
 __version__ = "1.0.1"
 __maintainer__ = "Filippo Gatti"
-__email__ = "filippo.gatti-centralesupelec.fr"
+__email__ = "filippo.gatti@centralesupelec.fr"
 __status__ = "Beta"
 
 import os
@@ -68,6 +68,8 @@ from tensorflow.keras.layers import LeakyReLU, ReLU, Softmax
 from tensorflow.keras.layers import Conv1D, Conv1DTranspose
 from tensorflow.keras.optimizers import Adam, RMSprop
 from tensorflow.keras.constraints import Constraint, min_max_norm
+from tensorflow.keras.initializers import RandomNormal
+
 from tensorflow.python.eager import context
 import kerastuner as kt
 from kerastuner.tuners import RandomSearch
@@ -122,8 +124,8 @@ def ParseOptions():
     parser.add_argument("--case",type=str,default="train_model",help="case")
     parser.add_argument("--avu",type=str,nargs='+',default="U",help="case avu")
     parser.add_argument("--pb",type=str,default="BC",help="case pb")
-    parser.add_argument("--CreateData",action='store_true',default=True,help='Create data flag')
-    parser.add_argument("--cuda",action='store_true',default=True,help='Use cuda powered GPU')
+    parser.add_argument("--CreateData",action='store_true',default=False,help='Create data flag')
+    parser.add_argument("--cuda",action='store_true',default=False,help='Use cuda powered GPU')
        
     options = parser.parse_args().__dict__
     
@@ -160,6 +162,19 @@ class SamplingFxS(Layer):
         epsilon = tf.keras.backend.random_normal(shape=(batch, dim))
         return z_mean + tf.exp(0.5 * z_log_var) * epsilon
 
+# clip model weights to a given hypercube
+class ClipConstraint(Constraint):
+    # set clip value when initialized
+    def __init__(self, clip_value):
+        self.clip_value = clip_value
+ 
+    # clip model weights to hypercube
+    def __call__(self, weights):
+        return tf.keras.backend.clip(weights, -self.clip_value, self.clip_value)
+ 
+    # get the config
+    def get_config(self):
+        return {'clip_value': self.clip_value}
 
 def WassersteinDiscriminatorLoss(real_img, fake_img):
     real_loss = tf.reduce_mean(real_img)
@@ -212,7 +227,7 @@ def MutualInfoLoss(c, c_given_x):
 
     return conditional_entropy + entropy
 
-class RepGAN(HyperModel):
+class RepGAN(Model):
 
     def __init__(self,options):
         super(RepGAN, self).__init__()
@@ -224,7 +239,10 @@ class RepGAN(HyperModel):
         assert self.nZchannels >= 1
         assert self.nZchannels >= self.stride**self.nCnnLayers
         assert self.latentZdim >= self.Xsize//(self.stride**self.nCnnLayers)
-
+        
+        # define the constraint
+        self.ClipD = ClipConstraint(0.01)
+        
         """
             Build the discriminators
         """
@@ -467,25 +485,25 @@ class RepGAN(HyperModel):
         self.FxOpt.apply_gradients(zip(gradFx,self.Fx.trainable_variables))
         self.GzOpt.apply_gradients(zip(gradGz,self.Gz.trainable_variables))
 
-        realX_file = "/gpfs/workdir/invsem07/GiorgiaGAN/realX.csv"
-        recX_file = "/gpfs/workdir/invsem07/GiorgiaGAN/recX.csv"
+        # realX_file = "realX.csv"
+        # recX_file = "recX.csv"
 
-        realX.to_csv(realX_file, index=False, header=False)
-        recX.to_csv(recX_file, index=False, header=False)
+        # realX.to_csv(realX_file, index=False, header=False)
+        # recX.to_csv(recX_file, index=False, header=False)
 
-        realXplot = pd.read_csv(realX_file, parse_dates=True, index_col="timestamp")
-        recXplot = pd.read_csv(recX_file, parse_dates=True, index_col="timestamp")
+        # realXplot = pd.read_csv(realX_file, parse_dates=True, index_col="timestamp")
+        # recXplot = pd.read_csv(recX_file, parse_dates=True, index_col="timestamp")
 
-        plt.figure(figsize=(8, 6))
-        plt.plot(realXplot, linestyle='solid', color='b')
-        plt.plot(recXplot, linestyle='dashed', color='r')
-        plt.title('Real and Reconstructed X', weight='bold', fontsize=16)
-        plt.xlabel('/', weight='bold', fontsize=14)
-        plt.ylabel('/', weight='bold', fontsize=14)
-        plt.xticks(weight='bold', fontsize=12, rotation=45)
-        plt.yticks(weight='bold', fontsize=12)
-        plt.grid(color = 'y', linewidth = 0.5)
-        plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/real_rec_X.png',bbox_inches='tight')
+        # plt.figure(figsize=(8, 6))
+        # plt.plot(realXplot, linestyle='solid', color='b')
+        # plt.plot(recXplot, linestyle='dashed', color='r')
+        # plt.title('Real and Reconstructed X', weight='bold', fontsize=16)
+        # plt.xlabel('/', weight='bold', fontsize=14)
+        # plt.ylabel('/', weight='bold', fontsize=14)
+        # plt.xticks(weight='bold', fontsize=12, rotation=45)
+        # plt.yticks(weight='bold', fontsize=12)
+        # plt.grid(color = 'y', linewidth = 0.5)
+        # plt.savefig('real_rec_X.png',bbox_inches='tight')
         
 
 
@@ -538,9 +556,8 @@ class RepGAN(HyperModel):
         h = Dense(self.latentCdim,name="FxFWC")(z)
         h = BatchNormalization(momentum=0.95,name="FxBNC")(h)
         c = Softmax(name="FxAC")(h)
-
-        QcX = c
-                
+        QcX = Softmax(name="QcAC")(h)
+  
         # variable n
         h = Dense(self.latentNdim,name="FxFWN")(z)
         n = BatchNormalization(momentum=0.95,name="FxBNN")(h)
@@ -549,16 +566,16 @@ class RepGAN(HyperModel):
         Fx = keras.Model(X,[c,s,n],name="Fx")
         Fx.summary()
 
-        dot_img_file = '/gpfs/workdir/invsem07/GiorgiaGAN/Fx.png'
+        dot_img_file = 'Fx.png'
         tf.keras.utils.plot_model(Fx, to_file=dot_img_file, show_shapes=True, show_layer_names=True)
 
         Qs = keras.Model(X,QsX,name="Qs")
-        dot_img_file = '/gpfs/workdir/invsem07/GiorgiaGAN/Qs.png'
+        dot_img_file = 'Qs.png'
         tf.keras.utils.plot_model(Qs, to_file=dot_img_file, show_shapes=True)
 
 
         Qc = keras.Model(X,QcX,name="Qc")
-        dot_img_file = '/gpfs/workdir/invsem07/GiorgiaGAN/Qc.png'
+        dot_img_file = 'Qc.png'
         tf.keras.utils.plot_model(Qc, to_file=dot_img_file, show_shapes=True)
 
         return Fx,Qs,Qc
@@ -614,7 +631,7 @@ class RepGAN(HyperModel):
         model.summary()
 
 
-        dot_img_file = '/gpfs/workdir/invsem07/GiorgiaGAN/Gz.png'
+        dot_img_file = 'Gz.png'
         tf.keras.utils.plot_model(model, to_file=dot_img_file, show_shapes=True, show_layer_names=True)
 
         return model
@@ -665,7 +682,7 @@ class RepGAN(HyperModel):
         model.summary()
 
 
-        dot_img_file = '/gpfs/workdir/invsem07/GiorgiaGAN/Dx.png'
+        dot_img_file = 'Dx.png'
         tf.keras.utils.plot_model(model, to_file=dot_img_file, show_shapes=True, show_layer_names=True)
 
         return model
@@ -675,10 +692,12 @@ class RepGAN(HyperModel):
         """
             Dense discriminator structure
         """
+        init = RandomNormal(stddev=0.02)
+
         c = Input(shape=(self.latentCdim,))
-        h = Dense(3000,kernel_constraint=min_max_norm(2.))(c)
+        h = Dense(3000,kernel_initializer=init,kernel_constraint=self.ClipD)(c)
         h = LeakyReLU()(h)
-        h = Dense(3000,kernel_constraint=min_max_norm(2.))(h)
+        h = Dense(3000,kernel_initializer=init,kernel_constraint=self.ClipD)(h)
         h = LeakyReLU()(h)
         Dc = Dense(1)(h)
 
@@ -686,7 +705,7 @@ class RepGAN(HyperModel):
         model.summary()
 
 
-        dot_img_file = '/gpfs/workdir/invsem07/GiorgiaGAN/Dc.png'
+        dot_img_file = 'Dc.png'
         tf.keras.utils.plot_model(model, to_file=dot_img_file, show_shapes=True, show_layer_names=True)
 
         return model
@@ -695,10 +714,12 @@ class RepGAN(HyperModel):
         """
             Dense discriminator structure
         """
+        init = RandomNormal(stddev=0.02)
+        
         n = Input(shape=(self.latentNdim,))
-        h = Dense(3000,kernel_constraint=min_max_norm(2.))(n)
+        h = Dense(3000,kernel_initializer=init,kernel_constraint=self.ClipD)(n)
         h = LeakyReLU()(h)
-        h = Dense(3000,kernel_constraint=min_max_norm(2.))(h)
+        h = Dense(3000,kernel_initializer=init,kernel_constraint=self.ClipD)(h)
         h = LeakyReLU()(h) 
         Dn = Dense(1)(h)  
 
@@ -706,7 +727,7 @@ class RepGAN(HyperModel):
         model.summary()
 
 
-        dot_img_file = '/gpfs/workdir/invsem07/GiorgiaGAN/Dn.png'
+        dot_img_file = 'Dn.png'
         tf.keras.utils.plot_model(model, to_file=dot_img_file, show_shapes=True, show_layer_names=True)
 
         return model
@@ -715,10 +736,12 @@ class RepGAN(HyperModel):
         """
             Dense discriminator structure
         """
+        init = RandomNormal(stddev=0.02)
+
         s = Input(shape=(self.latentSdim,))
-        h = Dense(3000,kernel_constraint=min_max_norm(2.))(s)
+        h = Dense(3000,kernel_initializer=init,kernel_constraint=self.ClipD)(s)
         h = LeakyReLU()(h)
-        h = Dense(3000,kernel_constraint=min_max_norm(2.))(h)
+        h = Dense(3000,kernel_initializer=init,kernel_constraint=self.ClipD)(h)
         h = LeakyReLU()(h)
         Ds = Dense(1)(h)
 
@@ -726,22 +749,22 @@ class RepGAN(HyperModel):
         model.summary()
 
 
-        dot_img_file = '/gpfs/workdir/invsem07/GiorgiaGAN/Ds.png'
+        dot_img_file = 'Ds.png'
         tf.keras.utils.plot_model(model, to_file=dot_img_file, show_shapes=True, show_layer_names=True)      
 
         return keras.Model(s,Ds,name="Ds")
 
-hyperModel = RepGAN()
+# hyperModel = RepGAN()
 
-tuner = kt.Hyperband(hyperModel, objective="val_accuracy", max_epochs=30, hyperband_iterations=2)
+# tuner = kt.Hyperband(hyperModel, objective="val_accuracy", max_epochs=30, hyperband_iterations=2)
 
-tuner.search_space_summary()
+# tuner.search_space_summary()
 
-tuner.search(Xtrn,epochs=options["epochs"],validation_data=Xvld,callbacks=[tf.keras.callbacks.EarlyStopping(patience=1)],)
+# tuner.search(Xtrn,epochs=options["epochs"],validation_data=Xvld,callbacks=[tf.keras.callbacks.EarlyStopping(patience=1)],)
 
-bestModel = tuner.get_best_models(1)[0]
+# bestModel = tuner.get_best_models(1)[0]
 
-bestHyperparameters = tuner.get_best_hyperparameters(1)[0]
+# bestHyperparameters = tuner.get_best_hyperparameters(1)[0]
 
 
 def main(DeviceName):
@@ -755,10 +778,10 @@ def main(DeviceName):
         
 
         optimizers = {}
-        optimizers['DxOpt'] = RMSprop(learning_rate=0.0005)
-        optimizers['DcOpt'] = RMSprop(learning_rate=0.0005)
-        optimizers['DsOpt'] = RMSprop(learning_rate=0.0005)
-        optimizers['DnOpt'] = RMSprop(learning_rate=0.0005)
+        optimizers['DxOpt'] = RMSprop(learning_rate=0.00005)
+        optimizers['DcOpt'] = RMSprop(learning_rate=0.00005)
+        optimizers['DsOpt'] = RMSprop(learning_rate=0.00005)
+        optimizers['DnOpt'] = RMSprop(learning_rate=0.00005)
         optimizers['FxOpt'] = Adam(learning_rate=0.0002, beta_1=0.5, beta_2=0.9)
         optimizers['GzOpt'] = Adam(learning_rate=0.0002, beta_1=0.5, beta_2=0.9)
 
@@ -812,7 +835,7 @@ def main(DeviceName):
             filepath=checkpoint_dir + "/ckpt-{epoch}", 
             save_freq="epoch")]
         history = GiorgiaGAN.fit(Xtrn,epochs=options["epochs"],validation_data=Xvld,
-            callbacks=callbacks,verbose=2)
+            callbacks=callbacks)
 
         
         plt.plot(history.history['AdvDloss'])
@@ -822,7 +845,7 @@ def main(DeviceName):
         plt.xlabel('epoch')
         plt.legend(['AdvDloss', 'AdvGloss'], loc='upper left')
         plt.show()
-        plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/loss.png',bbox_inches='tight')
+        plt.savefig('loss.png',bbox_inches='tight')
 
                
 
