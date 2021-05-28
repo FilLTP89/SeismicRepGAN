@@ -519,10 +519,12 @@ class RepGAN(Model):
             Conv1D Fx structure
         """
         # To build this model using the functional API, start by creating an input node:
+        init = RandomNormal(stddev=0.02)
+
         X = Input(shape=self.Xshape,name="X")
 
         h = Conv1D(self.nZchannels*self.stride**(-self.nCnnLayers),
-                self.kernel,self.stride,padding="same",
+                self.kernel,self.stride,padding="same",kernel_initializer=init,
                 data_format="channels_last",name="FxCNN0")(X)
         h = BatchNormalization(momentum=0.95,name="FxBN0")(h)
         h = LeakyReLU(alpha=0.1,name="FxA0")(h)
@@ -530,22 +532,22 @@ class RepGAN(Model):
 
         for n in range(1,self.nCnnLayers):
             h = Conv1D(self.nZchannels*self.stride**(-self.nCnnLayers+n),
-                self.kernel,self.stride,padding="same",
+                self.kernel,self.stride,padding="same",kernel_initializer=init,
                 data_format="channels_last",name="FxCNN{:>d}".format(n))(h)
             h = BatchNormalization(momentum=0.95,name="FxBN{:>d}".format(n))(h)
             h = LeakyReLU(alpha=0.1,name="FxA{:>d}".format(n))(h)
             h = Dropout(0.2,name="FxDO{:>d}".format(n))(h)
         
         h = Flatten(name="FxFL{:>d}".format(n+1))(h)
-        h = Dense(self.latentZdim,name="FxFW{:>d}".format(n+1))(h)
+        h = Dense(self.latentZdim,kernel_initializer=init,name="FxFW{:>d}".format(n+1))(h)
         h = BatchNormalization(momentum=0.95,name="FxBN{:>d}".format(n+1))(h)
         z = LeakyReLU(alpha=0.1,name="FxA{:>d}".format(n+1))(h)
 
         # variable s
-        h = Dense(self.latentSdim,name="FxFWmuS")(z)
+        h = Dense(self.latentSdim,kernel_initializer=init,name="FxFWmuS")(z)
         Zmu = BatchNormalization(momentum=0.95)(h)
 
-        h = Dense(self.latentSdim,name="FxFWsiS")(z)
+        h = Dense(self.latentSdim,kernel_initializer=init,name="FxFWsiS")(z)
         Zlv = BatchNormalization(momentum=0.95)(h)
 
         QsX = concatenate([Zmu,Zlv])
@@ -553,13 +555,13 @@ class RepGAN(Model):
         s = SamplingFxS()([Zmu,Zlv])
 
         # variable c
-        h = Dense(self.latentCdim,name="FxFWC")(z)
+        h = Dense(self.latentCdim,kernel_initializer=init,name="FxFWC")(z)
         h = BatchNormalization(momentum=0.95,name="FxBNC")(h)
         c = Softmax(name="FxAC")(h)
         QcX = Softmax(name="QcAC")(h)
   
         # variable n
-        h = Dense(self.latentNdim,name="FxFWN")(z)
+        h = Dense(self.latentNdim,kernel_initializer=init,name="FxFWN")(z)
         n = BatchNormalization(momentum=0.95,name="FxBNN")(h)
 
 
@@ -586,6 +588,8 @@ class RepGAN(Model):
         """
             Conv1D Gz structure
         """
+        init = RandomNormal(stddev=0.02)
+        
         c = Input(shape=(self.latentCdim,))
         s = Input(shape=(self.latentSdim,))
         n = Input(shape=(self.latentNdim,))
@@ -595,21 +599,21 @@ class RepGAN(Model):
         #GzC = Reshape((self.Zsize,self.nCchannels))(GzC)
         #GzC = Model(c,GzC)
 
-        GzC = Dense(self.latentCdim,use_bias=False)(c)
+        GzC = Dense(self.latentCdim,kernel_initializer=init,use_bias=False)(c)
         GzC = Model(c,GzC)
 
         #GzS = Dense(self.Zsize*self.nSchannels,use_bias=False)(s)
         #GzS = Reshape((self.Zsize,self.nSchannels))(GzS)
         #GzS = Model(s,GzS)
 
-        GzS = Dense(self.latentSdim,use_bias=False)(s)
+        GzS = Dense(self.latentSdim,kernel_initializer=init,use_bias=False)(s)
         GzS = Model(s,GzS)
 
         #GzN = Dense(self.Zsize*self.nNchannels,use_bias=False)(n)
         #GzN = Reshape((self.Zsize,self.nNchannels))(GzN)
         #GzN = Model(n,GzN)
 
-        GzN = Dense(self.latentNdim,use_bias=False)(n)
+        GzN = Dense(self.latentNdim,kernel_initializer=init,use_bias=False)(n)
         GzN = Model(n,GzN)
 
         z = concatenate([GzC.output,GzS.output,GzN.output])
@@ -621,11 +625,11 @@ class RepGAN(Model):
 
         for n in range(self.nCnnLayers):
             Gz = Conv1DTranspose(self.latentZdim//self.stride**n,
-                self.kernel,self.stride,padding="same")(Gz)
+                self.kernel,self.stride,kernel_initializer=init,padding="same")(Gz)
             Gz = BatchNormalization(axis=-1,momentum=0.95)(Gz)
             Gz = Activation('relu')(Gz)
         
-        Gz = Conv1DTranspose(self.nXchannels,self.kernel,1,padding="same")(Gz)
+        Gz = Conv1DTranspose(self.nXchannels,self.kernel,1,kernel_initializer=init,padding="same")(Gz)
 
         model = keras.Model([GzC.input,GzS.input,GzN.input],Gz,name="Gz")
         model.summary()
@@ -640,25 +644,32 @@ class RepGAN(Model):
         """
             Conv1D discriminator structure
         """
+        init = RandomNormal(stddev=0.02)
+
         X = Input(shape=self.Xshape,name="X")        
-        h = Conv1D(32,self.kernel,self.stride,input_shape=self.Xshape,padding="same")(X)
+        h = Conv1D(32,self.kernel,self.stride,input_shape=self.Xshape,padding="same",
+            kernel_initializer=init)(X)
         h = LeakyReLU(alpha=0.2)(h)
         h = Dropout(0.25)(h)
-        h = Conv1D(64,self.kernel,self.stride,padding="same")(h)
+        h = Conv1D(64,self.kernel,self.stride,padding="same",
+            kernel_initializer=init)(h)
         h = ZeroPadding1D(padding=((0,1)))(h)
         h = BatchNormalization(momentum=0.95)(h)
         h = LeakyReLU(alpha=0.2)(h)
         h = Dropout(0.25)(h)
-        h = Conv1D(128,self.kernel,self.stride,padding="same")(h)
+        h = Conv1D(128,self.kernel,self.stride,padding="same",
+            kernel_initializer=init)(h)
         h = BatchNormalization(momentum=0.95)(h)
         h = LeakyReLU(alpha=0.0)(h)
         h = Dropout(0.25)(h)
-        h = Conv1D(256,self.kernel,strides=1,padding="same")(h)
+        h = Conv1D(256,self.kernel,strides=1,padding="same",
+            kernel_initializer=init)(h)
         h = BatchNormalization(momentum=0.95)(h)
         h = LeakyReLU(alpha=0.2)(h)
         h = Dropout(0.25)(h)
         h = Flatten()(h)
-        Dx = Dense(1,activation=None)(h)
+        Dx = Dense(1,activation=None,
+            kernel_initializer=init)(h)
         # model.add(Dense(1,activation='sigmoid'))
 
         # model.add(Conv1D(64,self.kernel,self.stride,
