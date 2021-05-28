@@ -50,17 +50,28 @@ import timeit
 import sys
 import argparse
 import numpy as np
+import wandb
+wandb.init()
+
+import pandas as pd
+from pandas.plotting import register_matplotlib_converters
+register_matplotlib_converters()
+
+import csv
 
 from tensorflow import keras
 from tensorflow.keras import layers, Sequential, Model
+from tensorflow.keras.layers import BatchNormalization
 from tensorflow.keras.layers import Input, Dense, Reshape, Flatten, Dropout, Layer
-from tensorflow.keras.layers import Lambda, Concatenate,concatenate, Activation
-from tensorflow.keras.layers import BatchNormalization, Activation, ZeroPadding1D
+from tensorflow.keras.layers import Lambda, Concatenate,concatenate, Activation, ZeroPadding1D
 from tensorflow.keras.layers import LeakyReLU, ReLU, Softmax
-from tensorflow.keras.layers import UpSampling1D, Conv1D, Conv1DTranspose
+from tensorflow.keras.layers import Conv1D, Conv1DTranspose
 from tensorflow.keras.optimizers import Adam, RMSprop
 from tensorflow.keras.constraints import Constraint, min_max_norm
 from tensorflow.python.eager import context
+import kerastuner as kt
+from kerastuner.tuners import RandomSearch
+from kerastuner import HyperModel
 
 from numpy.linalg import norm
 import MDOFload as mdof
@@ -94,7 +105,7 @@ def make_or_restore_model():
 
 def ParseOptions():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--epochs",type=int,default=1000,help='Number of epochs')
+    parser.add_argument("--epochs",type=int,default=200,help='Number of epochs')
     parser.add_argument("--kernel",type=int,default=3,help='CNN kernel size')
     parser.add_argument("--stride",type=int,default=2,help='CNN stride')
     parser.add_argument("--nCnnLayers",type=int,default=5,help='Number of CNN layers per Coupling Layer')
@@ -139,7 +150,7 @@ class RandomWeightedAverage(Layer):
         alpha = tf.random_uniform((32, 1, 1, 1))
         return (alpha * inputs[0]) + ((1 - alpha) * inputs[1])
 
-class Sampling(Layer):
+class SamplingFxS(Layer):
     """Uses (z_mean, z_log_var) to sample z, the vector encoding a digit."""
     
     def call(self, inputs):
@@ -181,6 +192,7 @@ def GaussianNLL(true, pred):
      Gaussian negative loglikelihood loss function 
     """
     n_dims = int(int(pred.shape[1])/2)
+
     mu = pred[:, 0:n_dims]
     logsigma = pred[:, n_dims:]
     
@@ -192,8 +204,15 @@ def GaussianNLL(true, pred):
 
     return K.mean(-log_likelihood)
 
+def MutualInfoLoss(c, c_given_x):
+    """The mutual information metric we aim to minimize"""
+    eps = 1e-8
+    conditional_entropy = K.mean(- K.sum(K.log(c_given_x + eps) * c, axis=1))
+    entropy = K.mean(- K.sum(K.log(c + eps) * c, axis=1))
 
-class RepGAN(Model):
+    return conditional_entropy + entropy
+
+class RepGAN(HyperModel):
 
     def __init__(self,options):
         super(RepGAN, self).__init__()
@@ -216,9 +235,10 @@ class RepGAN(Model):
         """
             Build Fx/Gz (generators)
         """
-        self.Fx = self.build_Fx()
+        self.Fx, self.Qs, self.Qc  = self.build_Fx()
         self.Gz = self.build_Gz()
 
+        
     def get_config(self):
         config = super().get_config().copy()
         config.update({
@@ -320,7 +340,11 @@ class RepGAN(Model):
 
                 
                 # # Generate fake latent code from real signals
-                (fakeC,fakeS,fakeN) = self.Fx(realX) # encoded z = Fx(X)
+                Fx = self.Fx(realX) # encoded z = Fx(X)
+
+                fakeC = Fx[0]
+                fakeS = Fx[1]
+                fakeN = Fx[2]
 
                 fakeX = self.Gz((realC,realS,realN)) # fake X = Gz(Fx(X))
                 
@@ -365,19 +389,22 @@ class RepGAN(Model):
             self.DnOpt.apply_gradients(zip(gradDn,self.Dn.trainable_variables))
 
             # Clip critic weights
-            # for l in self.Dx.layers:
-            #     weights = l.get_weights()
-            #     weights = [np.clip(w, -self.clipValue, self.clipValue) for w in weights]
-            #     l.set_weights(weights)
-            # for l in self.Dc.layers:
-            #     weights = [np.clip(w, -self.clipValue, self.clipValue) for w in weights]
-            #     l.set_weights(weights)
-            # for l in self.Ds.layers:
-            #     weights = [np.clip(w, -self.clipValue, self.clipValue) for w in weights]
-            #     l.set_weights(weights)
-            # for l in self.Dn.layers:
-            #     weights = [np.clip(w, -self.clipValue, self.clipValue) for w in weights]
-                # l.set_weights(weights)
+            #for l in (1,self.Dx.layers):
+            #    weights = l.get_weights()
+            #    weights = [np.clip(w, -self.clipValue, self.clipValue) for w in weights]
+            #    l.set_weights(weights)
+            #for l in self.Dc.layers:
+            #    weights = l.get_weights()
+            #    weights = [np.clip(w, -self.clipValue, self.clipValue) for w in weights]
+            #    l.set_weights(weights)
+            #for l in self.Ds.layers:
+            #    weights = l.get_weights()
+            #    weights = [np.clip(w, -self.clipValue, self.clipValue) for w in weights]
+            #    l.set_weights(weights)
+            #for l in self.Dn.layers:
+            #    weights = l.get_weights()
+            #    weights = [np.clip(w, -self.clipValue, self.clipValue) for w in weights]
+            #    l.set_weights(weights)
 
         #----------------------------------------
         #      Construct Computational Graph
@@ -394,7 +421,12 @@ class RepGAN(Model):
 
         with tf.GradientTape(persistent=True) as tape:
             # Fake
-            (fakeC,fakeS,fakeN) = self.Fx(realX) # encoded z = Fx(X)
+            Fx = self.Fx(realX) # encoded z = Fx(X)
+
+            fakeC = Fx[0]
+            fakeS = Fx[1]
+            fakeN = Fx[2]
+
             fakeX = self.Gz((realC,realS,realN)) # fake X = Gz(Fx(X))
 
                         
@@ -413,8 +445,9 @@ class RepGAN(Model):
 
             # Reconstruction
             # fakeZ = Concatenate([fakeC,fakeS,fakeN])
-            recX  = self.Gz((fakeC,fakeS,fakeN))
-            (recC,recS,_)  = self.Fx(fakeX)
+            recX = self.Gz((fakeC,fakeS,fakeN))
+            recS = self.Qs(fakeX)
+            recC = self.Qc(fakeX)
             
             AdvGlossX = self.AdvGloss(fakeXcritic)*self.PenAdvXloss
             AdvGlossC = self.AdvGloss(fakeCcritic)*self.PenAdvCloss
@@ -433,19 +466,35 @@ class RepGAN(Model):
         # Update the weights of the generator using the generator optimizer
         self.FxOpt.apply_gradients(zip(gradFx,self.Fx.trainable_variables))
         self.GzOpt.apply_gradients(zip(gradGz,self.Gz.trainable_variables))
-        
+
+        realX_file = "/gpfs/workdir/invsem07/GiorgiaGAN/realX.csv"
+        recX_file = "/gpfs/workdir/invsem07/GiorgiaGAN/recX.csv"
+
+        realX.to_csv(realX_file, index=False, header=False)
+        recX.to_csv(recX_file, index=False, header=False)
+
+        realXplot = pd.read_csv(realX_file, parse_dates=True, index_col="timestamp")
+        recXplot = pd.read_csv(recX_file, parse_dates=True, index_col="timestamp")
+
+        plt.figure(figsize=(8, 6))
+        plt.plot(realXplot, linestyle='solid', color='b')
+        plt.plot(recXplot, linestyle='dashed', color='r')
+        plt.title('Real and Reconstructed X', weight='bold', fontsize=16)
+        plt.xlabel('/', weight='bold', fontsize=14)
+        plt.ylabel('/', weight='bold', fontsize=14)
+        plt.xticks(weight='bold', fontsize=12, rotation=45)
+        plt.yticks(weight='bold', fontsize=12)
+        plt.grid(color = 'y', linewidth = 0.5)
+        plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/real_rec_X.png',bbox_inches='tight')
         
 
-        return {"AdvDloss": AdvDloss,"AdvGloss": AdvGloss}
-        
 
-        
-
-
+        return {"AdvDloss": AdvDloss,"AdvGloss": AdvGloss,}
+      
 
     def call(self, X):
-        (fakeC,fakeS,fakeN) = self.Fx(X)
-        return fakeC
+        Fx = self.Fx(X)
+        return Fx[0]
 
     def build_Fx(self):
         """
@@ -481,29 +530,41 @@ class RepGAN(Model):
         h = Dense(self.latentSdim,name="FxFWsiS")(z)
         Zlv = BatchNormalization(momentum=0.95)(h)
 
-        s = Sampling()([Zmu,Zlv])
+        QsX = concatenate([Zmu,Zlv])
+
+        s = SamplingFxS()([Zmu,Zlv])
 
         # variable c
         h = Dense(self.latentCdim,name="FxFWC")(z)
         h = BatchNormalization(momentum=0.95,name="FxBNC")(h)
         c = Softmax(name="FxAC")(h)
+
+        QcX = c
                 
         # variable n
         h = Dense(self.latentNdim,name="FxFWN")(z)
         n = BatchNormalization(momentum=0.95,name="FxBNN")(h)
 
-        # concatenation of variables c, s and n
-        # z = Concatenate()([c,s,n])
 
-        model = keras.Model(X,[c,s,n],name="Fx")
-        model.summary()
+        Fx = keras.Model(X,[c,s,n],name="Fx")
+        Fx.summary()
 
-        dot_img_file = '/tmp/Fx.png'
-        tf.keras.utils.plot_model(model, to_file=dot_img_file, show_shapes=True, show_layer_names=True)
+        dot_img_file = '/gpfs/workdir/invsem07/GiorgiaGAN/Fx.png'
+        tf.keras.utils.plot_model(Fx, to_file=dot_img_file, show_shapes=True, show_layer_names=True)
+
+        Qs = keras.Model(X,QsX,name="Qs")
+        dot_img_file = '/gpfs/workdir/invsem07/GiorgiaGAN/Qs.png'
+        tf.keras.utils.plot_model(Qs, to_file=dot_img_file, show_shapes=True)
 
 
-        return model
+        Qc = keras.Model(X,QcX,name="Qc")
+        dot_img_file = '/gpfs/workdir/invsem07/GiorgiaGAN/Qc.png'
+        tf.keras.utils.plot_model(Qc, to_file=dot_img_file, show_shapes=True)
 
+        return Fx,Qs,Qc
+
+    
+    
     def build_Gz(self):
         """
             Conv1D Gz structure
@@ -552,7 +613,8 @@ class RepGAN(Model):
         model = keras.Model([GzC.input,GzS.input,GzN.input],Gz,name="Gz")
         model.summary()
 
-        dot_img_file = '/tmp/Gz.png'
+
+        dot_img_file = '/gpfs/workdir/invsem07/GiorgiaGAN/Gz.png'
         tf.keras.utils.plot_model(model, to_file=dot_img_file, show_shapes=True, show_layer_names=True)
 
         return model
@@ -597,10 +659,13 @@ class RepGAN(Model):
 
         # X = Input(shape=(self.Xshape))
         # Dx = model(X)
+
+        # Discriminator Dx
         model = keras.Model(X,Dx,name="Dx")
         model.summary()
 
-        dot_img_file = '/tmp/Dx.png'
+
+        dot_img_file = '/gpfs/workdir/invsem07/GiorgiaGAN/Dx.png'
         tf.keras.utils.plot_model(model, to_file=dot_img_file, show_shapes=True, show_layer_names=True)
 
         return model
@@ -620,7 +685,8 @@ class RepGAN(Model):
         model = keras.Model(c,Dc,name="Dc")
         model.summary()
 
-        dot_img_file = '/tmp/Dc.png'
+
+        dot_img_file = '/gpfs/workdir/invsem07/GiorgiaGAN/Dc.png'
         tf.keras.utils.plot_model(model, to_file=dot_img_file, show_shapes=True, show_layer_names=True)
 
         return model
@@ -639,7 +705,8 @@ class RepGAN(Model):
         model = keras.Model(n,Dn,name="Dn")
         model.summary()
 
-        dot_img_file = '/tmp/Dn.png'
+
+        dot_img_file = '/gpfs/workdir/invsem07/GiorgiaGAN/Dn.png'
         tf.keras.utils.plot_model(model, to_file=dot_img_file, show_shapes=True, show_layer_names=True)
 
         return model
@@ -658,10 +725,23 @@ class RepGAN(Model):
         model = keras.Model(s,Ds,name="Ds")
         model.summary()
 
-        dot_img_file = '/tmp/Ds.png'
+
+        dot_img_file = '/gpfs/workdir/invsem07/GiorgiaGAN/Ds.png'
         tf.keras.utils.plot_model(model, to_file=dot_img_file, show_shapes=True, show_layer_names=True)      
 
         return keras.Model(s,Ds,name="Ds")
+
+hyperModel = RepGAN()
+
+tuner = kt.Hyperband(hyperModel, objective="val_accuracy", max_epochs=30, hyperband_iterations=2)
+
+tuner.search_space_summary()
+
+tuner.search(Xtrn,epochs=options["epochs"],validation_data=Xvld,callbacks=[tf.keras.callbacks.EarlyStopping(patience=1)],)
+
+bestModel = tuner.get_best_models(1)[0]
+
+bestHyperparameters = tuner.get_best_hyperparameters(1)[0]
 
 
 def main(DeviceName):
@@ -675,10 +755,10 @@ def main(DeviceName):
         
 
         optimizers = {}
-        optimizers['DxOpt'] = RMSprop(learning_rate=0.00005)
-        optimizers['DcOpt'] = RMSprop(learning_rate=0.00005)
-        optimizers['DsOpt'] = RMSprop(learning_rate=0.00005)
-        optimizers['DnOpt'] = RMSprop(learning_rate=0.00005)
+        optimizers['DxOpt'] = RMSprop(learning_rate=0.0005)
+        optimizers['DcOpt'] = RMSprop(learning_rate=0.0005)
+        optimizers['DsOpt'] = RMSprop(learning_rate=0.0005)
+        optimizers['DnOpt'] = RMSprop(learning_rate=0.0005)
         optimizers['FxOpt'] = Adam(learning_rate=0.0002, beta_1=0.5, beta_2=0.9)
         optimizers['GzOpt'] = Adam(learning_rate=0.0002, beta_1=0.5, beta_2=0.9)
 
@@ -687,7 +767,7 @@ def main(DeviceName):
         losses['AdvGloss'] = WassersteinGeneratorLoss
         losses['RecSloss'] = GaussianNLL
         losses['RecXloss'] = tf.keras.losses.MeanSquaredError()
-        losses['RecCloss'] = tf.keras.losses.BinaryCrossentropy()
+        losses['RecCloss'] = MutualInfoLoss
         losses['PenAdvXloss'] = 1.
         losses['PenAdvCloss'] = 1.
         losses['PenAdvSloss'] = 1.
@@ -731,8 +811,21 @@ def main(DeviceName):
         callbacks = [keras.callbacks.ModelCheckpoint(
             filepath=checkpoint_dir + "/ckpt-{epoch}", 
             save_freq="epoch")]
-        GiorgiaGAN.fit(Xtrn,epochs=options["epochs"],validation_data=Xvld,
+        history = GiorgiaGAN.fit(Xtrn,epochs=options["epochs"],validation_data=Xvld,
             callbacks=callbacks,verbose=2)
+
+        
+        plt.plot(history.history['AdvDloss'])
+        plt.plot(history.history['AdvGloss'])
+        plt.title('model loss')
+        plt.ylabel('loss')
+        plt.xlabel('epoch')
+        plt.legend(['AdvDloss', 'AdvGloss'], loc='upper left')
+        plt.show()
+        plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/loss.png',bbox_inches='tight')
+
+               
+
 
 
 if __name__ == '__main__':
