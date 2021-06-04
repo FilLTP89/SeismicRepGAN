@@ -69,6 +69,8 @@ from tensorflow.keras.layers import Conv1D, Conv1DTranspose
 from tensorflow.keras.optimizers import Adam, RMSprop
 from tensorflow.keras.constraints import Constraint, min_max_norm
 from tensorflow.keras.initializers import RandomNormal
+from numpy.random import randn
+from numpy.random import randint
 
 from tensorflow.python.eager import context
 import kerastuner as kt
@@ -244,6 +246,17 @@ def MutualInfoLoss(c, c_given_x):
 
     return conditional_entropy + entropy
 
+# select real samples
+def generate_real_samples(dataset, n_samples):
+    # choose random instances
+    idx = np.random.randint(low=0, high=dataset.shape[0], size=n_samples)
+    #X[tf.arange(size_batch), rand_idx] = dataset
+    X = tf.gather(dataset, idx)
+    #idx = np.random.randint(0, size=(dataset.shape[0], n_samples))
+    # select images
+    #X = dataset[idx]
+
+    return X
 class RepGAN(Model):
 
     def __init__(self,options):
@@ -442,11 +455,7 @@ class RepGAN(Model):
 
         with tf.GradientTape(persistent=True) as tape:
             # Fake
-            Fx = self.Fx(realX) # encoded z = Fx(X)
-
-            fakeC = Fx[0]
-            fakeS = Fx[1]
-            fakeN = Fx[2]
+            [fakeC,fakeS,fakeN] = self.Fx(realX) # encoded z = Fx(X)
 
             fakeX = self.Gz((realC,realS,realN)) # fake X = Gz(Fx(X))
 
@@ -467,7 +476,8 @@ class RepGAN(Model):
             # Reconstruction
             # fakeZ = Concatenate([fakeC,fakeS,fakeN])
             recX = self.Gz((fakeC,fakeS,fakeN))
-            recS = self.Qs(fakeX)
+            Zmu,Zlv = self.Qs(fakeX)
+            ZS = tf.keras.layers.concatenate([Zmu,Zlv],axis=-1)
             recC = self.Qc(fakeX)
             
             AdvGlossX = self.AdvGlossGAN(realBCE,realXcritic)*self.PenAdvXloss
@@ -528,8 +538,8 @@ class RepGAN(Model):
       
 
     def call(self, X):
-        Fx = self.Fx(X)
-        return Fx[0]
+        [fakeC,_,_] = self.Fx(X)
+        return fakeC
 
     def build_Fx(self):
         """
@@ -544,8 +554,12 @@ class RepGAN(Model):
                 self.kernel,self.stride,padding="same",kernel_initializer=init,
                 data_format="channels_last",name="FxCNN0")(X)
         h = BatchNormalization(momentum=0.95,name="FxBN0")(h)
+        #h = BatchNormalization(momentum=hp.Float('BN_1',min_value=0.0,max_value=1,
+        #    default=0.95,step=0.05),name="FxBN0")(h)
         h = LeakyReLU(alpha=0.1,name="FxA0")(h)
         h = Dropout(0.2,name="FxDO0")(h)
+        #h = Dropout(rate=hp.Float('dropout_1',min_value=0.0,max_value=0.4,
+        #    default=0.2,step=0.05),name="FxDO0")(h)
 
         for n in range(1,self.nCnnLayers):
             h = Conv1D(self.nZchannels*self.stride**(-self.nCnnLayers+n),
@@ -567,8 +581,6 @@ class RepGAN(Model):
         h = Dense(self.latentSdim,kernel_initializer=init,name="FxFWsiS")(z)
         Zlv = BatchNormalization(momentum=0.95)(h)
 
-        QsX = concatenate([Zmu,Zlv])
-
         s = SamplingFxS()([Zmu,Zlv])
 
         # variable c
@@ -588,7 +600,7 @@ class RepGAN(Model):
         dot_img_file = 'Fx.png'
         tf.keras.utils.plot_model(Fx, to_file=dot_img_file, show_shapes=True, show_layer_names=True)
 
-        Qs = keras.Model(X,QsX,name="Qs")
+        Qs = keras.Model(X,[Zmu,Zlv],name="Qs")
         dot_img_file = 'Qs.png'
         tf.keras.utils.plot_model(Qs, to_file=dot_img_file, show_shapes=True)
 
@@ -685,7 +697,7 @@ class RepGAN(Model):
         h = LeakyReLU(alpha=0.2)(h)
         h = Dropout(0.25)(h)
         h = Flatten()(h)
-        Dx = Dense(1,activation=None,
+        Dx = Dense(1,activation='sigmoid',
             kernel_initializer=init)(h)
         # model.add(Dense(1,activation='sigmoid'))
 
@@ -724,10 +736,12 @@ class RepGAN(Model):
 
         c = Input(shape=(self.latentCdim,))
         h = Dense(3000,kernel_initializer=init,kernel_constraint=self.ClipD)(c)
+        #h = Dense(units=hp.Int('units_1',min_value=1000,max_value=5000,
+        #    step=50,default=3000),kernel_initializer=init,kernel_constraint=self.ClipD)(c)
         h = LeakyReLU()(h)
         h = Dense(3000,kernel_initializer=init,kernel_constraint=self.ClipD)(h)
         h = LeakyReLU()(h)
-        Dc = Dense(1)(h)
+        Dc = Dense(1,activation='linear')(h)
 
         model = keras.Model(c,Dc,name="Dc")
         model.summary()
@@ -749,7 +763,7 @@ class RepGAN(Model):
         h = LeakyReLU()(h)
         h = Dense(3000,kernel_initializer=init,kernel_constraint=self.ClipD)(h)
         h = LeakyReLU()(h) 
-        Dn = Dense(1)(h)  
+        Dn = Dense(1,activation='linear')(h)  
 
         model = keras.Model(n,Dn,name="Dn")
         model.summary()
@@ -771,7 +785,7 @@ class RepGAN(Model):
         h = LeakyReLU()(h)
         h = Dense(3000,kernel_initializer=init,kernel_constraint=self.ClipD)(h)
         h = LeakyReLU()(h)
-        Ds = Dense(1)(h)
+        Ds = Dense(1,activation='linear')(h)
 
         model = keras.Model(s,Ds,name="Ds")
         model.summary()
@@ -852,18 +866,12 @@ def main(DeviceName):
         
 
 
-        #Xtrn = Xtrn.astype("float32") 
-        #Xvld = Xvld.astype("float32")
+        # Callbacks
+        #plotter = GANMonitor()
         
-        # Xtrn = tf.data.Dataset.from_tensor_slices(Xtrn)
-        # Xtrn = Xtrn.shuffle(buffer_size=1024).batch(options['batchSize'])
+        callbacks = [keras.callbacks.ModelCheckpoint(filepath=checkpoint_dir + "/ckpt-{epoch}", 
+            save_freq='epoch',period=500)]
 
-        # Start training the model.
-        #GiorgiaGAN.fit(x=Xtrn,y=Ctrn,batch_size=options["batchSize"],epochs=options["epochs"])
-        
-        callbacks = [keras.callbacks.ModelCheckpoint(
-            filepath=checkpoint_dir + "/ckpt-{epoch}", 
-            save_freq="epoch")]
         history = GiorgiaGAN.fit(Xtrn,epochs=options["epochs"],validation_data=Xvld,
             callbacks=callbacks)
 
