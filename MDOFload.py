@@ -24,6 +24,7 @@ def CreateData(**kwargs):
 
     dfParam["mean"] = dfParam.mean(axis=1)
     dfParam["std"] = dfParam.std(axis=1)
+
     
     X = []
     for channel in idChannels:
@@ -75,7 +76,8 @@ def CreateData(**kwargs):
         tf.data.Dataset.from_tensor_slices((Xtrn,Ctrn)).batch(batchSize),
         tf.data.Dataset.from_tensor_slices((Xvld,Cvld)).batch(batchSize),
         tf.data.Dataset.from_tensor_slices((Xvld,Cvld)).batch(batchSize),
-    )
+        dfParam["mean"],dfParam["std"],)
+    
 
 
 def LoadData(**kwargs):

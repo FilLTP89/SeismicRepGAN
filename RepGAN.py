@@ -69,6 +69,8 @@ from tensorflow.keras.layers import Conv1D, Conv1DTranspose
 from tensorflow.keras.optimizers import Adam, RMSprop
 from tensorflow.keras.constraints import Constraint, min_max_norm
 from tensorflow.keras.initializers import RandomNormal
+from numpy.random import randn
+from numpy.random import randint
 
 from tensorflow.python.eager import context
 import kerastuner as kt
@@ -84,7 +86,19 @@ from tensorflow.python.util.tf_export import tf_export
 from copy import deepcopy
 
 AdvDLoss_tracker = keras.metrics.Mean(name="loss")
+AdvDlossX_tracker = keras.metrics.Mean(name="loss")
+AdvDlossC_tracker = keras.metrics.Mean(name="loss")
+AdvDlossS_tracker = keras.metrics.Mean(name="loss")
+AdvDlossN_tracker = keras.metrics.Mean(name="loss")
+#AdvDlossPenGradX_tracker = keras.metrics.Mean(name="loss")
 AdvGLoss_tracker = keras.metrics.Mean(name="loss")
+#AdvGlossX_tracker = keras.metrics.Mean(name="loss")
+#AdvGlossC_tracker = keras.metrics.Mean(name="loss")
+#AdvGlossS_tracker = keras.metrics.Mean(name="loss")
+#AdvGlossN_tracker = keras.metrics.Mean(name="loss")
+RecGlossX_tracker = keras.metrics.Mean(name="loss")
+RecGlossC_tracker = keras.metrics.Mean(name="loss")
+RecGlossS_tracker = keras.metrics.Mean(name="loss")
 
 gpu_devices = tf.config.experimental.list_physical_devices('GPU')
 
@@ -107,7 +121,7 @@ def make_or_restore_model():
 
 def ParseOptions():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--epochs",type=int,default=200,help='Number of epochs')
+    parser.add_argument("--epochs",type=int,default=100000,help='Number of epochs')
     parser.add_argument("--kernel",type=int,default=3,help='CNN kernel size')
     parser.add_argument("--stride",type=int,default=2,help='CNN stride')
     parser.add_argument("--nCnnLayers",type=int,default=5,help='Number of CNN layers per Coupling Layer')
@@ -124,8 +138,8 @@ def ParseOptions():
     parser.add_argument("--case",type=str,default="train_model",help="case")
     parser.add_argument("--avu",type=str,nargs='+',default="U",help="case avu")
     parser.add_argument("--pb",type=str,default="BC",help="case pb")
-    parser.add_argument("--CreateData",action='store_true',default=False,help='Create data flag')
-    parser.add_argument("--cuda",action='store_true',default=False,help='Use cuda powered GPU')
+    parser.add_argument("--CreateData",action='store_true',default=True,help='Create data flag')
+    parser.add_argument("--cuda",action='store_true',default=True,help='Use cuda powered GPU')
        
     options = parser.parse_args().__dict__
     
@@ -176,15 +190,15 @@ class ClipConstraint(Constraint):
     def get_config(self):
         return {'clip_value': self.clip_value}
 
-def WassersteinDiscriminatorLoss(real_img, fake_img):
-    real_loss = tf.reduce_mean(real_img)
-    fake_loss = tf.reduce_mean(fake_img)
+def WassersteinDiscriminatorLoss(y_true, y_fake):
+    real_loss = tf.reduce_mean(y_true)
+    fake_loss = tf.reduce_mean(y_fake)
     return fake_loss - real_loss
 
 
 # Define the loss functions for the generator.
-def WassersteinGeneratorLoss(fake_img):
-    return -tf.reduce_mean(fake_img)
+def WassersteinGeneratorLoss(y_fake):
+    return -tf.reduce_mean(y_fake)
 
 
 # class GANMonitor(keras.callbacks.Callback):
@@ -202,14 +216,19 @@ def WassersteinGeneratorLoss(fake_img):
 #             img.save("generated_img_{i}_{epoch}.png".format(i=i, epoch=epoch))
 
 
-def GaussianNLL(true, pred):
+def GaussianNLL(true, Zmu, Zlv):
     """
      Gaussian negative loglikelihood loss function 
     """
-    n_dims = int(int(pred.shape[1])/2)
+    #n_dims = int(int(pred.shape[1])/2)
 
-    mu = pred[:, 0:n_dims]
-    logsigma = pred[:, n_dims:]
+    n_dims = int(Zmu.shape[1])
+
+    #mu = pred[:, 0:n_dims]
+    #logsigma = pred[:, n_dims:]
+
+    mu = Zmu
+    logsigma = Zlv
     
     mse = -0.5*K.sum(K.square((true-mu)/K.exp(logsigma)),axis=1)
     sigma_trace = -K.sum(logsigma, axis=1)
@@ -227,6 +246,17 @@ def MutualInfoLoss(c, c_given_x):
 
     return conditional_entropy + entropy
 
+# select real samples
+def generate_real_samples(dataset, n_samples):
+    # choose random instances
+    idx = np.random.randint(low=0, high=dataset.shape[0], size=n_samples)
+    #X[tf.arange(size_batch), rand_idx] = dataset
+    X = tf.gather(dataset, idx)
+    #idx = np.random.randint(0, size=(dataset.shape[0], n_samples))
+    # select images
+    #X = dataset[idx]
+
+    return X
 class RepGAN(Model):
 
     def __init__(self,options):
@@ -271,7 +301,8 @@ class RepGAN(Model):
         # or at the start of `evaluate()`.
         # If you don't implement this property, you have to call
         # `reset_states()` yourself at the time of your choosing.
-        return [AdvDLoss_tracker,AdvGLoss_tracker]
+        return [AdvDLoss_tracker,AdvGLoss_tracker,AdvDlossX_tracker,AdvDlossC_tracker,AdvDlossS_tracker,AdvDlossN_tracker,
+            RecGlossX_tracker,RecGlossC_tracker,RecGlossS_tracker]
 
     def compile(self,optimizers,losses):
         super(RepGAN, self).compile()
@@ -335,34 +366,15 @@ class RepGAN(Model):
 
         for _ in range(self.nCritic):
 
-            # Sample noise as generator input
-            # realZ = tf.random.normal(shape=[self.batchSize, self.latentZdim], mean=0.0, stddev=1.0)
-            # realS = tf.random.normal(shape=[self.batchSize, self.latentSdim], mean=0.0, stddev=1.0)
-            # realN = tf.random.normal(shape=[self.batchSize, self.latentNdim], mean=0.0, stddev=1.0)
-        # The generator takes the signal, encodes it and reconstructs it
-        # from the encoding
-        # Real c,s,n
-
-        # realC = tf.zeros(shape=(self.batchSize,self.latentCdim))
-        # rand_idx = np.random.randint(0,self.latentCdim,self.batchSize)
-        # realC[np.arange(self.batchSize),rand_idx]=1.0
-
+            
             with tf.GradientTape(persistent=True) as tape:
 
-                # realC = tf.zeros(shape=(self.batchSize,self.latentCdim))
-                # rand_idx = np.random.randint(0,self.latentCdim,self.batchSize)
-                #realC[np.arange(self.batchSize),rand_idx]=1.0
-                #realC = tf.random.categorical(tf.math.log([[batchSize, 2]]), self.latentCdim)
+                               
                 realS = tf.random.normal(mean=0.0,stddev=0.5,shape=[self.batchSize,self.latentSdim])
                 realN = tf.random.normal(mean=0.0,stddev=0.3,shape=[self.batchSize,self.latentNdim])
 
-                
-                # # Generate fake latent code from real signals
-                Fx = self.Fx(realX) # encoded z = Fx(X)
-
-                fakeC = Fx[0]
-                fakeS = Fx[1]
-                fakeN = Fx[2]
+                # Generate fake latent code from real signals
+                [fakeC,fakeS,fakeN] = self.Fx(realX) # encoded z = Fx(X)
 
                 fakeX = self.Gz((realC,realS,realN)) # fake X = Gz(Fx(X))
                 
@@ -383,15 +395,19 @@ class RepGAN(Model):
                 fakeScritic = self.Ds(fakeS)
                 realScritic = self.Ds(realS)
 
-                                
-                # Calculate the discriminator loss using the fake and real logits
-                AdvDlossX = self.AdvDloss(realXcritic,fakeXcritic)*self.PenAdvXloss
-                AdvDlossC = self.AdvDloss(realCcritic,fakeCcritic)*self.PenAdvCloss
-                AdvDlossS = self.AdvDloss(realScritic,fakeScritic)*self.PenAdvSloss
-                AdvDlossN = self.AdvDloss(realNcritic,fakeNcritic)*self.PenAdvNloss
-                AdvDlossPenGradX = self.GradientPenaltyX(self.batchSize,realX,fakeX)*self.PenGradX
-                AdvDloss = AdvDlossX + AdvDlossC + AdvDlossS + AdvDlossN + AdvDlossPenGradX
+                # Adversarial ground truths
+                realBCE = tf.ones_like(realXcritic)
+                fakeBCE = tf.zeros_like(fakeXcritic)
 
+                # Calculate the discriminator loss using the fake and real logits
+                AdvDlossX = self.AdvDlossGAN(realBCE,realXcritic)*self.PenAdvXloss
+                AdvDlossX += self.AdvDlossGAN(fakeBCE,fakeXcritic)*self.PenAdvXloss
+                AdvDlossC = self.AdvDlossWGAN(realCcritic,fakeCcritic)*self.PenAdvCloss
+                AdvDlossS = self.AdvDlossWGAN(realScritic,fakeScritic)*self.PenAdvSloss
+                AdvDlossN = self.AdvDlossWGAN(realNcritic,fakeNcritic)*self.PenAdvNloss
+                #AdvDlossPenGradX = self.GradientPenaltyX(self.batchSize,realX,fakeX)*self.PenGradX
+
+                AdvDloss = AdvDlossX + AdvDlossC + AdvDlossS + AdvDlossN #AdvDlossPenGradX
             
             # Get the gradients w.r.t the discriminator loss
             
@@ -421,11 +437,7 @@ class RepGAN(Model):
 
         with tf.GradientTape(persistent=True) as tape:
             # Fake
-            Fx = self.Fx(realX) # encoded z = Fx(X)
-
-            fakeC = Fx[0]
-            fakeS = Fx[1]
-            fakeN = Fx[2]
+            [fakeC,fakeS,fakeN] = self.Fx(realX) # encoded z = Fx(X)
 
             fakeX = self.Gz((realC,realS,realN)) # fake X = Gz(Fx(X))
 
@@ -446,16 +458,18 @@ class RepGAN(Model):
             # Reconstruction
             # fakeZ = Concatenate([fakeC,fakeS,fakeN])
             recX = self.Gz((fakeC,fakeS,fakeN))
-            recS = self.Qs(fakeX)
+            Zmu,Zlv = self.Qs(fakeX)
+            ZS = tf.keras.layers.concatenate([Zmu,Zlv],axis=-1)
             recC = self.Qc(fakeX)
             
-            AdvGlossX = self.AdvGloss(fakeXcritic)*self.PenAdvXloss
-            AdvGlossC = self.AdvGloss(fakeCcritic)*self.PenAdvCloss
-            AdvGlossS = self.AdvGloss(fakeScritic)*self.PenAdvSloss
-            AdvGlossN = self.AdvGloss(fakeNcritic)*self.PenAdvNloss
+            AdvGlossX = self.AdvGlossGAN(realBCE,realXcritic)*self.PenAdvXloss
+            AdvGlossX += self.AdvGlossGAN(fakeBCE,fakeXcritic)*self.PenAdvXloss
+            AdvGlossC = self.AdvGlossWGAN(fakeCcritic)*self.PenAdvCloss
+            AdvGlossS = self.AdvGlossWGAN(fakeScritic)*self.PenAdvSloss
+            AdvGlossN = self.AdvGlossWGAN(fakeNcritic)*self.PenAdvNloss
             RecGlossX = self.RecXloss(realX,recX)*self.PenRecXloss
             RecGlossC = self.RecCloss(realC,recC)*self.PenRecCloss
-            RecGlossS = self.RecSloss(realS,recS)*self.PenRecSloss
+            RecGlossS = self.RecSloss(realS,Zmu,Zlv)*self.PenRecSloss
             AdvGloss = AdvGlossX + AdvGlossC + AdvGlossS + AdvGlossN + RecGlossX + RecGlossC + RecGlossS
         
 
@@ -467,34 +481,28 @@ class RepGAN(Model):
         self.FxOpt.apply_gradients(zip(gradFx,self.Fx.trainable_variables))
         self.GzOpt.apply_gradients(zip(gradGz,self.Gz.trainable_variables))
 
-        # realX_file = "realX.csv"
-        # recX_file = "recX.csv"
-
-        # realX.to_csv(realX_file, index=False, header=False)
-        # recX.to_csv(recX_file, index=False, header=False)
-
-        # realXplot = pd.read_csv(realX_file, parse_dates=True, index_col="timestamp")
-        # recXplot = pd.read_csv(recX_file, parse_dates=True, index_col="timestamp")
-
-        # plt.figure(figsize=(8, 6))
-        # plt.plot(realXplot, linestyle='solid', color='b')
-        # plt.plot(recXplot, linestyle='dashed', color='r')
-        # plt.title('Real and Reconstructed X', weight='bold', fontsize=16)
-        # plt.xlabel('/', weight='bold', fontsize=14)
-        # plt.ylabel('/', weight='bold', fontsize=14)
-        # plt.xticks(weight='bold', fontsize=12, rotation=45)
-        # plt.yticks(weight='bold', fontsize=12)
-        # plt.grid(color = 'y', linewidth = 0.5)
-        # plt.savefig('real_rec_X.png',bbox_inches='tight')
+        # Compute our own metrics
+        AdvDLoss_tracker.update_state(AdvDloss)
+        AdvGLoss_tracker.update_state(AdvGloss)
+        AdvDlossX_tracker.update_state(AdvDlossX)
+        AdvDlossC_tracker.update_state(AdvDlossC)
+        AdvDlossS_tracker.update_state(AdvDlossS)
+        AdvDlossN_tracker.update_state(AdvDlossN)
+        RecGlossX_tracker.update_state(RecGlossX)
+        RecGlossC_tracker.update_state(RecGlossC)
+        RecGlossS_tracker.update_state(RecGlossS)
+        #loss_tracker.update_state(loss)
+        #mae_metric.update_state(y, y_pred)
+        #return {"loss": loss_tracker.result(), "mae": mae_metric.result()}
         
-
-
-        return {"AdvDloss": AdvDloss,"AdvGloss": AdvGloss,}
+        return {"AdvDloss": AdvDLoss_tracker.result(),"AdvGloss": AdvGLoss_tracker.result(), "AdvDlossX": AdvDlossX_tracker.result(),
+            "AdvDlossC": AdvDlossC_tracker.result(),"AdvDlossS": AdvDlossS_tracker.result(),"AdvDlossN": AdvDlossN_tracker.result(),
+            "RecGlossX": RecGlossX_tracker.result(), "RecGlossC": RecGlossC_tracker.result(), "RecGlossS": RecGlossS_tracker.result()}
       
 
     def call(self, X):
-        Fx = self.Fx(X)
-        return Fx[0]
+        [fakeC,_,_] = self.Fx(X)
+        return fakeC
 
     def build_Fx(self):
         """
@@ -509,8 +517,12 @@ class RepGAN(Model):
                 self.kernel,self.stride,padding="same",kernel_initializer=init,
                 data_format="channels_last",name="FxCNN0")(X)
         h = BatchNormalization(momentum=0.95,name="FxBN0")(h)
+        #h = BatchNormalization(momentum=hp.Float('BN_1',min_value=0.0,max_value=1,
+        #    default=0.95,step=0.05),name="FxBN0")(h)
         h = LeakyReLU(alpha=0.1,name="FxA0")(h)
         h = Dropout(0.2,name="FxDO0")(h)
+        #h = Dropout(rate=hp.Float('dropout_1',min_value=0.0,max_value=0.4,
+        #    default=0.2,step=0.05),name="FxDO0")(h)
 
         for n in range(1,self.nCnnLayers):
             h = Conv1D(self.nZchannels*self.stride**(-self.nCnnLayers+n),
@@ -532,8 +544,6 @@ class RepGAN(Model):
         h = Dense(self.latentSdim,kernel_initializer=init,name="FxFWsiS")(z)
         Zlv = BatchNormalization(momentum=0.95)(h)
 
-        QsX = concatenate([Zmu,Zlv])
-
         s = SamplingFxS()([Zmu,Zlv])
 
         # variable c
@@ -553,7 +563,7 @@ class RepGAN(Model):
         dot_img_file = 'Fx.png'
         tf.keras.utils.plot_model(Fx, to_file=dot_img_file, show_shapes=True, show_layer_names=True)
 
-        Qs = keras.Model(X,QsX,name="Qs")
+        Qs = keras.Model(X,[Zmu,Zlv],name="Qs")
         dot_img_file = 'Qs.png'
         tf.keras.utils.plot_model(Qs, to_file=dot_img_file, show_shapes=True)
 
@@ -650,7 +660,7 @@ class RepGAN(Model):
         h = LeakyReLU(alpha=0.2)(h)
         h = Dropout(0.25)(h)
         h = Flatten()(h)
-        Dx = Dense(1,activation=None,
+        Dx = Dense(1,activation='sigmoid',
             kernel_initializer=init)(h)
         # model.add(Dense(1,activation='sigmoid'))
 
@@ -689,10 +699,12 @@ class RepGAN(Model):
 
         c = Input(shape=(self.latentCdim,))
         h = Dense(3000,kernel_initializer=init,kernel_constraint=self.ClipD)(c)
+        #h = Dense(units=hp.Int('units_1',min_value=1000,max_value=5000,
+        #    step=50,default=3000),kernel_initializer=init,kernel_constraint=self.ClipD)(c)
         h = LeakyReLU()(h)
         h = Dense(3000,kernel_initializer=init,kernel_constraint=self.ClipD)(h)
         h = LeakyReLU()(h)
-        Dc = Dense(1)(h)
+        Dc = Dense(1,activation='linear')(h)
 
         model = keras.Model(c,Dc,name="Dc")
         model.summary()
@@ -714,7 +726,7 @@ class RepGAN(Model):
         h = LeakyReLU()(h)
         h = Dense(3000,kernel_initializer=init,kernel_constraint=self.ClipD)(h)
         h = LeakyReLU()(h) 
-        Dn = Dense(1)(h)  
+        Dn = Dense(1,activation='linear')(h)  
 
         model = keras.Model(n,Dn,name="Dn")
         model.summary()
@@ -736,7 +748,7 @@ class RepGAN(Model):
         h = LeakyReLU()(h)
         h = Dense(3000,kernel_initializer=init,kernel_constraint=self.ClipD)(h)
         h = LeakyReLU()(h)
-        Ds = Dense(1)(h)
+        Ds = Dense(1,activation='linear')(h)
 
         model = keras.Model(s,Ds,name="Ds")
         model.summary()
@@ -779,8 +791,10 @@ def main(DeviceName):
         optimizers['GzOpt'] = Adam(learning_rate=0.0002, beta_1=0.5, beta_2=0.9)
 
         losses = {}
-        losses['AdvDloss'] = WassersteinDiscriminatorLoss
-        losses['AdvGloss'] = WassersteinGeneratorLoss
+        losses['AdvDlossWGAN'] = WassersteinDiscriminatorLoss
+        losses['AdvGlossWGAN'] = WassersteinGeneratorLoss
+        losses['AdvDlossGAN'] = tf.keras.losses.BinaryCrossentropy()
+        losses['AdvGlossGAN'] = tf.keras.losses.BinaryCrossentropy()
         losses['RecSloss'] = GaussianNLL
         losses['RecXloss'] = tf.keras.losses.MeanSquaredError()
         losses['RecCloss'] = MutualInfoLoss
@@ -816,30 +830,39 @@ def main(DeviceName):
         
 
 
-        #Xtrn = Xtrn.astype("float32") 
-        #Xvld = Xvld.astype("float32")
+        # Callbacks
+        #plotter = GANMonitor()
         
-        # Xtrn = tf.data.Dataset.from_tensor_slices(Xtrn)
-        # Xtrn = Xtrn.shuffle(buffer_size=1024).batch(options['batchSize'])
+        callbacks = [keras.callbacks.ModelCheckpoint(filepath=checkpoint_dir + "/ckpt-{epoch}", 
+            save_freq='epoch',period=500)]
 
-        # Start training the model.
-        #GiorgiaGAN.fit(x=Xtrn,y=Ctrn,batch_size=options["batchSize"],epochs=options["epochs"])
-        
-        callbacks = [keras.callbacks.ModelCheckpoint(
-            filepath=checkpoint_dir + "/ckpt-{epoch}", 
-            save_freq="epoch")]
         history = GiorgiaGAN.fit(Xtrn,epochs=options["epochs"],validation_data=Xvld,
             callbacks=callbacks)
 
         
-        plt.plot(history.history['AdvDloss'])
-        plt.plot(history.history['AdvGloss'])
+        # Print results
+        plt.plot(history.history['AdvDloss'], color='b')
+        plt.plot(history.history['AdvGloss'], color='g')
+        plt.plot(history.history['AdvDlossX'], color='r')
+        plt.plot(history.history['AdvDlossC'], color='c')
+        plt.plot(history.history['AdvDlossS'], color='m')
+        plt.plot(history.history['AdvDlossN'], color='gold')
+        #plt.plot(history.history['AdvDlossPenGradX'])
+        #plt.plot(history.history['AdvGlossX'])
+        #plt.plot(history.history['AdvGlossC'])
+        #plt.plot(history.history['AdvGlossS'])
+        #plt.plot(history.history['AdvGlossN'])
+        plt.plot(history.history['RecGlossX'], color='darkorange')
+        plt.plot(history.history['RecGlossC'], color='lime')
+        plt.plot(history.history['RecGlossS'], color='grey')
         plt.title('model loss')
         plt.ylabel('loss')
         plt.xlabel('epoch')
-        plt.legend(['AdvDloss', 'AdvGloss'], loc='upper left')
+        plt.legend(['AdvDloss', 'AdvGloss','AdvDlossX','AdvDlossC','AdvDlossS','AdvDlossN',
+            'RecGlossX','RecGlossC','RecGlossS'], loc='upper left')
+        plt.tight_layout()
+        plt.savefig('loss.png',bbox_inches = 'tight')
         plt.show()
-        plt.savefig('loss.png',bbox_inches='tight')
 
                
 
