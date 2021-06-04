@@ -84,7 +84,19 @@ from tensorflow.python.util.tf_export import tf_export
 from copy import deepcopy
 
 AdvDLoss_tracker = keras.metrics.Mean(name="loss")
+AdvDlossX_tracker = keras.metrics.Mean(name="loss")
+AdvDlossC_tracker = keras.metrics.Mean(name="loss")
+AdvDlossS_tracker = keras.metrics.Mean(name="loss")
+AdvDlossN_tracker = keras.metrics.Mean(name="loss")
+#AdvDlossPenGradX_tracker = keras.metrics.Mean(name="loss")
 AdvGLoss_tracker = keras.metrics.Mean(name="loss")
+#AdvGlossX_tracker = keras.metrics.Mean(name="loss")
+#AdvGlossC_tracker = keras.metrics.Mean(name="loss")
+#AdvGlossS_tracker = keras.metrics.Mean(name="loss")
+#AdvGlossN_tracker = keras.metrics.Mean(name="loss")
+RecGlossX_tracker = keras.metrics.Mean(name="loss")
+RecGlossC_tracker = keras.metrics.Mean(name="loss")
+RecGlossS_tracker = keras.metrics.Mean(name="loss")
 
 gpu_devices = tf.config.experimental.list_physical_devices('GPU')
 
@@ -176,15 +188,15 @@ class ClipConstraint(Constraint):
     def get_config(self):
         return {'clip_value': self.clip_value}
 
-def WassersteinDiscriminatorLoss(real_img, fake_img):
-    real_loss = tf.reduce_mean(real_img)
-    fake_loss = tf.reduce_mean(fake_img)
+def WassersteinDiscriminatorLoss(y_true, y_fake):
+    real_loss = tf.reduce_mean(y_true)
+    fake_loss = tf.reduce_mean(y_fake)
     return fake_loss - real_loss
 
 
 # Define the loss functions for the generator.
-def WassersteinGeneratorLoss(fake_img):
-    return -tf.reduce_mean(fake_img)
+def WassersteinGeneratorLoss(y_fake):
+    return -tf.reduce_mean(y_fake)
 
 
 # class GANMonitor(keras.callbacks.Callback):
@@ -202,14 +214,19 @@ def WassersteinGeneratorLoss(fake_img):
 #             img.save("generated_img_{i}_{epoch}.png".format(i=i, epoch=epoch))
 
 
-def GaussianNLL(true, pred):
+def GaussianNLL(true, Zmu, Zlv):
     """
      Gaussian negative loglikelihood loss function 
     """
-    n_dims = int(int(pred.shape[1])/2)
+    #n_dims = int(int(pred.shape[1])/2)
 
-    mu = pred[:, 0:n_dims]
-    logsigma = pred[:, n_dims:]
+    n_dims = int(Zmu.shape[1])
+
+    #mu = pred[:, 0:n_dims]
+    #logsigma = pred[:, n_dims:]
+
+    mu = Zmu
+    logsigma = Zlv
     
     mse = -0.5*K.sum(K.square((true-mu)/K.exp(logsigma)),axis=1)
     sigma_trace = -K.sum(logsigma, axis=1)
@@ -271,7 +288,8 @@ class RepGAN(Model):
         # or at the start of `evaluate()`.
         # If you don't implement this property, you have to call
         # `reset_states()` yourself at the time of your choosing.
-        return [AdvDLoss_tracker,AdvGLoss_tracker]
+        return [AdvDLoss_tracker,AdvGLoss_tracker,AdvDlossX_tracker,AdvDlossC_tracker,AdvDlossS_tracker,AdvDlossN_tracker,
+            RecGlossX_tracker,RecGlossC_tracker,RecGlossS_tracker]
 
     def compile(self,optimizers,losses):
         super(RepGAN, self).compile()
@@ -335,34 +353,15 @@ class RepGAN(Model):
 
         for _ in range(self.nCritic):
 
-            # Sample noise as generator input
-            # realZ = tf.random.normal(shape=[self.batchSize, self.latentZdim], mean=0.0, stddev=1.0)
-            # realS = tf.random.normal(shape=[self.batchSize, self.latentSdim], mean=0.0, stddev=1.0)
-            # realN = tf.random.normal(shape=[self.batchSize, self.latentNdim], mean=0.0, stddev=1.0)
-        # The generator takes the signal, encodes it and reconstructs it
-        # from the encoding
-        # Real c,s,n
-
-        # realC = tf.zeros(shape=(self.batchSize,self.latentCdim))
-        # rand_idx = np.random.randint(0,self.latentCdim,self.batchSize)
-        # realC[np.arange(self.batchSize),rand_idx]=1.0
-
+            
             with tf.GradientTape(persistent=True) as tape:
 
-                # realC = tf.zeros(shape=(self.batchSize,self.latentCdim))
-                # rand_idx = np.random.randint(0,self.latentCdim,self.batchSize)
-                #realC[np.arange(self.batchSize),rand_idx]=1.0
-                #realC = tf.random.categorical(tf.math.log([[batchSize, 2]]), self.latentCdim)
+                               
                 realS = tf.random.normal(mean=0.0,stddev=0.5,shape=[self.batchSize,self.latentSdim])
                 realN = tf.random.normal(mean=0.0,stddev=0.3,shape=[self.batchSize,self.latentNdim])
 
-                
-                # # Generate fake latent code from real signals
-                Fx = self.Fx(realX) # encoded z = Fx(X)
-
-                fakeC = Fx[0]
-                fakeS = Fx[1]
-                fakeN = Fx[2]
+                # Generate fake latent code from real signals
+                [fakeC,fakeS,fakeN] = self.Fx(realX) # encoded z = Fx(X)
 
                 fakeX = self.Gz((realC,realS,realN)) # fake X = Gz(Fx(X))
                 
@@ -383,15 +382,19 @@ class RepGAN(Model):
                 fakeScritic = self.Ds(fakeS)
                 realScritic = self.Ds(realS)
 
-                                
-                # Calculate the discriminator loss using the fake and real logits
-                AdvDlossX = self.AdvDloss(realXcritic,fakeXcritic)*self.PenAdvXloss
-                AdvDlossC = self.AdvDloss(realCcritic,fakeCcritic)*self.PenAdvCloss
-                AdvDlossS = self.AdvDloss(realScritic,fakeScritic)*self.PenAdvSloss
-                AdvDlossN = self.AdvDloss(realNcritic,fakeNcritic)*self.PenAdvNloss
-                AdvDlossPenGradX = self.GradientPenaltyX(self.batchSize,realX,fakeX)*self.PenGradX
-                AdvDloss = AdvDlossX + AdvDlossC + AdvDlossS + AdvDlossN + AdvDlossPenGradX
+                # Adversarial ground truths
+                realBCE = tf.ones_like(realXcritic)
+                fakeBCE = tf.zeros_like(fakeXcritic)
 
+                # Calculate the discriminator loss using the fake and real logits
+                AdvDlossX = self.AdvDlossGAN(realBCE,realXcritic)*self.PenAdvXloss
+                AdvDlossX += self.AdvDlossGAN(fakeBCE,fakeXcritic)*self.PenAdvXloss
+                AdvDlossC = self.AdvDlossWGAN(realCcritic,fakeCcritic)*self.PenAdvCloss
+                AdvDlossS = self.AdvDlossWGAN(realScritic,fakeScritic)*self.PenAdvSloss
+                AdvDlossN = self.AdvDlossWGAN(realNcritic,fakeNcritic)*self.PenAdvNloss
+                #AdvDlossPenGradX = self.GradientPenaltyX(self.batchSize,realX,fakeX)*self.PenGradX
+
+                AdvDloss = AdvDlossX + AdvDlossC + AdvDlossS + AdvDlossN #AdvDlossPenGradX
             
             # Get the gradients w.r.t the discriminator loss
             
@@ -467,13 +470,14 @@ class RepGAN(Model):
             recS = self.Qs(fakeX)
             recC = self.Qc(fakeX)
             
-            AdvGlossX = self.AdvGloss(fakeXcritic)*self.PenAdvXloss
-            AdvGlossC = self.AdvGloss(fakeCcritic)*self.PenAdvCloss
-            AdvGlossS = self.AdvGloss(fakeScritic)*self.PenAdvSloss
-            AdvGlossN = self.AdvGloss(fakeNcritic)*self.PenAdvNloss
+            AdvGlossX = self.AdvGlossGAN(realBCE,realXcritic)*self.PenAdvXloss
+            AdvGlossX += self.AdvGlossGAN(fakeBCE,fakeXcritic)*self.PenAdvXloss
+            AdvGlossC = self.AdvGlossWGAN(fakeCcritic)*self.PenAdvCloss
+            AdvGlossS = self.AdvGlossWGAN(fakeScritic)*self.PenAdvSloss
+            AdvGlossN = self.AdvGlossWGAN(fakeNcritic)*self.PenAdvNloss
             RecGlossX = self.RecXloss(realX,recX)*self.PenRecXloss
             RecGlossC = self.RecCloss(realC,recC)*self.PenRecCloss
-            RecGlossS = self.RecSloss(realS,recS)*self.PenRecSloss
+            RecGlossS = self.RecSloss(realS,Zmu,Zlv)*self.PenRecSloss
             AdvGloss = AdvGlossX + AdvGlossC + AdvGlossS + AdvGlossN + RecGlossX + RecGlossC + RecGlossS
         
 
@@ -485,6 +489,19 @@ class RepGAN(Model):
         self.FxOpt.apply_gradients(zip(gradFx,self.Fx.trainable_variables))
         self.GzOpt.apply_gradients(zip(gradGz,self.Gz.trainable_variables))
 
+        # Compute our own metrics
+        AdvDLoss_tracker.update_state(AdvDloss)
+        AdvGLoss_tracker.update_state(AdvGloss)
+        AdvDlossX_tracker.update_state(AdvDlossX)
+        AdvDlossC_tracker.update_state(AdvDlossC)
+        AdvDlossS_tracker.update_state(AdvDlossS)
+        AdvDlossN_tracker.update_state(AdvDlossN)
+        RecGlossX_tracker.update_state(RecGlossX)
+        RecGlossC_tracker.update_state(RecGlossC)
+        RecGlossS_tracker.update_state(RecGlossS)
+        #loss_tracker.update_state(loss)
+        #mae_metric.update_state(y, y_pred)
+        #return {"loss": loss_tracker.result(), "mae": mae_metric.result()}
         # realX_file = "realX.csv"
         # recX_file = "recX.csv"
 
@@ -505,9 +522,9 @@ class RepGAN(Model):
         # plt.grid(color = 'y', linewidth = 0.5)
         # plt.savefig('real_rec_X.png',bbox_inches='tight')
         
-
-
-        return {"AdvDloss": AdvDloss,"AdvGloss": AdvGloss,}
+        return {"AdvDloss": AdvDLoss_tracker.result(),"AdvGloss": AdvGLoss_tracker.result(), "AdvDlossX": AdvDlossX_tracker.result(),
+            "AdvDlossC": AdvDlossC_tracker.result(),"AdvDlossS": AdvDlossS_tracker.result(),"AdvDlossN": AdvDlossN_tracker.result(),
+            "RecGlossX": RecGlossX_tracker.result(), "RecGlossC": RecGlossC_tracker.result(), "RecGlossS": RecGlossS_tracker.result()}
       
 
     def call(self, X):
@@ -797,8 +814,10 @@ def main(DeviceName):
         optimizers['GzOpt'] = Adam(learning_rate=0.0002, beta_1=0.5, beta_2=0.9)
 
         losses = {}
-        losses['AdvDloss'] = WassersteinDiscriminatorLoss
-        losses['AdvGloss'] = WassersteinGeneratorLoss
+        losses['AdvDlossWGAN'] = WassersteinDiscriminatorLoss
+        losses['AdvGlossWGAN'] = WassersteinGeneratorLoss
+        losses['AdvDlossGAN'] = tf.keras.losses.BinaryCrossentropy()
+        losses['AdvGlossGAN'] = tf.keras.losses.BinaryCrossentropy()
         losses['RecSloss'] = GaussianNLL
         losses['RecXloss'] = tf.keras.losses.MeanSquaredError()
         losses['RecCloss'] = MutualInfoLoss
