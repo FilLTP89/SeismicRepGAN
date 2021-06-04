@@ -121,7 +121,7 @@ def make_or_restore_model():
 
 def ParseOptions():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--epochs",type=int,default=200,help='Number of epochs')
+    parser.add_argument("--epochs",type=int,default=100000,help='Number of epochs')
     parser.add_argument("--kernel",type=int,default=3,help='CNN kernel size')
     parser.add_argument("--stride",type=int,default=2,help='CNN stride')
     parser.add_argument("--nCnnLayers",type=int,default=5,help='Number of CNN layers per Coupling Layer')
@@ -138,8 +138,8 @@ def ParseOptions():
     parser.add_argument("--case",type=str,default="train_model",help="case")
     parser.add_argument("--avu",type=str,nargs='+',default="U",help="case avu")
     parser.add_argument("--pb",type=str,default="BC",help="case pb")
-    parser.add_argument("--CreateData",action='store_true',default=False,help='Create data flag')
-    parser.add_argument("--cuda",action='store_true',default=False,help='Use cuda powered GPU')
+    parser.add_argument("--CreateData",action='store_true',default=True,help='Create data flag')
+    parser.add_argument("--cuda",action='store_true',default=True,help='Use cuda powered GPU')
        
     options = parser.parse_args().__dict__
     
@@ -422,23 +422,6 @@ class RepGAN(Model):
             self.DsOpt.apply_gradients(zip(gradDs,self.Ds.trainable_variables))
             self.DnOpt.apply_gradients(zip(gradDn,self.Dn.trainable_variables))
 
-            # Clip critic weights
-            #for l in (1,self.Dx.layers):
-            #    weights = l.get_weights()
-            #    weights = [np.clip(w, -self.clipValue, self.clipValue) for w in weights]
-            #    l.set_weights(weights)
-            #for l in self.Dc.layers:
-            #    weights = l.get_weights()
-            #    weights = [np.clip(w, -self.clipValue, self.clipValue) for w in weights]
-            #    l.set_weights(weights)
-            #for l in self.Ds.layers:
-            #    weights = l.get_weights()
-            #    weights = [np.clip(w, -self.clipValue, self.clipValue) for w in weights]
-            #    l.set_weights(weights)
-            #for l in self.Dn.layers:
-            #    weights = l.get_weights()
-            #    weights = [np.clip(w, -self.clipValue, self.clipValue) for w in weights]
-            #    l.set_weights(weights)
 
         #----------------------------------------
         #      Construct Computational Graph
@@ -512,25 +495,6 @@ class RepGAN(Model):
         #loss_tracker.update_state(loss)
         #mae_metric.update_state(y, y_pred)
         #return {"loss": loss_tracker.result(), "mae": mae_metric.result()}
-        # realX_file = "realX.csv"
-        # recX_file = "recX.csv"
-
-        # realX.to_csv(realX_file, index=False, header=False)
-        # recX.to_csv(recX_file, index=False, header=False)
-
-        # realXplot = pd.read_csv(realX_file, parse_dates=True, index_col="timestamp")
-        # recXplot = pd.read_csv(recX_file, parse_dates=True, index_col="timestamp")
-
-        # plt.figure(figsize=(8, 6))
-        # plt.plot(realXplot, linestyle='solid', color='b')
-        # plt.plot(recXplot, linestyle='dashed', color='r')
-        # plt.title('Real and Reconstructed X', weight='bold', fontsize=16)
-        # plt.xlabel('/', weight='bold', fontsize=14)
-        # plt.ylabel('/', weight='bold', fontsize=14)
-        # plt.xticks(weight='bold', fontsize=12, rotation=45)
-        # plt.yticks(weight='bold', fontsize=12)
-        # plt.grid(color = 'y', linewidth = 0.5)
-        # plt.savefig('real_rec_X.png',bbox_inches='tight')
         
         return {"AdvDloss": AdvDLoss_tracker.result(),"AdvGloss": AdvGLoss_tracker.result(), "AdvDlossX": AdvDlossX_tracker.result(),
             "AdvDlossC": AdvDlossC_tracker.result(),"AdvDlossS": AdvDlossS_tracker.result(),"AdvDlossN": AdvDlossN_tracker.result(),
@@ -876,14 +840,29 @@ def main(DeviceName):
             callbacks=callbacks)
 
         
-        plt.plot(history.history['AdvDloss'])
-        plt.plot(history.history['AdvGloss'])
+        # Print results
+        plt.plot(history.history['AdvDloss'], color='b')
+        plt.plot(history.history['AdvGloss'], color='g')
+        plt.plot(history.history['AdvDlossX'], color='r')
+        plt.plot(history.history['AdvDlossC'], color='c')
+        plt.plot(history.history['AdvDlossS'], color='m')
+        plt.plot(history.history['AdvDlossN'], color='gold')
+        #plt.plot(history.history['AdvDlossPenGradX'])
+        #plt.plot(history.history['AdvGlossX'])
+        #plt.plot(history.history['AdvGlossC'])
+        #plt.plot(history.history['AdvGlossS'])
+        #plt.plot(history.history['AdvGlossN'])
+        plt.plot(history.history['RecGlossX'], color='darkorange')
+        plt.plot(history.history['RecGlossC'], color='lime')
+        plt.plot(history.history['RecGlossS'], color='grey')
         plt.title('model loss')
         plt.ylabel('loss')
         plt.xlabel('epoch')
-        plt.legend(['AdvDloss', 'AdvGloss'], loc='upper left')
+        plt.legend(['AdvDloss', 'AdvGloss','AdvDlossX','AdvDlossC','AdvDlossS','AdvDlossN',
+            'RecGlossX','RecGlossC','RecGlossS'], loc='upper left')
+        plt.tight_layout()
+        plt.savefig('loss.png',bbox_inches = 'tight')
         plt.show()
-        plt.savefig('loss.png',bbox_inches='tight')
 
                
 
