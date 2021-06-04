@@ -107,3 +107,23 @@ def LoadData(**kwargs):
         tf.data.Dataset.from_tensor_slices((Xvld,Cvld)).batch(batchSize),
         tf.data.Dataset.from_tensor_slices((Xvld,Cvld)).batch(batchSize),
     )
+
+# def LoadNumpyData(**kwargs):
+#     LoadData.__globals__.update(kwargs)
+#     if len(avu) == 0:
+#         dataSrc = opj(dataroot,"{:>s}_damaged_concat_{:>s}_gdl.h5".format(pb,case))
+#     else:
+#         dataSrc = opj(dataroot,"{:>s}_{:>s}_damaged_concat_{:>s}_gdl.h5".format(pb,avu,case))
+    
+
+#     h5f = h5py.File(dataSrc,'r')
+#     X = h5f['X'][...]
+#     c = h5f['c'][...]
+#     # s = h5f['s'][...]
+#     # n = h5f['n'][...]
+#     h5f.close()
+
+#     # Split between train and validation set (time series and parameters are splitted in the same way)
+#     Xtrn, Xvld, Ctrn, Cvld = train_test_split(X,c,random_state=5)
+    
+#     return (Xtrn,Ctrn),(Xvld,Cvld),(Xvld,Cvld)

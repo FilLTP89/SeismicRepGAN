@@ -406,24 +406,6 @@ class RepGAN(Model):
             self.DsOpt.apply_gradients(zip(gradDs,self.Ds.trainable_variables))
             self.DnOpt.apply_gradients(zip(gradDn,self.Dn.trainable_variables))
 
-            # Clip critic weights
-            #for l in (1,self.Dx.layers):
-            #    weights = l.get_weights()
-            #    weights = [np.clip(w, -self.clipValue, self.clipValue) for w in weights]
-            #    l.set_weights(weights)
-            #for l in self.Dc.layers:
-            #    weights = l.get_weights()
-            #    weights = [np.clip(w, -self.clipValue, self.clipValue) for w in weights]
-            #    l.set_weights(weights)
-            #for l in self.Ds.layers:
-            #    weights = l.get_weights()
-            #    weights = [np.clip(w, -self.clipValue, self.clipValue) for w in weights]
-            #    l.set_weights(weights)
-            #for l in self.Dn.layers:
-            #    weights = l.get_weights()
-            #    weights = [np.clip(w, -self.clipValue, self.clipValue) for w in weights]
-            #    l.set_weights(weights)
-
         #----------------------------------------
         #      Construct Computational Graph
         #               for Generator
@@ -589,7 +571,7 @@ class RepGAN(Model):
             Conv1D Gz structure
         """
         init = RandomNormal(stddev=0.02)
-        
+
         c = Input(shape=(self.latentCdim,))
         s = Input(shape=(self.latentSdim,))
         n = Input(shape=(self.latentNdim,))
@@ -726,7 +708,7 @@ class RepGAN(Model):
             Dense discriminator structure
         """
         init = RandomNormal(stddev=0.02)
-        
+
         n = Input(shape=(self.latentNdim,))
         h = Dense(3000,kernel_initializer=init,kernel_constraint=self.ClipD)(n)
         h = LeakyReLU()(h)
@@ -829,7 +811,8 @@ def main(DeviceName):
             Xtrn,  Xvld, _ = mdof.CreateData(**options)
         else:
             # Load the dataset
-            Xtrn,  Xvld, _ = mdof.LoadData(**options)
+            Xtrn, Xvld, _ = mdof.LoadData(**options)
+            # (Xtrn,Ctrn), (Xvld,Cvld), _ = mdof.LoadNumpyData(**options)
         
 
 
