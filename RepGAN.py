@@ -142,11 +142,9 @@ def ParseOptions():
     parser.add_argument("--case",type=str,default="train_model",help="case")
     parser.add_argument("--avu",type=str,nargs='+',default="U",help="case avu")
     parser.add_argument("--pb",type=str,default="BC",help="case pb")
-       
     parser.add_argument("--CreateData",action='store_true',default=False,help='Create data flag')
     parser.add_argument("--cuda",action='store_true',default=False,help='Use cuda powered GPU')
     options = parser.parse_args().__dict__
-    
 
     options['Xshape'] = (options['Xsize'], options['nXchannels'])
     options['batchXshape'] = (options['batchSize'],options['Xsize'],options['nXchannels'])
@@ -425,27 +423,23 @@ class RepGAN(Model):
 
         with tf.GradientTape(persistent=True) as tape:
             # Fake
-            [fakeC,fakeS,fakeN] = self.Fx(realX) # encoded z = Fx(X)
-
-
-                        
-
-
-            # Discriminator determines validity of the real and fake C
-            fakeCcritic = self.Dc(fakeC)
+            [fakeS,fakeC,fakeN] = self.Fx(realX) # encoded z = Fx(X)
 
             # Discriminator determines validity of the real and fake S
             fakeScritic = self.Ds(fakeS)
 
+            # Discriminator determines validity of the real and fake C
+            fakeCcritic = self.Dc(fakeC)
+
             # Discriminator determines validity of the real and fake N
             fakeNcritic = self.Dn(fakeN)
 
-            fakeX = self.Gz((realC,realS,realN)) # fake X = Gz(Fx(X))
+            fakeX = self.Gz((realS,realC,realN)) # fake X = Gz(Fx(X))
             # Discriminator determines validity of the real and fake X
             fakeXcritic = self.Dx(fakeX)
             # Reconstruction
             # fakeZ = Concatenate([fakeC,fakeS,fakeN])
-            recX = self.Gz((fakeC,fakeS,fakeN))
+            recX = self.Gz((fakeS,fakeC,fakeN))
             zS = self.Qs(fakeX)
             recC = self.Qc(fakeX)
             # Adversarial ground truths
@@ -458,10 +452,8 @@ class RepGAN(Model):
             RecGlossC = self.RecCloss(realC,recC)*self.PenRecCloss
             RecGlossS = self.RecSloss(realS,zS)*self.PenRecSloss
             AdvGloss = AdvGlossX + AdvGlossC + AdvGlossS + AdvGlossN + RecGlossX + RecGlossC + RecGlossS
-        
 
         # Get the gradients w.r.t the generator loss
-        
         gradFx, gradGz = tape.gradient(AdvGloss,(self.Fx.trainable_variables, self.Gz.trainable_variables))
         # Update the weights of the generator using the generator optimizer
         self.FxOpt.apply_gradients(zip(gradFx,self.Fx.trainable_variables))
@@ -498,7 +490,9 @@ class RepGAN(Model):
 
         X = Input(shape=self.Xshape,name="X")
 
-        h = Conv1D(self.nZchannels*self.stride**(-self.nAElayers),
+        layer = -1
+
+        h = Conv1D(self.nZchannels*self.stride**(-self.nAElayers+layer+1),
                 self.kernel,self.stride,padding="same",
                 data_format="channels_last",name="FxCNN0")(X)
         h = BatchNormalization(momentum=0.95,name="FxBN0")(h)
@@ -509,39 +503,59 @@ class RepGAN(Model):
         #h = Dropout(rate=hp.Float('dropout_1',min_value=0.0,max_value=0.4,
         #    default=0.2,step=0.05),name="FxDO0")(h)
 
-        for n in range(1,self.nAElayers):
-            h = Conv1D(self.nZchannels*self.stride**(-self.nAElayers+n),
+        for layer in range(self.nAElayers-1):
+            h = Conv1D(self.nZchannels*self.stride**(-self.nAElayers+layer+1),
                 self.kernel,self.stride,padding="same",
-                data_format="channels_last",name="FxCNN{:>d}".format(n))(h)
-            h = BatchNormalization(momentum=0.95,name="FxBN{:>d}".format(n))(h)
-            h = LeakyReLU(alpha=0.1,name="FxA{:>d}".format(n))(h)
-            h = Dropout(0.2,name="FxDO{:>d}".format(n))(h)
-        
-        h = Flatten(name="FxFL{:>d}".format(n+1))(h)
-        h = Dense(self.latentZdim,name="FxFW{:>d}".format(n+1))(h)
-        h = BatchNormalization(momentum=0.95,name="FxBN{:>d}".format(n+1))(h)
-        z = LeakyReLU(alpha=0.1,name="FxA{:>d}".format(n+1))(h)
+                data_format="channels_last",name="FxCNN{:>d}".format(layer))(h)
+            h = BatchNormalization(momentum=0.95,name="FxBN{:>d}".format(layer))(h)
+            h = LeakyReLU(alpha=0.1,name="FxA{:>d}".format(layer))(h)
+            h = Dropout(0.2,name="FxDO{:>d}".format(layer))(h)
 
-        # variable s
-        h = Dense(self.latentSdim,name="FxFWmuS")(z)
-        Zmu = BatchNormalization(momentum=0.95)(h)
+        layer = self.nAElayers-1
+        h = Conv1D(self.nZchannels*self.stride**(-self.nAElayers+layer+1),
+                self.kernel,self.stride,padding="same",
+                data_format="channels_last",name="FxCNN{:>d}".format(layer))(h)
+        h = BatchNormalization(momentum=0.95,name="FxBN{:>d}".format(layer))(h)
+        h = LeakyReLU(alpha=0.1,name="FxA{:>d}".format(layer))(h)
+        z = Dropout(0.2,name="FxDO{:>d}".format(layer))(h)
+        zf = Flatten(name="FxFL{:>d}".format(layer+1))(z)
 
-        h = Dense(self.latentSdim,name="FxFWsiS")(z)
-        Zlv = BatchNormalization(momentum=0.95)(h)
+        # h = Flatten(name="FxFL{:>d}".format(n+1))(h)
+        # h = Dense(self.latentZdim,name="FxFW{:>d}".format(n+1))(h)
+        # h = BatchNormalization(momentum=0.95,name="FxBN{:>d}".format(n+1))(h)
+        # z = LeakyReLU(alpha=0.1,name="FxA{:>d}".format(n+1))(h)
+
+        # # variable s
+        # h = Dense(self.latentSdim,name="FxFWmuS")(z)
+        # Zmu = BatchNormalization(momentum=0.95)(h)
+
+        # h = Dense(self.latentSdim,name="FxFWsiS")(z)
+        # Zlv = BatchNormalization(momentum=0.95)(h)
+
+        Zmu = Conv1D(self.nSchannels,self.kernel,1,padding="same",
+                data_format="channels_last",name="FxCNNmuS{:>d}".format(layer))(z)
+        Zmu = BatchNormalization(momentum=0.95,name="FxBNmuS{:>d}".format(layer))(Zmu)
+        # Zmu = LeakyReLU(alpha=0.1,name="FxAmuS{:>d}".format(layer))(Zmu)
+        Zmu = Dropout(0.2,name="FxDOmuS{:>d}".format(layer))(Zmu)
+
+        Zlv = Conv1D(self.nSchannels,self.kernel,1,padding="same",
+                data_format="channels_last",name="FxCNNlvS{:>d}".format(layer))(z)
+        Zlv = BatchNormalization(momentum=0.95,name="FxBNlvS{:>d}".format(layer))(Zlv)
+        # Zmu = LeakyReLU(alpha=0.1,name="FxAmuS{:>d}".format(layer))(Zlv)
+        Zlv = Dropout(0.2,name="FxDOlvS{:>d}".format(layer))(Zlv)
 
         Zs = Concatenate(axis=1)([Zmu,Zlv])
         s = SamplingFxS()([Zmu,Zlv])
 
         # variable c
-        h = Dense(self.latentCdim,name="FxFWC")(z)
+        h = Dense(self.latentCdim,name="FxFWC")(zf)
         h = BatchNormalization(momentum=0.95,name="FxBNC")(h)
         c = Softmax(name="FxAC")(h)
         QcX = Softmax(name="QcAC")(h)
   
         # variable n
-        h = Dense(self.latentNdim,name="FxFWN")(z)
+        h = Dense(self.latentNdim,name="FxFWN")(zf)
         n = BatchNormalization(momentum=0.95,name="FxBNN")(h)
-
 
         Fx = keras.Model(X,[c,s,n],name="Fx")
         Fx.summary()
@@ -553,48 +567,51 @@ class RepGAN(Model):
         dot_img_file = 'Qs.png'
         tf.keras.utils.plot_model(Qs, to_file=dot_img_file, show_shapes=True)
 
-
         Qc = keras.Model(X,QcX,name="Qc")
         dot_img_file = 'Qc.png'
         tf.keras.utils.plot_model(Qc, to_file=dot_img_file, show_shapes=True)
 
         return Fx,Qs,Qc
-
-    
     
     def build_Gz(self):
         """
             Conv1D Gz structure
             https://www.pyimagesearch.com/2019/02/04/keras-multiple-inputs-and-mixed-data/
         """
+        s = Input(shape=self.Sshape,name="s")
+        c = Input(shape=(self.latentCdim,),name="c")
+        n = Input(shape=(self.latentNdim,),name="n")
 
-        c = Input(shape=(self.latentCdim,))
-        s = Input(shape=(self.latentSdim,))
-        n = Input(shape=(self.latentNdim,))
-
-                     
+        # GzS = Dense(self.latentSdim)(s)
+        # GzS = Model(s,GzS)
+        Gzs = Conv1DTranspose(self.nZchannels,self.kernel,1,padding="same",
+            data_format="channels_last",name="FxCNNmuS{:>d}".format(layer))(s)
+        Gzs = Model(s,Gzs)
 
         GzC = Dense(self.latentCdim)(c)
         GzC = Model(c,GzC)
 
-        GzS = Dense(self.latentSdim)(s)
-        GzS = Model(s,GzS)
-
-
         GzN = Dense(self.latentNdim)(n)
         GzN = Model(n,GzN)
 
-        z = concatenate([GzC.output,GzS.output,GzN.output])
+        # z = concatenate([GzC.output,GzS.output,GzN.output])
 
-        Gz = Reshape((self.Zsize,self.nZchannels))(z)
+        zf = concatenate([GzC.output,GzN.output])
+        zf = Reshape((self.Zsize-self.Ssize,self.nZchannels))(zf)
+        Gz = concatenate([GzS.output,zf.output])
+
+        # Gz = Reshape((self.Zsize,self.nZchannels))(z)
+
+
+
         Gz = BatchNormalization(axis=-1,momentum=0.95)(Gz)
-        Gz = Activation('relu')(Gz)
+        Gz = LeakyReLU(alpha=0.1)(Gz) #Activation('relu')(Gz)
 
         for n in range(self.nAElayers):
             Gz = Conv1DTranspose(self.latentZdim//self.stride**n,
                 self.kernel,self.stride,padding="same",use_bias=False)(Gz)
             Gz = BatchNormalization(axis=-1,momentum=0.95)(Gz)
-            Gz = Activation('relu')(Gz)
+            Gz = LeakyReLU(alpha=0.1)(Gz) #Activation('relu')(Gz)
         
         Gz = Conv1DTranspose(self.nXchannels,self.kernel,1,
             padding="same",use_bias=False,activation="tanh")(Gz)
