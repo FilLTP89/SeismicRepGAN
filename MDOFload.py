@@ -75,8 +75,8 @@ def CreateData(**kwargs):
     return (
         tf.data.Dataset.from_tensor_slices((Xtrn,Ctrn)).batch(batchSize),
         tf.data.Dataset.from_tensor_slices((Xvld,Cvld)).batch(batchSize),
-        tf.data.Dataset.from_tensor_slices((Xvld,Cvld)).batch(batchSize),
-        dfParam["mean"],dfParam["std"],)
+        tf.data.Dataset.from_tensor_slices((Xvld,Cvld)).batch(batchSize)
+        )
     
 
 
