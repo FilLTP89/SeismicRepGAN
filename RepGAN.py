@@ -511,8 +511,9 @@ class RepGAN(Model):
       
 
     def call(self, X):
-        [fakeC,_,_] = self.Fx(X)
-        return fakeC
+        [fakeC,fakeS,fakeN] = self.Fx(X)
+        fakeX = self.Gz((fakeC,fakeS,fakeN))
+        return fakeX, fakeC
 
     def build_Fx(self):
         """
