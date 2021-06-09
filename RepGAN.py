@@ -736,11 +736,11 @@ class RepGAN(Model):
         init = RandomNormal(stddev=0.02)
 
         n = Input(shape=(self.latentNdim,))
-        h = Dense(3000,kernel_initializer=init,kernel_constraint=self.ClipD)(n)
+        h = Dense(3000)(n)#,kernel_constraint=self.ClipD)(n)
         h = LeakyReLU()(h)
-        h = Dense(3000,kernel_initializer=init,kernel_constraint=self.ClipD)(h)
+        h = Dense(3000)(h)#,kernel_constraint=self.ClipD)(h)
         h = LeakyReLU()(h) 
-        Dn = Dense(1,activation='linear')(h)  
+        Dn = Dense(1,activation='sigmoid')(h)
 
         model = keras.Model(n,Dn,name="Dn")
         model.summary()
@@ -758,9 +758,9 @@ class RepGAN(Model):
         init = RandomNormal(stddev=0.02)
 
         s = Input(shape=(self.latentSdim,))
-        h = Dense(3000,kernel_initializer=init,kernel_constraint=self.ClipD)(s)
+        h = Dense(3000,kernel_constraint=self.ClipD)(s)
         h = LeakyReLU()(h)
-        h = Dense(3000,kernel_initializer=init,kernel_constraint=self.ClipD)(h)
+        h = Dense(3000,kernel_constraint=self.ClipD)(h)
         h = LeakyReLU()(h)
         Ds = Dense(1,activation='linear')(h)
 
