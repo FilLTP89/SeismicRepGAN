@@ -795,12 +795,12 @@ def main(DeviceName):
         
 
         optimizers = {}
-        optimizers['DxOpt'] = RMSprop(learning_rate=0.00005)
+        optimizers['DxOpt'] = Adam(learning_rate=0.0002, beta_1=0.5, beta_2=0.9999) #RMSprop(learning_rate=0.00005)
         optimizers['DcOpt'] = RMSprop(learning_rate=0.00005)
         optimizers['DsOpt'] = RMSprop(learning_rate=0.00005)
         optimizers['DnOpt'] = RMSprop(learning_rate=0.00005)
-        optimizers['FxOpt'] = Adam(learning_rate=0.0002, beta_1=0.5, beta_2=0.9)
-        optimizers['GzOpt'] = Adam(learning_rate=0.0002, beta_1=0.5, beta_2=0.9)
+        optimizers['FxOpt'] = Adam(learning_rate=0.0002, beta_1=0.5, beta_2=0.9999)
+        optimizers['GzOpt'] = Adam(learning_rate=0.0002, beta_1=0.5, beta_2=0.9999)
 
         losses = {}
         losses['AdvDlossWGAN'] = WassersteinDiscriminatorLoss
@@ -808,7 +808,7 @@ def main(DeviceName):
         losses['AdvDlossGAN'] = tf.keras.losses.BinaryCrossentropy()
         losses['AdvGlossGAN'] = tf.keras.losses.BinaryCrossentropy()
         losses['RecSloss'] = GaussianNLL
-        losses['RecXloss'] = tf.keras.losses.MeanSquaredError()
+        losses['RecXloss'] = tf.keras.losses.MeanAbsoluteError()
         losses['RecCloss'] = MutualInfoLoss
         losses['PenAdvXloss'] = 1.
         losses['PenAdvCloss'] = 1.
