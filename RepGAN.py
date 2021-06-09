@@ -66,7 +66,7 @@ from tensorflow import keras
 from tensorflow.keras import layers, Sequential, Model
 from tensorflow.keras.layers import BatchNormalization
 from tensorflow.keras.layers import Input, Dense, Reshape, Flatten, Dropout, Layer
-from tensorflow.keras.layers import Lambda, Concatenate,concatenate, Activation, ZeroPadding1D
+from tensorflow.keras.layers import Lambda, Concatenate, concatenate, Activation, ZeroPadding1D
 from tensorflow.keras.layers import LeakyReLU, ReLU, Softmax
 from tensorflow.keras.layers import Conv1D, Conv1DTranspose
 from tensorflow.keras.optimizers import Adam, RMSprop
@@ -127,7 +127,8 @@ def ParseOptions():
     parser.add_argument("--epochs",type=int,default=100000,help='Number of epochs')
     parser.add_argument("--kernel",type=int,default=3,help='CNN kernel size')
     parser.add_argument("--stride",type=int,default=2,help='CNN stride')
-    parser.add_argument("--nCnnLayers",type=int,default=5,help='Number of CNN layers per Coupling Layer')
+    parser.add_argument("--nAElayers",type=int,default=5,help='Number of AE CNN layers')
+    parser.add_argument("--nDlayers",type=int,default=10,help='Number of D CNN layers')
     parser.add_argument("--Xsize",type=int,default=1024,help='Data space size')
     parser.add_argument("--nX",type=int,default=512,help='Number of signals')
     parser.add_argument("--nXchannels",type=int,default=2,help="Number of data channels")
@@ -141,18 +142,18 @@ def ParseOptions():
     parser.add_argument("--case",type=str,default="train_model",help="case")
     parser.add_argument("--avu",type=str,nargs='+',default="U",help="case avu")
     parser.add_argument("--pb",type=str,default="BC",help="case pb")
-    parser.add_argument("--CreateData",action='store_true',default=True,help='Create data flag')
-    parser.add_argument("--cuda",action='store_true',default=True,help='Use cuda powered GPU')
        
+    parser.add_argument("--CreateData",action='store_true',default=False,help='Create data flag')
+    parser.add_argument("--cuda",action='store_true',default=False,help='Use cuda powered GPU')
     options = parser.parse_args().__dict__
     
 
     options['Xshape'] = (options['Xsize'], options['nXchannels'])
     options['batchXshape'] = (options['batchSize'],options['Xsize'],options['nXchannels'])
-    options['Zsize']  = options['Xsize']//(options['stride']**options['nCnnLayers'])
+    options['Zsize']  = options['Xsize']//(options['stride']**options['nAElayers'])
     options['latentCidx'] = list(range(5))
-    options['latentSidx'] = list(range(5,7))
-    options['latentNidx'] = list(range(7,options['latentZdim']))
+    options['latentSidx'] = list(range(5,517))
+    options['latentNidx'] = list(range(517,options['latentZdim']))
     options['latentCdim'] = len(options['latentCidx'])
     options['latentSdim'] = len(options['latentSidx'])
     options['latentNdim'] = len(options['latentNidx'])
@@ -266,9 +267,9 @@ class RepGAN(Model):
         self.__dict__.update(options)
 
         assert self.nZchannels >= 1
-        assert self.nZchannels >= self.stride**self.nCnnLayers
-        assert self.latentZdim >= self.Xsize//(self.stride**self.nCnnLayers)
         
+        assert self.nZchannels >= self.stride**self.nAElayers
+        assert self.latentZdim >= self.Xsize//(self.stride**self.nAElayers)
         # define the constraint
         self.ClipD = ClipConstraint(0.01)
         
