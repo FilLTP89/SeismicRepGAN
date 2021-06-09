@@ -407,19 +407,21 @@ class RepGAN(Model):
                 fakeBCE = tf.zeros_like(fakeXcritic)
 
                 # Calculate the discriminator loss using the fake and real logits
-                AdvDlossX = self.AdvDlossGAN(realBCE,realXcritic)*self.PenAdvXloss
+                AdvDlossX  = self.AdvDlossGAN(realBCE,realXcritic)*self.PenAdvXloss
                 AdvDlossX += self.AdvDlossGAN(fakeBCE,fakeXcritic)*self.PenAdvXloss
                 AdvDlossC = self.AdvDlossWGAN(realCcritic,fakeCcritic)*self.PenAdvCloss
                 AdvDlossS = self.AdvDlossWGAN(realScritic,fakeScritic)*self.PenAdvSloss
-                AdvDlossN = self.AdvDlossWGAN(realNcritic,fakeNcritic)*self.PenAdvNloss
+                AdvDlossN  = self.AdvDlossGAN(realBCE,realNcritic)*self.PenAdvNloss
+                AdvDlossN += self.AdvDlossGAN(fakeBCE,fakeNcritic)*self.PenAdvNloss
+                # AdvDlossN = self.AdvDlossWGAN(realNcritic,fakeNcritic)*self.PenAdvNloss
                 #AdvDlossPenGradX = self.GradientPenaltyX(self.batchSize,realX,fakeX)*self.PenGradX
 
                 AdvDloss = AdvDlossX + AdvDlossC + AdvDlossS + AdvDlossN #AdvDlossPenGradX
             
             # Get the gradients w.r.t the discriminator loss
             
-            gradDx, gradDc, gradDs, gradDn = tape.gradient(AdvDloss, 
-                (self.Dx.trainable_variables, self.Dc.trainable_variables, 
+            gradDx, gradDc, gradDs, gradDn = tape.gradient(AdvDloss,
+                (self.Dx.trainable_variables, self.Dc.trainable_variables,
                 self.Ds.trainable_variables, self.Dn.trainable_variables))
             
             
@@ -446,11 +448,8 @@ class RepGAN(Model):
             # Fake
             [fakeC,fakeS,fakeN] = self.Fx(realX) # encoded z = Fx(X)
 
-            fakeX = self.Gz((realC,realS,realN)) # fake X = Gz(Fx(X))
 
                         
-            # Discriminator determines validity of the real and fake X
-            fakeXcritic = self.Dx(fakeX)
 
 
             # Discriminator determines validity of the real and fake C
@@ -462,27 +461,29 @@ class RepGAN(Model):
             # Discriminator determines validity of the real and fake N
             fakeNcritic = self.Dn(fakeN)
 
+            fakeX = self.Gz((realC,realS,realN)) # fake X = Gz(Fx(X))
+            # Discriminator determines validity of the real and fake X
+            fakeXcritic = self.Dx(fakeX)
             # Reconstruction
             # fakeZ = Concatenate([fakeC,fakeS,fakeN])
             recX = self.Gz((fakeC,fakeS,fakeN))
             zS = self.Qs(fakeX)
             recC = self.Qc(fakeX)
-            
-            AdvGlossX = self.AdvGlossGAN(realBCE,realXcritic)*self.PenAdvXloss
-            AdvGlossX += self.AdvGlossGAN(fakeBCE,fakeXcritic)*self.PenAdvXloss
+            # Adversarial ground truths
+            realBCE = tf.ones_like(fakeXcritic)
+            AdvGlossX = self.AdvGlossGAN(realBCE,fakeXcritic)*self.PenAdvXloss
             AdvGlossC = self.AdvGlossWGAN(fakeCcritic)*self.PenAdvCloss
             AdvGlossS = self.AdvGlossWGAN(fakeScritic)*self.PenAdvSloss
             AdvGlossN = self.AdvGlossWGAN(fakeNcritic)*self.PenAdvNloss
             RecGlossX = self.RecXloss(realX,recX)*self.PenRecXloss
             RecGlossC = self.RecCloss(realC,recC)*self.PenRecCloss
-            RecGlossS = self.RecSloss(realS,Zmu,Zlv)*self.PenRecSloss
+            RecGlossS = self.RecSloss(realS,zS)*self.PenRecSloss
             AdvGloss = AdvGlossX + AdvGlossC + AdvGlossS + AdvGlossN + RecGlossX + RecGlossC + RecGlossS
         
 
         # Get the gradients w.r.t the generator loss
-        gradFx, gradGz = tape.gradient(AdvGloss,
-            (self.Fx.trainable_variables, self.Gz.trainable_variables))
         
+        gradFx, gradGz = tape.gradient(AdvGloss,(self.Fx.trainable_variables, self.Gz.trainable_variables))
         # Update the weights of the generator using the generator optimizer
         self.FxOpt.apply_gradients(zip(gradFx,self.Fx.trainable_variables))
         self.GzOpt.apply_gradients(zip(gradGz,self.Gz.trainable_variables))
@@ -671,9 +672,9 @@ class RepGAN(Model):
             h = BatchNormalization(momentum=0.95,name="DxBN{:>d}".format(n))(h)
             h = LeakyReLU(alpha=0.2,name="DxA{:>d}".format(n))(h)
             h = Dropout(0.25,name="DxDO{:>d}".format(n))(h)
+
         h = Flatten()(h)
-        Dx = Dense(1,activation='sigmoid',
-            kernel_initializer=init)(h)
+        Dx = Dense(1,activation='sigmoid')(h)
         # model.add(Dense(1,activation='sigmoid'))
 
         # model.add(Conv1D(64,self.kernel,self.stride,
