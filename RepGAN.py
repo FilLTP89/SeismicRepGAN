@@ -219,19 +219,15 @@ def WassersteinGeneratorLoss(y_fake):
 #             img.save("generated_img_{i}_{epoch}.png".format(i=i, epoch=epoch))
 
 
-def GaussianNLL(true, Zmu, Zlv):
+def GaussianNLL(true, pred):
     """
      Gaussian negative loglikelihood loss function 
     """
-    #n_dims = int(int(pred.shape[1])/2)
 
-    n_dims = int(Zmu.shape[1])
+    n_dims = int(int(pred.shape[1])/2)
+    mu = pred[:, 0:n_dims]
+    logsigma = pred[:, n_dims:]
 
-    #mu = pred[:, 0:n_dims]
-    #logsigma = pred[:, n_dims:]
-
-    mu = Zmu
-    logsigma = Zlv
     
     mse = -0.5*K.sum(K.square((true-mu)/K.exp(logsigma)),axis=1)
     sigma_trace = -K.sum(logsigma, axis=1)
