@@ -150,17 +150,16 @@ def ParseOptions():
 
     options['Xshape'] = (options['Xsize'], options['nXchannels'])
     options['batchXshape'] = (options['batchSize'],options['Xsize'],options['nXchannels'])
-    options['Zsize']  = options['Xsize']//(options['stride']**options['nAElayers'])
-    options['latentCidx'] = list(range(5))
-    options['latentSidx'] = list(range(5,517))
+    options['latentCidx'] = list(range(512))
+    options['latentSidx'] = list(range(512,517))
     options['latentNidx'] = list(range(517,options['latentZdim']))
     options['latentCdim'] = len(options['latentCidx'])
     options['latentSdim'] = len(options['latentSidx'])
     options['latentNdim'] = len(options['latentNidx'])
+    options['Zsize'] = options['Xsize']//(options['stride']**options['nAElayers'])
     options['nZchannels'] = options['latentZdim']//options['Zsize']
-    options['nCchannels'] = options['latentCdim']//options['Zsize']
     options['nSchannels'] = options['latentSdim']//options['Zsize']
-    options['nNchannels'] = options['latentNdim']//options['Zsize']
+    options['Sshape'] = (options['Zsize'], options['nSchannels'])
 
     return options
 
@@ -228,12 +227,9 @@ def GaussianNLL(true, pred):
     n_dims = int(int(pred.shape[1])/2)
     mu = pred[:, 0:n_dims]
     logsigma = pred[:, n_dims:]
-
-    
     mse = -0.5*K.sum(K.square((true-mu)/K.exp(logsigma)),axis=1)
     sigma_trace = -K.sum(logsigma, axis=1)
     log2pi = -0.5*n_dims*np.log(2*np.pi)
-    
     log_likelihood = mse+sigma_trace+log2pi
 
     return K.mean(-log_likelihood)
@@ -267,12 +263,10 @@ class RepGAN(Model):
         self.__dict__.update(options)
 
         assert self.nZchannels >= 1
-        
         assert self.nZchannels >= self.stride**self.nAElayers
         assert self.latentZdim >= self.Xsize//(self.stride**self.nAElayers)
         # define the constraint
         self.ClipD = ClipConstraint(0.01)
-        
         """
             Build the discriminators
         """
@@ -285,8 +279,6 @@ class RepGAN(Model):
         """
         self.Fx, self.Qs, self.Qc  = self.build_Fx()
         self.Gz = self.build_Gz()
-
-        
         # visualkeras.layered_view(self.Fx, to_file='Fx.png', legend=True, font=font)
         # visualkeras.layered_view(self.Qs, to_file='Qs.png', legend=True, font=font)
         # visualkeras.layered_view(self.Qc, to_file='Qc.png', legend=True, font=font)
@@ -349,13 +341,7 @@ class RepGAN(Model):
     def train_step(self, realXC):
 
         realX, realC = realXC
-        
-        # Get the batch size
-        #batchSize = tf.shape(realX)[0]
-        #if self.batchSize != batchSize:
         self.batchSize = tf.shape(realX)[0]
-
-
 
         #------------------------------------------------
         #           Construct Computational Graph
@@ -370,13 +356,10 @@ class RepGAN(Model):
         self.Ds.trainable = True
         self.Dn.trainable = True
 
-
         for _ in range(self.nCritic):
 
-            
             with tf.GradientTape(persistent=True) as tape:
 
-                               
                 realS = tf.random.normal(mean=0.0,stddev=0.5,shape=[self.batchSize,self.latentSdim])
                 realN = tf.random.normal(mean=0.0,stddev=0.3,shape=[self.batchSize,self.latentNdim])
 
@@ -384,7 +367,6 @@ class RepGAN(Model):
                 [fakeC,fakeS,fakeN] = self.Fx(realX) # encoded z = Fx(X)
 
                 fakeX = self.Gz((realC,realS,realN)) # fake X = Gz(Fx(X))
-                
 
                 # Discriminator determines validity of the real and fake X
                 fakeXcritic = self.Dx(fakeX)
@@ -417,14 +399,11 @@ class RepGAN(Model):
                 #AdvDlossPenGradX = self.GradientPenaltyX(self.batchSize,realX,fakeX)*self.PenGradX
 
                 AdvDloss = AdvDlossX + AdvDlossC + AdvDlossS + AdvDlossN #AdvDlossPenGradX
-            
+
             # Get the gradients w.r.t the discriminator loss
-            
             gradDx, gradDc, gradDs, gradDn = tape.gradient(AdvDloss,
                 (self.Dx.trainable_variables, self.Dc.trainable_variables,
                 self.Ds.trainable_variables, self.Dn.trainable_variables))
-            
-            
             # Update the weights of the discriminator using the discriminator optimizer
             self.DxOpt.apply_gradients(zip(gradDx,self.Dx.trainable_variables))
             self.DcOpt.apply_gradients(zip(gradDc,self.Dc.trainable_variables))
@@ -501,11 +480,10 @@ class RepGAN(Model):
         #loss_tracker.update_state(loss)
         #mae_metric.update_state(y, y_pred)
         #return {"loss": loss_tracker.result(), "mae": mae_metric.result()}
-        
+
         return {"AdvDloss": AdvDLoss_tracker.result(),"AdvGloss": AdvGLoss_tracker.result(), "AdvDlossX": AdvDlossX_tracker.result(),
             "AdvDlossC": AdvDlossC_tracker.result(),"AdvDlossS": AdvDlossS_tracker.result(),"AdvDlossN": AdvDlossN_tracker.result(),
             "RecGlossX": RecGlossX_tracker.result(), "RecGlossC": RecGlossC_tracker.result(), "RecGlossS": RecGlossS_tracker.result()}
-      
 
     def call(self, X):
         [fakeC,fakeS,fakeN] = self.Fx(X)
