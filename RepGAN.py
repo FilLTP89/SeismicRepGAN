@@ -44,7 +44,10 @@ tf.config.experimental.set_memory_growth(gpu[0], True)
 # def disable_mlir_bridge():
 #   ##Disables experimental MLIR-Based TensorFlow Compiler Bridge.
 #   context.context().enable_mlir_bridge = False
-#import visualkeras
+import visualkeras
+from PIL import ImageFont
+
+font = ImageFont.truetype("arial.ttf", 40) 
 
 import timeit
 import sys
@@ -287,6 +290,14 @@ class RepGAN(Model):
         self.Gz = self.build_Gz()
 
         
+        # visualkeras.layered_view(self.Fx, to_file='Fx.png', legend=True, font=font)
+        # visualkeras.layered_view(self.Qs, to_file='Qs.png', legend=True, font=font)
+        # visualkeras.layered_view(self.Qc, to_file='Qc.png', legend=True, font=font)
+        # visualkeras.layered_view(self.Gz, to_file='Gz.png', legend=True, font=font)
+        # visualkeras.layered_view(self.Dn, to_file='Dn.png', legend=True, font=font)
+        # visualkeras.layered_view(self.Ds, to_file='Ds.png', legend=True, font=font)
+        # visualkeras.layered_view(self.Dc, to_file='Dc.png', legend=True, font=font)
+        # visualkeras.layered_view(self.Dx, to_file='Dx.png', legend=True, font=font)
     def get_config(self):
         config = super().get_config().copy()
         config.update({
@@ -326,7 +337,6 @@ class RepGAN(Model):
         diffX = fakeX - realX
         intX = realX + alpha * diffX
 
-        
         with tf.GradientTape() as gp_tape:
             gp_tape.watch(intX)
             # 1. Get the discriminator output for this interpolated image.
@@ -840,32 +850,56 @@ def main(DeviceName):
             callbacks=callbacks)
 
         
-        # Print results
-        plt.plot(history.history['AdvDloss'], color='b')
-        plt.plot(history.history['AdvGloss'], color='g')
-        plt.plot(history.history['AdvDlossX'], color='r')
-        plt.plot(history.history['AdvDlossC'], color='c')
-        plt.plot(history.history['AdvDlossS'], color='m')
-        plt.plot(history.history['AdvDlossN'], color='gold')
+        realX = np.concatenate([x for x, c in Xvld], axis=0)
+        realC = np.concatenate([c for x, c in Xvld], axis=0)
+        fakeX,fakeC = GiorgiaGAN.predict(Xvld)
+        hfg = plt.figure(figsize=(12,6))
+        hax = hfg.add_subplot(111)
+        hax.plot(realX[0,:,0], color='black')
+        hax.plot(fakeX[0,:,0], color='orange')
         #plt.plot(history.history['AdvDlossPenGradX'])
         #plt.plot(history.history['AdvGlossX'])
         #plt.plot(history.history['AdvGlossC'])
         #plt.plot(history.history['AdvGlossS'])
         #plt.plot(history.history['AdvGlossN'])
-        plt.plot(history.history['RecGlossX'], color='darkorange')
-        plt.plot(history.history['RecGlossC'], color='lime')
-        plt.plot(history.history['RecGlossS'], color='grey')
-        plt.title('model loss')
-        plt.ylabel('loss')
-        plt.xlabel('epoch')
-        plt.legend(['AdvDloss', 'AdvGloss','AdvDlossX','AdvDlossC','AdvDlossS','AdvDlossN',
-            'RecGlossX','RecGlossC','RecGlossS'], loc='upper left')
+        hax.plot(history.history['RecGlossX'], color='darkorange')
+        hax.plot(history.history['RecGlossC'], color='lime')
+        hax.plot(history.history['RecGlossS'], color='grey')
+        hax.set_title('X reconstruction')
+        hax.set_ylabel('X')
+        hax.set_xlabel('t')
+        hax.legend(['X', 'G(F(X))'], loc='lower right')
         plt.tight_layout()
-        plt.savefig('loss.png',bbox_inches = 'tight')
-        plt.show()
+        plt.savefig('reconstruction.png',bbox_inches = 'tight')
+        plt.close()
 
                
 
+        # Print loss
+        hfg = plt.figure(figsize=(12,6))
+        hax = hfg.add_subplot(111)
+        # hax.plot(history.history['AdvDloss'], color='b')
+        # hax.plot(history.history['AdvGloss'], color='g')
+        hax.plot(history.history['AdvDlossX'], color='r')
+        hax.plot(history.history['AdvDlossC'], color='c')
+        hax.plot(history.history['AdvDlossS'], color='m')
+        hax.plot(history.history['AdvDlossN'], color='gold')
+        #plt.plot(history.history['AdvDlossPenGradX'])
+        #plt.plot(history.history['AdvGlossX'])
+        #plt.plot(history.history['AdvGlossC'])
+        #plt.plot(history.history['AdvGlossS'])
+        #plt.plot(history.history['AdvGlossN'])
+        hax.plot(history.history['RecGlossX'], color='darkorange')
+        hax.plot(history.history['RecGlossC'], color='lime')
+        hax.plot(history.history['RecGlossS'], color='grey')
+        hax.set_title('model loss')
+        hax.set_ylabel('loss')
+        hax.set_xlabel('epoch')
+        hax.legend(['AdvDloss', 'AdvGloss','AdvDlossX','AdvDlossC','AdvDlossS','AdvDlossN',
+            'RecGlossX','RecGlossC','RecGlossS'], loc='lower right')
+        plt.tight_layout()
+        plt.savefig('loss.png',bbox_inches = 'tight')
+        plt.close()
 
 
 if __name__ == '__main__':
