@@ -465,8 +465,7 @@ class RepGAN(Model):
             # Reconstruction
             # fakeZ = Concatenate([fakeC,fakeS,fakeN])
             recX = self.Gz((fakeC,fakeS,fakeN))
-            Zmu,Zlv = self.Qs(fakeX)
-            ZS = tf.keras.layers.concatenate([Zmu,Zlv],axis=-1)
+            zS = self.Qs(fakeX)
             recC = self.Qc(fakeX)
             
             AdvGlossX = self.AdvGlossGAN(realBCE,realXcritic)*self.PenAdvXloss
@@ -571,7 +570,7 @@ class RepGAN(Model):
         dot_img_file = 'Fx.png'
         tf.keras.utils.plot_model(Fx, to_file=dot_img_file, show_shapes=True, show_layer_names=True)
 
-        Qs = keras.Model(X,[Zmu,Zlv],name="Qs")
+        Qs = keras.Model(X,Zs,name="Qs")
         dot_img_file = 'Qs.png'
         tf.keras.utils.plot_model(Qs, to_file=dot_img_file, show_shapes=True)
 
@@ -618,9 +617,10 @@ class RepGAN(Model):
             Gz = BatchNormalization(axis=-1,momentum=0.95)(Gz)
             Gz = Activation('relu')(Gz)
         
-        Gz = Conv1DTranspose(self.nXchannels,self.kernel,1,kernel_initializer=init,padding="same")(Gz)
+        Gz = Conv1DTranspose(self.nXchannels,self.kernel,1,
+            padding="same",use_bias=False,activation="tanh")(Gz)
 
-        model = keras.Model([GzC.input,GzS.input,GzN.input],Gz,name="Gz")
+        model = keras.Model(inputs=[GzC.input,GzS.input,GzN.input],outputs=Gz,name="Gz")
         model.summary()
 
 
