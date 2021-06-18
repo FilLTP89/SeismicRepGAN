@@ -844,23 +844,14 @@ class RepGAN(Model):
         """
             Dense discriminator structure
         """
-        init = RandomNormal(stddev=0.02)
-
         n = Input(shape=(self.latentNdim,))
         h = Dense(3000)(n)#,kernel_constraint=self.ClipD)(n)
         h = LeakyReLU()(h)
         h = Dense(3000)(h)#,kernel_constraint=self.ClipD)(h)
         h = LeakyReLU()(h) 
-        Dn = Dense(1,activation='sigmoid')(h)
-
-        model = keras.Model(n,Dn,name="Dn")
-        model.summary()
-
-
-        dot_img_file = 'Dn.png'
-        tf.keras.utils.plot_model(model, to_file=dot_img_file, show_shapes=True, show_layer_names=True)
-
-        return model
+        Pn = Dense(1,activation='sigmoid')(h)
+        Dn = keras.Model(n,Pn,name="Dn")
+        return Dn
 
     def build_Ds(self):
         """
