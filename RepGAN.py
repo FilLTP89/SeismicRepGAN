@@ -365,7 +365,7 @@ class RepGAN(Model):
                 # Generate fake latent code from real signals
                 [fakeS,fakeC,fakeN] = self.Fx(realX) # encoded z = Fx(X)
 
-                fakeX = self.Gz((realC,realS,realN)) # fake X = Gz(Fx(X))
+                fakeX = self.Gz((realS,realC,realN)) # fake X = Gz(Fx(X))
 
                 # Discriminator determines validity of the real and fake X
                 fakeXcritic = self.Dx(fakeX)
@@ -479,7 +479,7 @@ class RepGAN(Model):
 
     def call(self, X):
         [fakeS,fakeC,fakeN] = self.Fx(X)
-        fakeX = self.Gz((fakeC,fakeS,fakeN))
+        fakeX = self.Gz((fakeS,fakeC,fakeN))
         return fakeX, fakeC
 
     def build_Fx(self):
@@ -684,53 +684,124 @@ class RepGAN(Model):
             Conv1D Gz structure
             https://www.pyimagesearch.com/2019/02/04/keras-multiple-inputs-and-mixed-data/
         """
-        s = Input(shape=self.Sshape,name="s")
+        s = Input(shape=(self.latentSdim,),name="s")
         c = Input(shape=(self.latentCdim,),name="c")
         n = Input(shape=(self.latentNdim,),name="n")
 
-        # GzS = Dense(self.latentSdim)(s)
-        # GzS = Model(s,GzS)
-        Gzs = Conv1DTranspose(self.nZchannels,self.kernel,1,padding="same",
-            data_format="channels_last",name="FxCNNmuS{:>d}".format(layer))(s)
-        Gzs = Model(s,Gzs)
+        layer = 0
+        if 'dense' in self.branching:
+            # variable s
+            Zs = Dense(self.latentSdim,name="GzFWS")(s)
+            Zs = BatchNormalization(momentum=0.95,name="GzBNS")(Zs)
+            GzS = keras.Model(s,Zs)
 
-        GzC = Dense(self.latentCdim)(c)
-        GzC = Model(c,GzC)
+            # variable c
+            Zc = Dense(self.latentCdim,name="GzFWC")(c)
+            Zc = BatchNormalization(momentum=0.95,name="GzBNC")(Zc)
+            GzC = keras.Model(c,Zc)
 
-        GzN = Dense(self.latentNdim)(n)
-        GzN = Model(n,GzN)
+            # variable n
+            Zn = Dense(self.latentNdim,name="GzFWN")(n)
+            Zn = BatchNormalization(momentum=0.95,name="GzBNN")(Zn)
+            GzN = keras.Model(n,Zn)
 
-        # z = concatenate([GzC.output,GzS.output,GzN.output])
-
-        zf = concatenate([GzC.output,GzN.output])
-        zf = Reshape((self.Zsize-self.Ssize,self.nZchannels))(zf)
-        Gz = concatenate([GzS.output,zf.output])
-
-        # Gz = Reshape((self.Zsize,self.nZchannels))(z)
-
-
-
-        Gz = BatchNormalization(axis=-1,momentum=0.95)(Gz)
-        Gz = LeakyReLU(alpha=0.1)(Gz) #Activation('relu')(Gz)
-
-        for n in range(self.nAElayers):
-            Gz = Conv1DTranspose(self.latentZdim//self.stride**n,
-                self.kernel,self.stride,padding="same",use_bias=False)(Gz)
+            Gz = concatenate([GzS.output,GzC.output,GzN.output])
+            Gz = Reshape((self.Zsize,self.nZchannels))(z)
             Gz = BatchNormalization(axis=-1,momentum=0.95)(Gz)
-            Gz = LeakyReLU(alpha=0.1)(Gz) #Activation('relu')(Gz)
-        
-        Gz = Conv1DTranspose(self.nXchannels,self.kernel,1,
-            padding="same",use_bias=False,activation="tanh")(Gz)
+            Gz = LeakyReLU(alpha=0.1,name="GzA0".format(layer+1))(Gz)
 
-        model = keras.Model(inputs=[GzC.input,GzS.input,GzN.input],outputs=Gz,name="Gz")
-        model.summary()
+        elif 'conv' in self.branching:
+            # variable s
+            Zs = Dense(self.Ssize*self.nSchannels,name="GzFWS0")(s)
+            Zs = BatchNormalization(name="GzBNS0")(Zs)
+            Zs = Reshape((self.Ssize,self.nSchannels))(Zs)
 
+            for layer in range(1,self.nSlayers):
+                Zs = Conv1DTranspose(int(self.nSchannels*self.Sstride**(-layer)),
+                    self.Skernel,self.Sstride,padding="same",
+                    data_format="channels_last",name="GzCNNS{:>d}".format(layer))(Zs)
+                Zs = BatchNormalization(momentum=0.95,name="GzBNS{:>d}".format(layer))(Zs)
+                Zs = LeakyReLU(alpha=0.1,name="GzAS{:>d}".format(layer))(Zs)
+                Zs = Dropout(0.2,name="GzDOS{:>d}".format(layer))(Zs)
+            Zs = Conv1DTranspose(int(self.nSchannels*self.Sstride**(-self.nSlayers)),
+                self.Skernel,self.Sstride,padding="same",
+                data_format="channels_last",name="GzCNNS{:>d}".format(self.nSlayers))(Zs)
+            Zs = BatchNormalization(momentum=0.95,name="GzBNS{:>d}".format(self.nSlayers))(Zs)
+            Zs = LeakyReLU(alpha=0.1,name="GzAS{:>d}".format(self.nSlayers))(Zs)
+            Zs = Dropout(0.2,name="GzDOS{:>d}".format(self.nSlayers))(Zs)
+            GzS = keras.Model(s,Zs)
 
-        dot_img_file = 'Gz.png'
-        tf.keras.utils.plot_model(model, to_file=dot_img_file, show_shapes=True, show_layer_names=True)
+            # # s average
+            # Zmu = Dense(self.Ssize*self.nSchannels,name="GzFW0")(s)
+            # Zmu = BatchNormalization(name="GzBNS0")(Zmu)
+            # Zmu = Reshape((self.Ssize,self.nSchannels))(Zmu)
+            # Gsmu = keras.Model(s,Zmu)
 
-        return model
-        
+            # # s logsigma
+            # Zlv = Dense(self.Ssize*self.nSchannels,name="GzFW0")(s)
+            # Zlv = BatchNormalization(name="GzBNS0")(Zlv)
+            # Zlv = Reshape((self.Ssize,self.nSchannels))(Zlv)
+            # Gslv = keras.Model(s,Zlv)
+
+            # variable c
+            Zc = Dense(self.Csize*self.nCchannels,name="GzFWC0")(c)
+            Zc = BatchNormalization(name="GzBNC0")(Zc)
+            Zc = Reshape((self.Csize,self.nCchannels))(Zc)
+            for layer in range(1,self.nClayers):
+                Zc = Conv1DTranspose(int(self.nCchannels*self.Cstride**(-layer)),
+                    self.Ckernel,self.Cstride,padding="same",
+                    data_format="channels_last",name="GzCNNC{:>d}".format(layer))(Zc)
+                Zc = BatchNormalization(momentum=0.95,name="GzBNC{:>d}".format(layer))(Zc)
+                Zc = LeakyReLU(alpha=0.1,name="GzAC{:>d}".format(layer))(Zc)
+                Zc = Dropout(0.2,name="GzDOC{:>d}".format(layer))(Zc)
+            Zc = Conv1DTranspose(int(self.nCchannels*self.Cstride**(-self.nClayers)),
+                self.Ckernel,self.Cstride,padding="same",
+                data_format="channels_last",name="GzCNNC{:>d}".format(self.nClayers))(Zc)
+            Zc = BatchNormalization(momentum=0.95,name="GzBNC{:>d}".format(self.nClayers))(Zc)
+            Zc = LeakyReLU(alpha=0.1,name="GzAC{:>d}".format(self.nClayers))(Zc)
+            Zc = Dropout(0.2,name="GzDOC{:>d}".format(self.nClayers))(Zc)
+            GzC = keras.Model(c,Zc)
+
+            # variable n
+            Zn = Dense(self.Nsize*self.nNchannels,name="GzFWN0")(n)
+            Zn = BatchNormalization(name="GzBNN0")(Zn)
+            Zn = Reshape((self.Nsize,self.nNchannels))(Zn)
+            for layer in range(1,self.nNlayers):
+                Zn = Conv1DTranspose(int(self.nNchannels*self.Nstride**(-layer)),
+                    self.Nkernel,self.Nstride,padding="same",
+                    data_format="channels_last",name="GzCNNN{:>d}".format(layer))(Zn)
+                Zn = BatchNormalization(momentum=0.95,name="GzBNN{:>d}".format(layer))(Zn)
+                Zn = LeakyReLU(alpha=0.1,name="GzAN{:>d}".format(layer))(Zn)
+                Zn = Dropout(0.2,name="GzDON{:>d}".format(layer))(Zn)
+            Zn = Conv1DTranspose(int(self.nNchannels*self.Nstride**(-self.nNlayers)),
+                self.Nkernel,self.Nstride,padding="same",
+                data_format="channels_last",name="GzCNNN{:>d}".format(self.nNlayers))(Zn)
+            Zn = BatchNormalization(momentum=0.95,name="GzBNN{:>d}".format(self.nNlayers))(Zn)
+            Zn = LeakyReLU(alpha=0.1,name="GzAN{:>d}".format(self.nNlayers))(Zn)
+            Zn = Dropout(0.2,name="GzDON{:>d}".format(self.nNlayers))(Zn)
+            GzN = keras.Model(n,Zn)
+
+            Gz = concatenate([GzS.output,GzC.output,GzN.output])
+            Gz = Conv1DTranspose(self.nZchannels,
+                    self.kernel,1,padding="same",
+                    data_format="channels_last",name="GzCNN0")(Gz)
+            Gz = BatchNormalization(axis=-1,momentum=0.95,name="GzBN0")(Gz)
+            Gz = LeakyReLU(alpha=0.1,name="GzA0".format(layer+1))(Gz)
+
+        for layer in range(self.nAElayers):
+            Gz = Conv1DTranspose(self.nZchannels//self.stride**(layer+1),
+                self.kernel,self.stride,padding="same",use_bias=False,
+                name="GzCNN{:>d}".format(layer+1))(Gz)
+            Gz = BatchNormalization(axis=-1,momentum=0.95,name="GzBN{:>d}".format(layer+1))(Gz)
+            Gz = LeakyReLU(alpha=0.1,name="GzA{:>d}".format(layer+1))(Gz) #Activation('relu')(Gz)
+
+        layer = self.nAElayers
+        X = Conv1DTranspose(self.nXchannels,self.kernel,1,
+            padding="same",use_bias=False,name="GzCNN{:>d}".format(layer+1))(Gz)
+
+        Gz = keras.Model(inputs=[GzS.input,GzC.input,GzN.input],outputs=X,name="Gz")
+        return Gz
+
     def build_Dx(self):
         """
             Conv1D discriminator structure
