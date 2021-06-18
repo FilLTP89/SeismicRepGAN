@@ -10,13 +10,18 @@ __maintainer__ = "Filippo Gatti"
 __email__ = "filippo.gatti@centralesupelec.fr"
 __status__ = "Beta"
 
+import sys
 import os
 from os.path import join as opj
 os.environ['CUDA_VISIBLE_DEVICES'] = "0"
 
 import argparse
 import numpy as np
+import math as mt
 
+import tensorflow as tf
+gpu = tf.config.experimental.list_physical_devices('GPU')
+tf.config.experimental.set_memory_growth(gpu[0], True)
 
 from tensorflow import keras
 from tensorflow.keras import layers, Sequential, Model
@@ -28,6 +33,16 @@ from tensorflow.keras.layers import Conv1D, Conv1DTranspose
 from tensorflow.keras.optimizers import Adam, RMSprop
 from tensorflow.keras.constraints import Constraint, min_max_norm
 from tensorflow.keras.initializers import RandomNormal
+
+import timeit
+
+
+# import wandb
+# wandb.init()
+
+import pandas as pd
+from pandas.plotting import register_matplotlib_converters
+register_matplotlib_converters()
 from numpy.random import randn
 from numpy.random import randint
 
