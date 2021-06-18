@@ -148,6 +148,9 @@ def ParseOptions():
 
     options['nDlayers'] = min(options['nDlayers'],int(mt.log(options['Xsize'],options['stride'])))
 
+    # assert options['nSchannels'] >= 1
+    # assert options['Ssize'] >= options['Zsize']//(options['stride']**options['nSlayers'])
+
     return options
 
 class RandomWeightedAverage(Layer):
@@ -158,7 +161,7 @@ class RandomWeightedAverage(Layer):
 
 class SamplingFxS(Layer):
     """Uses (z_mean, z_log_var) to sample z, the vector encoding a digit."""
-    
+
     def call(self, inputs):
         z_mean, z_log_var = inputs
         batch = tf.shape(z_mean)[0]
@@ -240,6 +243,7 @@ def generate_real_samples(dataset, n_samples):
     #X = dataset[idx]
 
     return X
+
 class RepGAN(Model):
 
     def __init__(self,options):
@@ -261,8 +265,32 @@ class RepGAN(Model):
         """
             Build Fx/Gz (generators)
         """
+
         self.Fx, self.Qs, self.Qc  = self.build_Fx()
         self.Gz = self.build_Gz()
+        self.Fx.save("Fx.h5")
+        self.Qs.save("Qs.h5")
+        self.Qc.save("Qc.h5")
+        self.Gz.save("Gz.h5")
+        self.Ds.save("Ds.h5")
+        self.Dn.save("Dn.h5")
+        self.Dc.save("Dc.h5")
+
+        tf.keras.utils.plot_model(self.Fx,to_file="Fx.png",
+            show_shapes=True,show_layer_names=True)
+        tf.keras.utils.plot_model(self.Qs,to_file="Qs.png",
+            show_shapes=True,show_layer_names=True)
+        tf.keras.utils.plot_model(self.Qc,to_file="Qc.png",
+            show_shapes=True,show_layer_names=True)
+        tf.keras.utils.plot_model(self.Gz,to_file="Gz.png",
+            show_shapes=True,show_layer_names=True)
+        tf.keras.utils.plot_model(self.Ds,to_file="Ds.png",
+            show_shapes=True,show_layer_names=True)
+        tf.keras.utils.plot_model(self.Dn,to_file="Dn.png",
+            show_shapes=True,show_layer_names=True)
+        tf.keras.utils.plot_model(self.Dc,to_file="Dc.png",
+            show_shapes=True,show_layer_names=True)
+
     def get_config(self):
         config = super().get_config().copy()
         config.update({
