@@ -806,74 +806,25 @@ class RepGAN(Model):
         """
             Conv1D discriminator structure
         """
+        layer = 0
         X = Input(shape=self.Xshape,name="X")
-        h = Conv1D(self.nZchannels*self.stride**(-self.nDlayers),
+        h = Conv1D(self.Xsize*self.stride**(-(layer+1)),
                 self.kernel,self.stride,padding="same",
                 data_format="channels_last",name="DxCNN0")(X)
-        h = BatchNormalization(momentum=0.95,name="DxBN0")(h)
-        #h = BatchNormalization(momentum=hp.Float('BN_1',min_value=0.0,max_value=1,
-        #    default=0.95,step=0.05),name="FxBN0")(h)
         h = LeakyReLU(alpha=0.1,name="DxA0")(h)
-        h = Dropout(0.2,name="DxDO0")(h)
 
-        """h = Conv1D(32,self.kernel,self.stride,input_shape=self.Xshape,padding="same",
-            kernel_initializer=init)(X)
-        h = LeakyReLU(alpha=0.2)(h)
-        h = Dropout(0.25)(h)
-        h = Conv1D(64,self.kernel,self.stride,padding="same",
-            kernel_initializer=init)(h)
-        h = ZeroPadding1D(padding=((0,1)))(h)
-        h = BatchNormalization(momentum=0.95)(h)
-        h = LeakyReLU(alpha=0.2)(h)
-        h = Dropout(0.25)(h)
-        h = Conv1D(128,self.kernel,self.stride,padding="same",
-            kernel_initializer=init)(h)
-        h = BatchNormalization(momentum=0.95)(h)
-        h = LeakyReLU(alpha=0.0)(h)
-        h = Dropout(0.25)(h)
-        h = Conv1D(256,self.kernel,strides=1,padding="same",
-            kernel_initializer=init)(h)
-        h = BatchNormalization(momentum=0.95)(h)
-        h = LeakyReLU(alpha=0.2)(h)
-        h = Dropout(0.25)(h)"""
-
-        for n in range(1,self.nDlayers):
-            h = Conv1D(self.nZchannels*self.stride**(-self.nDlayers+n),
+        for layer in range(1,self.nDlayers):
+            h = Conv1D(self.Xsize*self.stride**(-(layer+1)),
                 self.kernel,self.stride,padding="same",
-                data_format="channels_last",name="DxCNN{:>d}".format(n))(h)
-            h = BatchNormalization(momentum=0.95,name="DxBN{:>d}".format(n))(h)
-            h = LeakyReLU(alpha=0.2,name="DxA{:>d}".format(n))(h)
-            h = Dropout(0.25,name="DxDO{:>d}".format(n))(h)
-
-        h = Flatten()(h)
-        Dx = Dense(1,activation='sigmoid')(h)
-        # model.add(Dense(1,activation='sigmoid'))
-
-        # model.add(Conv1D(64,self.kernel,self.stride,
-        #     input_shape=self.Xshape,padding="same"))
-        # model.add(LeakyReLU(alpha=0.2))
-        # model.add(Conv1D(128,self.kernel,self.stride,
-        #     input_shape=self.Xshape,padding="same"))
-        # model.add(LeakyReLU(alpha=0.2))
-        # model.add(BatchNormalization(momentum=0.95))
-        # model.add(Dense(1024,activation='LeakyReLU'))
-        # model.add(BatchNormalization(momentum=0.95))
-        # model.add(Dense(1,activation='sigmoid'))
-
-        # model.summary()
-
-        # X = Input(shape=(self.Xshape))
-        # Dx = model(X)
-
-        # Discriminator Dx
-        model = keras.Model(X,Dx,name="Dx")
-        model.summary()
-
-
-        dot_img_file = 'Dx.png'
-        tf.keras.utils.plot_model(model, to_file=dot_img_file, show_shapes=True, show_layer_names=True)
-
-        return model
+                data_format="channels_last",name="DxCNN{:>d}".format(layer))(h)
+            h = BatchNormalization(momentum=0.95,name="DxBN{:>d}".format(layer))(h)
+            h = LeakyReLU(alpha=0.2,name="DxA{:>d}".format(layer))(h)
+            h = Dropout(0.25,name="DxDO{:>d}".format(layer))(h)
+        layer = self.nDlayers    
+        h = Flatten(name="DxFL{:>d}".format(layer))(h)
+        Px = Dense(1,activation='sigmoid')(h)
+        Dx = keras.Model(X,Px,name="Dx")
+        return Dx
 
 
     def build_Dc(self):
