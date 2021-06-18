@@ -857,23 +857,14 @@ class RepGAN(Model):
         """
             Dense discriminator structure
         """
-        init = RandomNormal(stddev=0.02)
-
         s = Input(shape=(self.latentSdim,))
         h = Dense(3000,kernel_constraint=self.ClipD)(s)
         h = LeakyReLU()(h)
         h = Dense(3000,kernel_constraint=self.ClipD)(h)
         h = LeakyReLU()(h)
-        Ds = Dense(1,activation='linear')(h)
-
-        model = keras.Model(s,Ds,name="Ds")
-        model.summary()
-
-
-        dot_img_file = 'Ds.png'
-        tf.keras.utils.plot_model(model, to_file=dot_img_file, show_shapes=True, show_layer_names=True)      
-
-        return keras.Model(s,Ds,name="Ds")
+        Ps = Dense(1,activation='linear')(h)
+        Ds = keras.Model(s,Ps,name="Ds")
+        return Ds
 
 # hyperModel = RepGAN()
 
