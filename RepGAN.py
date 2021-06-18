@@ -12,55 +12,11 @@ __status__ = "Beta"
 
 import os
 from os.path import join as opj
-# os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 os.environ['CUDA_VISIBLE_DEVICES'] = "0"
 
-import tensorflow as tf
-
-#physical_devices = tf.config.experimental.list_physical_devices('GPU')
-#print("Num GPUs:", len(physical_devices))
-##tf.config.experimental.disable_mlir_graph_optimization()
-#print("Num GPUs Available: ", len(tf.test.gpu_device_name()))
-#from tensorflow.python.eager.context import get_config
-# tf.compat.v1.disable_eager_execution()
-gpu = tf.config.experimental.list_physical_devices('GPU')
-tf.config.experimental.set_memory_growth(gpu[0], True)
-#tf.debugging.set_log_device_placement(True)
-
-#
-#print(c)
-#
-#gpus = tf.config.list_physical_devices('GPU')
-#if gpus:
-#  # Restrict TensorFlow to only use the first GPU
-#  try:
-#    tf.config.experimental.set_visible_devices(gpus[0], 'GPU')
-#    logical_gpus = tf.config.experimental.list_logical_devices('GPU')
-#    print(len(gpus), "Physical GPUs,", len(logical_gpus), "Logical GPU")
-#  except RuntimeError as e:
-#    # Visible devices must be set before GPUs have been initialized
-#    print(e)
-# @tf_export('config.experimental.disable_mlir_bridge')
-# def disable_mlir_bridge():
-#   ##Disables experimental MLIR-Based TensorFlow Compiler Bridge.
-#   context.context().enable_mlir_bridge = False
-import visualkeras
-from PIL import ImageFont
-
-font = ImageFont.truetype("arial.ttf", 40) 
-
-import timeit
-import sys
 import argparse
 import numpy as np
-import wandb
-wandb.init()
 
-import pandas as pd
-from pandas.plotting import register_matplotlib_converters
-register_matplotlib_converters()
-
-import csv
 
 from tensorflow import keras
 from tensorflow.keras import layers, Sequential, Model
@@ -277,14 +233,6 @@ class RepGAN(Model):
         """
         self.Fx, self.Qs, self.Qc  = self.build_Fx()
         self.Gz = self.build_Gz()
-        # visualkeras.layered_view(self.Fx, to_file='Fx.png', legend=True, font=font)
-        # visualkeras.layered_view(self.Qs, to_file='Qs.png', legend=True, font=font)
-        # visualkeras.layered_view(self.Qc, to_file='Qc.png', legend=True, font=font)
-        # visualkeras.layered_view(self.Gz, to_file='Gz.png', legend=True, font=font)
-        # visualkeras.layered_view(self.Dn, to_file='Dn.png', legend=True, font=font)
-        # visualkeras.layered_view(self.Ds, to_file='Ds.png', legend=True, font=font)
-        # visualkeras.layered_view(self.Dc, to_file='Dc.png', legend=True, font=font)
-        # visualkeras.layered_view(self.Dx, to_file='Dx.png', legend=True, font=font)
     def get_config(self):
         config = super().get_config().copy()
         config.update({
@@ -294,11 +242,6 @@ class RepGAN(Model):
 
     @property
     def metrics(self):
-        # We list our `Metric` objects here so that `reset_states()` can be
-        # called automatically at the start of each epoch
-        # or at the start of `evaluate()`.
-        # If you don't implement this property, you have to call
-        # `reset_states()` yourself at the time of your choosing.
         return [AdvDLoss_tracker,AdvGLoss_tracker,AdvDlossX_tracker,AdvDlossC_tracker,AdvDlossS_tracker,AdvDlossN_tracker,
             RecGlossX_tracker,RecGlossC_tracker,RecGlossS_tracker]
 
@@ -486,7 +429,7 @@ class RepGAN(Model):
         """
             Conv1D Fx structure
         """
-        # To build this model using the functional API, start by creating an input node:
+        # To build this model using the functional API
 
         X = Input(shape=self.Xshape,name="X")
 
@@ -788,8 +731,6 @@ def main(DeviceName):
         DeviceName = "/cpu:0"
 
     with tf.device(DeviceName):
-        
-
         optimizers = {}
         optimizers['DxOpt'] = Adam(learning_rate=0.0002, beta_1=0.5, beta_2=0.9999) #RMSprop(learning_rate=0.00005)
         optimizers['DcOpt'] = RMSprop(learning_rate=0.00005)
@@ -814,14 +755,14 @@ def main(DeviceName):
         losses['PenRecCloss'] = 1.
         losses['PenRecSloss'] = 1.
         losses['PenGradX'] = 10.
-       
+
     # strategy = tf.distribute.MirroredStrategy()
     # print('Number of devices: {}'.format(strategy.num_replicas_in_sync))
     # # Open a strategy scope.
     # with strategy.scope():
         # Everything that creates variables should be under the strategy scope.
         # In general this is only model construction & `compile()`.  
-          
+
         # Instantiate the RepGAN model.
         GiorgiaGAN = RepGAN(options)
 
@@ -835,19 +776,18 @@ def main(DeviceName):
             # Load the dataset
             Xtrn, Xvld, _ = mdof.LoadData(**options)
             # (Xtrn,Ctrn), (Xvld,Cvld), _ = mdof.LoadNumpyData(**options)
-        
+
 
 
         # Callbacks
         #plotter = GANMonitor()
-        
+
         callbacks = [keras.callbacks.ModelCheckpoint(filepath=checkpoint_dir + "/ckpt-{epoch}", 
             save_freq='epoch',period=500)]
 
         history = GiorgiaGAN.fit(Xtrn,epochs=options["epochs"],validation_data=Xvld,
             callbacks=callbacks)
 
-        
         realX = np.concatenate([x for x, c in Xvld], axis=0)
         realC = np.concatenate([c for x, c in Xvld], axis=0)
         fakeX,fakeC = GiorgiaGAN.predict(Xvld)
