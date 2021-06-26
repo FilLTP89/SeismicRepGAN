@@ -340,6 +340,9 @@ class RepGAN(Model):
     def train_step(self, realXC):
 
         realX, realC = realXC
+        # Adversarial ground truths
+        realBCE = tf.ones_like(realXcritic)
+        fakeBCE = tf.zeros_like(fakeXcritic)
         self.batchSize = tf.shape(realX)[0]
 
         #------------------------------------------------
@@ -365,6 +368,7 @@ class RepGAN(Model):
                 # Generate fake latent code from real signals
                 [fakeS,fakeC,fakeN] = self.Fx(realX) # encoded z = Fx(X)
 
+                # Generate fake signals from real latent code
                 fakeX = self.Gz((realS,realC,realN)) # fake X = Gz(Fx(X))
 
                 # Discriminator determines validity of the real and fake X
@@ -377,15 +381,11 @@ class RepGAN(Model):
 
                 # Discriminator determines validity of the real and fake N
                 fakeNcritic = self.Dn(fakeN)
-                realNcritic = self.Dn(realN) 
+                realNcritic = self.Dn(realN)
 
                 # Discriminator determines validity of the real and fake S
                 fakeScritic = self.Ds(fakeS)
                 realScritic = self.Ds(realS)
-
-                # Adversarial ground truths
-                realBCE = tf.ones_like(realXcritic)
-                fakeBCE = tf.zeros_like(fakeXcritic)
 
                 # Calculate the discriminator loss using the fake and real logits
                 AdvDlossX  = self.AdvDlossGAN(realBCE,realXcritic)*self.PenAdvXloss
@@ -423,7 +423,7 @@ class RepGAN(Model):
         self.Dn.trainable = False
 
         with tf.GradientTape(persistent=True) as tape:
-            # Fake
+            # Generate fake latent code from real signal
             [fakeS,fakeC,fakeN] = self.Fx(realX) # encoded z = Fx(X)
 
             # Discriminator determines validity of the real and fake S
@@ -436,12 +436,14 @@ class RepGAN(Model):
             fakeNcritic = self.Dn(fakeN)
 
             fakeX = self.Gz((realS,realC,realN)) # fake X = Gz(Fx(X))
+
             # Discriminator determines validity of the real and fake X
             fakeXcritic = self.Dx(fakeX)
+
             # Reconstruction
             recX = self.Gz((fakeS,fakeC,fakeN))
-            zS = self.Qs(fakeX)
-            recC = self.Qc(fakeX)
+            recS = self.Qs(realX)
+            recC = self.Qc(realX)
             # Adversarial ground truths
             realBCE = tf.ones_like(fakeXcritic)
             AdvGlossX = self.AdvGlossGAN(realBCE,fakeXcritic)*self.PenAdvXloss
@@ -450,7 +452,7 @@ class RepGAN(Model):
             AdvGlossN = self.AdvGlossWGAN(fakeNcritic)*self.PenAdvNloss
             RecGlossX = self.RecXloss(realX,recX)*self.PenRecXloss
             RecGlossC = self.RecCloss(realC,recC)*self.PenRecCloss
-            RecGlossS = self.RecSloss(realS,zS)*self.PenRecSloss
+            RecGlossS = self.RecSloss(realS,recS)*self.PenRecSloss
             AdvGloss = AdvGlossX + AdvGlossC + AdvGlossS + AdvGlossN + RecGlossX + RecGlossC + RecGlossS
 
         # Get the gradients w.r.t the generator loss
