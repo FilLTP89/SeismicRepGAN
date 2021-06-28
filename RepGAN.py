@@ -74,7 +74,7 @@ RecGlossX_tracker = keras.metrics.Mean(name="loss")
 RecGlossC_tracker = keras.metrics.Mean(name="loss")
 RecGlossS_tracker = keras.metrics.Mean(name="loss")
 
-gpu_devices = tf.config.experimental.list_physical_devices('GPU')
+#gpu_devices = tf.config.experimental.list_physical_devices('GPU')
 
 
 checkpoint_dir = "./ckpt"
@@ -95,7 +95,7 @@ def make_or_restore_model():
 
 def ParseOptions():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--epochs",type=int,default=100000,help='Number of epochs')
+    parser.add_argument("--epochs",type=int,default=1000,help='Number of epochs')
     parser.add_argument("--Xsize",type=int,default=1024,help='Data space size')
     parser.add_argument("--nX",type=int,default=512,help='Number of signals')
     parser.add_argument("--nXchannels",type=int,default=2,help="Number of data channels")
@@ -107,7 +107,7 @@ def ParseOptions():
     parser.add_argument("--branching",type=str,default='conv',help='conv or dens')
     parser.add_argument("--latentSdim",type=int,default=256,help="Latent space s dimension")
     parser.add_argument("--latentCdim",type=int,default=5,help="Number of classes")
-    parser.add_argument("--latentNdim",type=int,default=128,help="Latent space n dimension")
+    parser.add_argument("--latentNdim",type=int,default=64,help="Latent space n dimension")
     parser.add_argument("--nSlayers",type=int,default=3,help='Number of S-branch CNN layers')
     parser.add_argument("--nClayers",type=int,default=3,help='Number of C-branch CNN layers')
     parser.add_argument("--nNlayers",type=int,default=3,help='Number of N-branch CNN layers')
@@ -359,8 +359,8 @@ class RepGAN(Model):
 
             with tf.GradientTape(persistent=True) as tape:
 
-                realS = tf.random.normal(mean=0.0,stddev=0.5,shape=[self.batchSize,self.latentSdim])
-                realN = tf.random.normal(mean=0.0,stddev=0.3,shape=[self.batchSize,self.latentNdim])
+                realS = tf.random.normal(mean=0.0,stddev=1,shape=[self.batchSize,self.latentSdim])
+                realN = tf.random.normal(mean=0.0,stddev=1,shape=[self.batchSize,self.latentNdim])
 
                 # Generate fake latent code from real signals
                 [fakeS,fakeC,fakeN] = self.Fx(realX) # encoded z = Fx(X)
@@ -390,11 +390,12 @@ class RepGAN(Model):
                 # Calculate the discriminator loss using the fake and real logits
                 AdvDlossX  = self.AdvDlossGAN(realBCE,realXcritic)*self.PenAdvXloss
                 AdvDlossX += self.AdvDlossGAN(fakeBCE,fakeXcritic)*self.PenAdvXloss
+                #AdvDlossX  = self.AdvDlossWGAN(realXcritic,fakeXcritic)*self.PenAdvXloss
                 AdvDlossC = self.AdvDlossWGAN(realCcritic,fakeCcritic)*self.PenAdvCloss
                 AdvDlossS = self.AdvDlossWGAN(realScritic,fakeScritic)*self.PenAdvSloss
-                AdvDlossN  = self.AdvDlossGAN(realBCE,realNcritic)*self.PenAdvNloss
-                AdvDlossN += self.AdvDlossGAN(fakeBCE,fakeNcritic)*self.PenAdvNloss
-                # AdvDlossN = self.AdvDlossWGAN(realNcritic,fakeNcritic)*self.PenAdvNloss
+                #AdvDlossN  = self.AdvDlossGAN(realBCE,realNcritic)*self.PenAdvNloss
+                #AdvDlossN += self.AdvDlossGAN(fakeBCE,fakeNcritic)*self.PenAdvNloss
+                AdvDlossN = self.AdvDlossWGAN(realNcritic,fakeNcritic)*self.PenAdvNloss
                 #AdvDlossPenGradX = self.GradientPenaltyX(self.batchSize,realX,fakeX)*self.PenGradX
 
                 AdvDloss = AdvDlossX + AdvDlossC + AdvDlossS + AdvDlossN #AdvDlossPenGradX
@@ -445,6 +446,7 @@ class RepGAN(Model):
             # Adversarial ground truths
             realBCE = tf.ones_like(fakeXcritic)
             AdvGlossX = self.AdvGlossGAN(realBCE,fakeXcritic)*self.PenAdvXloss
+            #AdvGlossX = self.AdvGlossWGAN(fakeXcritic)*self.PenAdvXloss
             AdvGlossC = self.AdvGlossWGAN(fakeCcritic)*self.PenAdvCloss
             AdvGlossS = self.AdvGlossWGAN(fakeScritic)*self.PenAdvSloss
             AdvGlossN = self.AdvGlossWGAN(fakeNcritic)*self.PenAdvNloss
@@ -811,12 +813,18 @@ class RepGAN(Model):
         h = Conv1D(self.Xsize*self.stride**(-(layer+1)),
                 self.kernel,self.stride,padding="same",
                 data_format="channels_last",name="DxCNN0")(X)
+        #h = Conv1D(self.Xsize*self.stride**(-(layer+1)),
+        #        self.kernel,self.stride,padding="same",kernel_constraint=self.ClipD,
+        #        data_format="channels_last",name="DxCNN0")(X)
         h = LeakyReLU(alpha=0.1,name="DxA0")(h)
 
         for layer in range(1,self.nDlayers):
             h = Conv1D(self.Xsize*self.stride**(-(layer+1)),
                 self.kernel,self.stride,padding="same",
                 data_format="channels_last",name="DxCNN{:>d}".format(layer))(h)
+            #h = Conv1D(self.Xsize*self.stride**(-(layer+1)),
+            #    self.kernel,self.stride,padding="same",kernel_constraint=self.ClipD,
+            #    data_format="channels_last",name="DxCNN{:>d}".format(layer))(h)
             h = BatchNormalization(momentum=0.95,name="DxBN{:>d}".format(layer))(h)
             h = LeakyReLU(alpha=0.2,name="DxA{:>d}".format(layer))(h)
             h = Dropout(0.25,name="DxDO{:>d}".format(layer))(h)
@@ -845,9 +853,9 @@ class RepGAN(Model):
             Dense discriminator structure
         """
         n = Input(shape=(self.latentNdim,))
-        h = Dense(3000)(n)#,kernel_constraint=self.ClipD)(n)
+        h = Dense(3000,kernel_constraint=self.ClipD)(n)
         h = LeakyReLU()(h)
-        h = Dense(3000)(h)#,kernel_constraint=self.ClipD)(h)
+        h = Dense(3000,kernel_constraint=self.ClipD)(h)
         h = LeakyReLU()(h) 
         Pn = Dense(1,activation='sigmoid')(h)
         Dn = keras.Model(n,Pn,name="Dn")
@@ -902,6 +910,7 @@ def main(DeviceName):
         losses['AdvGlossGAN'] = tf.keras.losses.BinaryCrossentropy()
         losses['RecSloss'] = GaussianNLL
         losses['RecXloss'] = tf.keras.losses.MeanAbsoluteError()
+        #losses['RecXloss'] = tf.keras.losses.MeanSquaredError()
         losses['RecCloss'] = MutualInfoLoss
         losses['PenAdvXloss'] = 1.
         losses['PenAdvCloss'] = 1.
@@ -939,7 +948,7 @@ def main(DeviceName):
         #plotter = GANMonitor()
 
         callbacks = [keras.callbacks.ModelCheckpoint(filepath=checkpoint_dir + "/ckpt-{epoch}", 
-            save_freq='epoch',period=500)]
+            save_freq='epoch',period=100)]
 
         history = GiorgiaGAN.fit(Xtrn,epochs=options["epochs"],validation_data=Xvld,
             callbacks=callbacks)
