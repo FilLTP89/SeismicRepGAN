@@ -344,8 +344,9 @@ class RepGAN(Model):
 
         realX, realC = realXC
         # Adversarial ground truths
+        realXcritic = self.Dx(realX)
         realBCE = tf.ones_like(realXcritic)
-        fakeBCE = tf.zeros_like(fakeXcritic)
+        fakeBCE = tf.zeros_like(realXcritic)
         self.batchSize = tf.shape(realX)[0]
 
         #------------------------------------------------
@@ -370,6 +371,7 @@ class RepGAN(Model):
 
                 # Generate fake latent code from real signals
                 [fakeS,fakeC,fakeN] = self.Fx(realX) # encoded z = Fx(X)
+                fakeN = tf.clip_by_value(fakeN,-1.0,1.0)
 
                 # Generate fake signals from real latent code
                 fakeX = self.Gz((realS,realC,realN)) # fake X = Gz(Fx(X))
@@ -428,6 +430,7 @@ class RepGAN(Model):
         with tf.GradientTape(persistent=True) as tape:
             # Generate fake latent code from real signal
             [fakeS,fakeC,fakeN] = self.Fx(realX) # encoded z = Fx(X)
+            fakeN = tf.clip_by_value(fakeN,-1,1)
 
             # Discriminator determines validity of the real and fake S
             fakeScritic = self.Ds(fakeS)
@@ -819,12 +822,18 @@ class RepGAN(Model):
         h = Conv1D(self.Xsize*self.stride**(-(layer+1)),
                 self.kernel,self.stride,padding="same",
                 data_format="channels_last",name="DxCNN0")(X)
+        #h = Conv1D(self.Xsize*self.stride**(-(layer+1)),
+        #        self.kernel,self.stride,padding="same",kernel_constraint=self.ClipD,
+        #        data_format="channels_last",name="DxCNN0")(X)
         h = LeakyReLU(alpha=0.1,name="DxA0")(h)
 
         for layer in range(1,self.nDlayers):
             h = Conv1D(self.Xsize*self.stride**(-(layer+1)),
                 self.kernel,self.stride,padding="same",
                 data_format="channels_last",name="DxCNN{:>d}".format(layer))(h)
+            #h = Conv1D(self.Xsize*self.stride**(-(layer+1)),
+            #    self.kernel,self.stride,padding="same",kernel_constraint=self.ClipD,
+            #    data_format="channels_last",name="DxCNN{:>d}".format(layer))(h)
             h = BatchNormalization(momentum=0.95,name="DxBN{:>d}".format(layer))(h)
             h = LeakyReLU(alpha=0.2,name="DxA{:>d}".format(layer))(h)
             h = Dropout(0.25,name="DxDO{:>d}".format(layer))(h)
@@ -853,9 +862,9 @@ class RepGAN(Model):
             Dense discriminator structure
         """
         n = Input(shape=(self.latentNdim,))
-        h = Dense(3000)(n)#,kernel_constraint=self.ClipD)(n)
+        h = Dense(3000,kernel_constraint=self.ClipD)(n)
         h = LeakyReLU()(h)
-        h = Dense(3000)(h)#,kernel_constraint=self.ClipD)(h)
+        h = Dense(3000,kernel_constraint=self.ClipD)(h)
         h = LeakyReLU()(h) 
         Pn = Dense(1,activation='sigmoid')(h)
         Dn = keras.Model(n,Pn,name="Dn")
