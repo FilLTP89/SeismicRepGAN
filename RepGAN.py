@@ -107,7 +107,7 @@ def ParseOptions():
     parser.add_argument("--branching",type=str,default='conv',help='conv or dens')
     parser.add_argument("--latentSdim",type=int,default=256,help="Latent space s dimension")
     parser.add_argument("--latentCdim",type=int,default=5,help="Number of classes")
-    parser.add_argument("--latentNdim",type=int,default=64,help="Latent space n dimension")
+    parser.add_argument("--latentNdim",type=int,default=128,help="Latent space n dimension")
     parser.add_argument("--nSlayers",type=int,default=3,help='Number of S-branch CNN layers')
     parser.add_argument("--nClayers",type=int,default=3,help='Number of C-branch CNN layers')
     parser.add_argument("--nNlayers",type=int,default=3,help='Number of N-branch CNN layers')
@@ -341,8 +341,9 @@ class RepGAN(Model):
 
         realX, realC = realXC
         # Adversarial ground truths
+        realXcritic = self.Dx(realX)
         realBCE = tf.ones_like(realXcritic)
-        fakeBCE = tf.zeros_like(fakeXcritic)
+        fakeBCE = tf.zeros_like(realXcritic)
         self.batchSize = tf.shape(realX)[0]
 
         #------------------------------------------------
@@ -362,11 +363,12 @@ class RepGAN(Model):
 
             with tf.GradientTape(persistent=True) as tape:
 
-                realS = tf.random.normal(mean=0.0,stddev=1,shape=[self.batchSize,self.latentSdim])
-                realN = tf.random.normal(mean=0.0,stddev=1,shape=[self.batchSize,self.latentNdim])
+                realS = tf.random.normal(mean=0.0,stddev=0.5,shape=[self.batchSize,self.latentSdim])
+                realN = tf.random.normal(mean=0.0,stddev=0.3,shape=[self.batchSize,self.latentNdim])
 
                 # Generate fake latent code from real signals
                 [fakeS,fakeC,fakeN] = self.Fx(realX) # encoded z = Fx(X)
+                fakeN = tf.clip_by_value(fakeN,-1,1)
 
                 # Generate fake signals from real latent code
                 fakeX = self.Gz((realS,realC,realN)) # fake X = Gz(Fx(X))
@@ -426,6 +428,7 @@ class RepGAN(Model):
         with tf.GradientTape(persistent=True) as tape:
             # Generate fake latent code from real signal
             [fakeS,fakeC,fakeN] = self.Fx(realX) # encoded z = Fx(X)
+            fakeN = tf.clip_by_value(fakeN,-1,1)
 
             # Discriminator determines validity of the real and fake S
             fakeScritic = self.Ds(fakeS)
@@ -443,8 +446,8 @@ class RepGAN(Model):
 
             # Reconstruction
             recX = self.Gz((fakeS,fakeC,fakeN))
-            recS = self.Qs(realX)
-            recC = self.Qc(realX)
+            recS = self.Qs(fakeX)
+            recC = self.Qc(fakeX)
             # Adversarial ground truths
             realBCE = tf.ones_like(fakeXcritic)
             AdvGlossX = self.AdvGlossGAN(realBCE,fakeXcritic)*self.PenAdvXloss
@@ -641,7 +644,9 @@ class RepGAN(Model):
             # Zlv = Dropout(0.2,name="FxDOlvS{:>d}".format(layer+1))(Zlv)
             Zlv = Flatten(name="FxFLlvS{:>d}".format(layer+1))(Zlv)
             Zlv = Dense(self.latentSdim,name="FxFWlvS")(Zlv)
+            Zlv = tf.keras.activations.sigmoid(Zlv)
             Zlv = BatchNormalization(momentum=0.95,name="FxBNlvS")(Zlv)
+            Zlv = tf.clip_by_value(Zlv,-1,1)
 
             # variable c
             layer = self.nClayers
@@ -832,7 +837,9 @@ class RepGAN(Model):
             h = Dropout(0.25,name="DxDO{:>d}".format(layer))(h)
         layer = self.nDlayers    
         h = Flatten(name="DxFL{:>d}".format(layer))(h)
-        Px = Dense(1,activation='sigmoid')(h)
+        Px = Dense(1)(h)
+        Px = tf.keras.activations.sigmoid(Px)
+        #Px = Dense(1,activation='linear')(h)
         Dx = keras.Model(X,Px,name="Dx")
         return Dx
 
@@ -898,7 +905,7 @@ def main(DeviceName):
 
     with tf.device(DeviceName):
         optimizers = {}
-        optimizers['DxOpt'] = Adam(learning_rate=0.0002, beta_1=0.5, beta_2=0.9999) #RMSprop(learning_rate=0.00005)
+        optimizers['DxOpt'] = RMSprop(learning_rate=0.00005) #Adam(learning_rate=0.0002, beta_1=0.5, beta_2=0.9999)
         optimizers['DcOpt'] = RMSprop(learning_rate=0.00005)
         optimizers['DsOpt'] = RMSprop(learning_rate=0.00005)
         optimizers['DnOpt'] = RMSprop(learning_rate=0.00005)
