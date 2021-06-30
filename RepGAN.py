@@ -163,22 +163,23 @@ class SamplingFxS(Layer):
     """Uses (z_mean, z_log_var) to sample z, the vector encoding a digit."""
 
     def call(self, inputs):
-        z_mean, z_log_var = inputs
+        # z_mean, z_log_var = inputs
+        z_mean, z_std = inputs
         batch = tf.shape(z_mean)[0]
         dim = tf.shape(z_mean)[1]
         epsilon = tf.keras.backend.random_normal(shape=(batch, dim))
-        return z_mean + tf.exp(0.5 * z_log_var) * epsilon
+        # return z_mean + tf.exp(0.5 * z_log_var) * epsilon
+        return z_mean + z_std * epsilon
 
 # clip model weights to a given hypercube
 class ClipConstraint(Constraint):
     # set clip value when initialized
     def __init__(self, clip_value):
         self.clip_value = clip_value
- 
     # clip model weights to hypercube
     def __call__(self, weights):
         return tf.keras.backend.clip(weights, -self.clip_value, self.clip_value)
- 
+
     # get the config
     def get_config(self):
         return {'clip_value': self.clip_value}
@@ -638,8 +639,10 @@ class RepGAN(Model):
             # Zlv = LeakyReLU(alpha=0.1,name="FxAlvS{:>d}".format(layer+1))(Zlv)
             # Zlv = Dropout(0.2,name="FxDOlvS{:>d}".format(layer+1))(Zlv)
             Zlv = Flatten(name="FxFLlvS{:>d}".format(layer+1))(Zlv)
-            Zlv = Dense(self.latentSdim,name="FxFWlvS")(Zlv)
-            Zlv = BatchNormalization(momentum=0.95,name="FxBNlvS")(Zlv)
+            Zlv = Dense(self.latentSdim,activation=tf.keras.activations.sigmoid,
+                name="FxFWlvS")(Zlv)
+            # Zlv = Dense(self.latentSdim,name="FxFWlvS")(Zlv)
+            # Zlv = BatchNormalization(momentum=0.95,name="FxBNlvS")(Zlv)
 
             # variable c
             layer = self.nClayers
