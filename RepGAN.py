@@ -395,11 +395,12 @@ class RepGAN(Model):
                 # Calculate the discriminator loss using the fake and real logits
                 AdvDlossX  = self.AdvDlossGAN(realBCE,realXcritic)*self.PenAdvXloss
                 AdvDlossX += self.AdvDlossGAN(fakeBCE,fakeXcritic)*self.PenAdvXloss
+                #AdvDlossX  = self.AdvDlossWGAN(realXcritic,fakeXcritic)*self.PenAdvXloss
                 AdvDlossC = self.AdvDlossWGAN(realCcritic,fakeCcritic)*self.PenAdvCloss
                 AdvDlossS = self.AdvDlossWGAN(realScritic,fakeScritic)*self.PenAdvSloss
-                AdvDlossN  = self.AdvDlossGAN(realBCE,realNcritic)*self.PenAdvNloss
-                AdvDlossN += self.AdvDlossGAN(fakeBCE,fakeNcritic)*self.PenAdvNloss
-                # AdvDlossN = self.AdvDlossWGAN(realNcritic,fakeNcritic)*self.PenAdvNloss
+                #AdvDlossN  = self.AdvDlossGAN(realBCE,realNcritic)*self.PenAdvNloss
+                #AdvDlossN += self.AdvDlossGAN(fakeBCE,fakeNcritic)*self.PenAdvNloss
+                AdvDlossN = self.AdvDlossWGAN(realNcritic,fakeNcritic)*self.PenAdvNloss
                 #AdvDlossPenGradX = self.GradientPenaltyX(self.batchSize,realX,fakeX)*self.PenGradX
 
                 AdvDloss = AdvDlossX + AdvDlossC + AdvDlossS + AdvDlossN #AdvDlossPenGradX
@@ -448,8 +449,11 @@ class RepGAN(Model):
 
             # Reconstruction
             recX = self.Gz((fakeS,fakeC,fakeN))
-            recS = self.Qs(realX)
-            recC = self.Qc(realX)
+            recS = self.Qs(fakeX)
+            # recSmu,recSsigma = self.Qs(fakeX)
+            # self.QsDist = tfd.MultivariateNormalDiag(loc=recSmu,scale_diag=recSsigma)
+            recC = self.Qc(fakeX)
+
             # Adversarial ground truths
             realBCE = tf.ones_like(fakeXcritic)
             AdvGlossX = self.AdvGlossGAN(realBCE,fakeXcritic)*self.PenAdvXloss
@@ -458,15 +462,21 @@ class RepGAN(Model):
             AdvGlossS = self.AdvGlossWGAN(fakeScritic)*self.PenAdvSloss
             AdvGlossN = self.AdvGlossWGAN(fakeNcritic)*self.PenAdvNloss
             RecGlossX = self.RecXloss(realX,recX)*self.PenRecXloss
-            RecGlossC = self.RecCloss(realC,recC)*self.PenRecCloss
             RecGlossS = self.RecSloss(realS,recS)*self.PenRecSloss
+            RecGlossC = self.RecCloss(realC,recC)*self.PenRecCloss
+            
             AdvGloss = AdvGlossX + AdvGlossC + AdvGlossS + AdvGlossN + RecGlossX + RecGlossC + RecGlossS
 
         # Get the gradients w.r.t the generator loss
-        gradFx, gradGz = tape.gradient(AdvGloss,(self.Fx.trainable_variables, self.Gz.trainable_variables))
+        gradFx, gradGz, gradQs, gradQc = tape.gradient(AdvGloss,
+            (self.Fx.trainable_variables,self.Gz.trainable_variables,
+             self.Qs.trainable_variables,self.Qc.trainable_variables))
+
         # Update the weights of the generator using the generator optimizer
         self.FxOpt.apply_gradients(zip(gradFx,self.Fx.trainable_variables))
         self.GzOpt.apply_gradients(zip(gradGz,self.Gz.trainable_variables))
+        self.QsOpt.apply_gradients(zip(gradQs,self.Fx.trainable_variables))
+        self.QcOpt.apply_gradients(zip(gradQc,self.Gz.trainable_variables))
 
         # Compute our own metrics
         AdvDLoss_tracker.update_state(AdvDloss)
@@ -645,10 +655,12 @@ class RepGAN(Model):
             # Zlv = LeakyReLU(alpha=0.1,name="FxAlvS{:>d}".format(layer+1))(Zlv)
             # Zlv = Dropout(0.2,name="FxDOlvS{:>d}".format(layer+1))(Zlv)
             Zlv = Flatten(name="FxFLlvS{:>d}".format(layer+1))(Zlv)
-            Zlv = Dense(self.latentSdim,activation=tf.keras.activations.sigmoid,
+            Zsigma = Dense(self.latentSdim,activation=tf.keras.activations.sigmoid,
                 name="FxFWlvS")(Zlv)
             # Zlv = Dense(self.latentSdim,name="FxFWlvS")(Zlv)
             # Zlv = BatchNormalization(momentum=0.95,name="FxBNlvS")(Zlv)
+            # CLIP Zlv
+            Zsigma_clip = tf.clip_by_value(Zsigma,-1.0,1.0)
 
             # variable c
             layer = self.nClayers
@@ -674,8 +686,8 @@ class RepGAN(Model):
             Zn = Dense(self.latentNdim,name="FxFWN")(Zn)
 
         # variable s
-        s = SamplingFxS()([Zmu,Zlv])
-        QsX = Concatenate(axis=-1)([Zmu,Zlv])
+        s = SamplingFxS()([Zmu,Zsigma_clip])
+        QsX = Concatenate(axis=-1)([Zmu,Zsigma])
 
         # variable c
         c   = Softmax(name="FxAC")(Zc)
@@ -686,6 +698,7 @@ class RepGAN(Model):
 
         Fx = keras.Model(X,[s,c,n],name="Fx")
         Qs = keras.Model(X,QsX,name="Qs")
+        # Qs = keras.Model(X,[Zmu,Zsigma],name="Qs")
         Qc = keras.Model(X,QcX,name="Qc")
 
         return Fx,Qs,Qc
@@ -905,12 +918,14 @@ def main(DeviceName):
 
     with tf.device(DeviceName):
         optimizers = {}
-        optimizers['DxOpt'] = Adam(learning_rate=0.0002, beta_1=0.5, beta_2=0.9999) #RMSprop(learning_rate=0.00005)
+        optimizers['DxOpt'] = RMSprop(learning_rate=0.00005) #Adam(learning_rate=0.0002, beta_1=0.5, beta_2=0.9999)
         optimizers['DcOpt'] = RMSprop(learning_rate=0.00005)
         optimizers['DsOpt'] = RMSprop(learning_rate=0.00005)
         optimizers['DnOpt'] = RMSprop(learning_rate=0.00005)
         optimizers['FxOpt'] = Adam(learning_rate=0.0002, beta_1=0.5, beta_2=0.9999)
         optimizers['GzOpt'] = Adam(learning_rate=0.0002, beta_1=0.5, beta_2=0.9999)
+        optimizers['QsOpt'] = Adam(learning_rate=0.0002, beta_1=0.5, beta_2=0.9999)
+        optimizers['QcOpt'] = Adam(learning_rate=0.0002, beta_1=0.5, beta_2=0.9999)
 
         losses = {}
         losses['AdvDlossWGAN'] = WassersteinDiscriminatorLoss
