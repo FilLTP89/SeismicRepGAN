@@ -33,7 +33,7 @@ from tensorflow.keras.layers import Conv1D, Conv1DTranspose
 from tensorflow.keras.optimizers import Adam, RMSprop
 from tensorflow.keras.constraints import Constraint, min_max_norm
 from tensorflow.keras.initializers import RandomNormal
-
+# import tensorflow_probability.distributions as tfd
 import timeit
 
 
@@ -55,7 +55,6 @@ from numpy.linalg import norm
 import MDOFload as mdof
 import matplotlib.pyplot as plt
 
-from tensorflow.keras import backend as K
 from tensorflow.python.util.tf_export import tf_export
 from copy import deepcopy
 
@@ -74,7 +73,7 @@ RecGlossX_tracker = keras.metrics.Mean(name="loss")
 RecGlossC_tracker = keras.metrics.Mean(name="loss")
 RecGlossS_tracker = keras.metrics.Mean(name="loss")
 
-gpu_devices = tf.config.experimental.list_physical_devices('GPU')
+#gpu_devices = tf.config.experimental.list_physical_devices('GPU')
 
 
 checkpoint_dir = "./ckpt"
@@ -95,7 +94,7 @@ def make_or_restore_model():
 
 def ParseOptions():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--epochs",type=int,default=100000,help='Number of epochs')
+    parser.add_argument("--epochs",type=int,default=1000,help='Number of epochs')
     parser.add_argument("--Xsize",type=int,default=1024,help='Data space size')
     parser.add_argument("--nX",type=int,default=512,help='Number of signals')
     parser.add_argument("--nXchannels",type=int,default=2,help="Number of data channels")
@@ -448,6 +447,7 @@ class RepGAN(Model):
             # Adversarial ground truths
             realBCE = tf.ones_like(fakeXcritic)
             AdvGlossX = self.AdvGlossGAN(realBCE,fakeXcritic)*self.PenAdvXloss
+            #AdvGlossX = self.AdvGlossWGAN(fakeXcritic)*self.PenAdvXloss
             AdvGlossC = self.AdvGlossWGAN(fakeCcritic)*self.PenAdvCloss
             AdvGlossS = self.AdvGlossWGAN(fakeScritic)*self.PenAdvSloss
             AdvGlossN = self.AdvGlossWGAN(fakeNcritic)*self.PenAdvNloss
@@ -944,7 +944,7 @@ def main(DeviceName):
         #plotter = GANMonitor()
 
         callbacks = [keras.callbacks.ModelCheckpoint(filepath=checkpoint_dir + "/ckpt-{epoch}", 
-            save_freq='epoch',period=500)]
+            save_freq='epoch',period=100)]
 
         history = GiorgiaGAN.fit(Xtrn,epochs=options["epochs"],validation_data=Xvld,
             callbacks=callbacks)
