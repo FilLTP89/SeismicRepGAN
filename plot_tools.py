@@ -260,8 +260,8 @@ def PlotBatchGoFs(model,realXC):
     egpg_df['kind']=r"$G_z(F_x(X))$"
     PlotEGPGgrid('EG','PG','kind',df=egpg_df)
 
-def PlotClassificationScore(model,realXC):
-    # Plot reconstructed time-histories
+def PlotClassificationMetrics(model,realXC):
+    # Plot classification metrics
     realX, realC = realXC
     # realX = np.concatenate([x for x, c in X], axis=0)
     # realC = np.concatenate([c for x, c in X], axis=0)
