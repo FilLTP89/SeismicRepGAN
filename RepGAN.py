@@ -20,6 +20,7 @@ import numpy as np
 import math as mt
 
 import tensorflow as tf
+#tf.config.run_functions_eagerly(True)
 gpu = tf.config.experimental.list_physical_devices('GPU')
 tf.config.experimental.set_memory_growth(gpu[0], True)
 
@@ -33,12 +34,35 @@ from tensorflow.keras.layers import Conv1D, Conv1DTranspose
 from tensorflow.keras.optimizers import Adam, RMSprop
 from tensorflow.keras.constraints import Constraint, min_max_norm
 from tensorflow.keras.initializers import RandomNormal
+from tensorflow.keras.wrappers.scikit_learn import KerasClassifier
 # import tensorflow_probability.distributions as tfd
 import timeit
 
+import scipy
+from scipy import signal
+
+import seaborn as sn
+from sklearn import metrics
+from sklearn.metrics import classification_report, confusion_matrix, ConfusionMatrixDisplay, multilabel_confusion_matrix
+from sklearn.metrics import explained_variance_score, max_error, mean_absolute_error, mean_squared_error, mean_squared_log_error
+from sklearn.model_selection import GridSearchCV
+
+import obspy.signal
+from obspy.signal.tf_misfit import plot_tf_gofs, eg, pg
+
+import matplotlib.mlab as mlab
+
+from scipy.stats import norm
+
+import itertools
 
 # import wandb
 # wandb.init()
+
+from matplotlib import rcParams
+rcParams['font.family'] = 'serif'
+rcParams['font.sans-serif'] = ['Tahoma']
+families = ['serif', 'sans-serif', 'cursive', 'fantasy', 'monospace']
 
 import pandas as pd
 from pandas.plotting import register_matplotlib_converters
