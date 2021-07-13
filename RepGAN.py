@@ -985,6 +985,8 @@ def Main(DeviceName):
         history = GiorgiaGAN.fit(Xtrn,epochs=options["epochs"],validation_data=Xvld,
             callbacks=callbacks)
 
+        GiorgiaGAN.DumpModels()
+
         PlotLoss(history) # Plot loss
 
         PlotReconstructedTHs(GiorgiaGAN,Xvld) # Plot reconstructed time-histories
@@ -998,7 +1000,6 @@ def Main(DeviceName):
         PlotBatchGoFs(GiorgiaGAN,Xvld) # Plot GoFs on a batch
 
         PlotClassificationMetrics(GiorgiaGAN,Xvld) # Plot classification metrics
-
         # #Hyperparameter tuning
 
         # model = KerasClassifier(build_fn = opt.create_model(**options), batch_size=128, epochs=10)
@@ -1016,11 +1017,7 @@ def Main(DeviceName):
         # best_params = result.best_params_
         # best_params.to_csv('Best parameters.csv', index= True)
         # print("[INFO] grid search best parameters: {}".format(best_params))
-
-
-
-
-if __name__ == '__Main__':
+if __name__ == '__main__':
     DeviceName = tf.test.gpu_device_name()
     Main(DeviceName)
 
