@@ -984,6 +984,8 @@ def Main(DeviceName):
         history = GiorgiaGAN.fit(Xtrn,epochs=options["epochs"],validation_data=Xvld,
             callbacks=callbacks)
 
+        GiorgiaGAN.DumpModels()
+
         PlotLoss(history) # Plot loss
 
         PlotReconstructedTHs(GiorgiaGAN,Xvld) # Plot reconstructed time-histories
@@ -998,7 +1000,7 @@ def Main(DeviceName):
 
         PlotClassificationMetrics(GiorgiaGAN,Xvld) # Plot classification metrics
 
-if __name__ == '__Main__':
+if __name__ == '__main__':
     DeviceName = tf.test.gpu_device_name()
     Main(DeviceName)
 
