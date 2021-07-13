@@ -246,16 +246,17 @@ def GaussianNLL(true, pred):
 
     n_dims = int(int(pred.shape[1])/2)
     mu = pred[:, 0:n_dims]
-    sigma = pred[:, n_dims:]
-    # logsigma = pred[:, n_dims:]
-    mse = -0.5*tf.sum(tf.square((true-mu)/sigma),axis=1)
-    # mse = -0.5*tf.sum(tf.square((true-mu)/tf.exp(logsigma)),axis=1)
+    # sigma = pred[:, n_dims:]
+    logsigma = pred[:, n_dims:]
+    # mse = -0.5*tf.keras.backend.sum(tf.keras.backend.square((true-mu)/sigma),axis=1)
+    mse = -0.5*tf.keras.backend.sum(tf.keras.backend.square((true-mu)/tf.keras.backend.exp(logsigma)),axis=1)
 
-    sigma_trace = -tf.sum(tf.log(sigma), axis=1)
+    # sigma_trace = -tf.keras.backend.sum(tf.keras.backend.log(sigma), axis=1)
+    sigma_trace = -tf.keras.backend.sum(logsigma, axis=1)
     log2pi = -0.5*n_dims*np.log(2*np.pi)
     log_likelihood = mse+sigma_trace+log2pi
 
-    return tf.mean(-log_likelihood)
+    return tf.keras.backend.mean(-log_likelihood)
 
 def MutualInfoLoss(c, c_given_x):
     """The mutual information metric we aim to minimize"""
