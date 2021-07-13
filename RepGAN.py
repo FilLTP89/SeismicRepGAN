@@ -339,7 +339,7 @@ class RepGAN(Model):
         return [AdvDLoss_tracker,AdvGLoss_tracker,AdvDlossX_tracker,AdvDlossC_tracker,AdvDlossS_tracker,AdvDlossN_tracker,AdvDlossPenGradX_tracker,
             AdvGlossX_tracker,AdvGlossC_tracker,AdvGlossS_tracker,AdvGlossN_tracker,RecGlossX_tracker,RecGlossC_tracker,RecGlossS_tracker]
 
-    def compile(self,optimizers,losses):
+    def compile(self,optimizers,losses): #run_eagerly
         super(RepGAN, self).compile()
         """
             Optimizers
@@ -390,6 +390,8 @@ class RepGAN(Model):
         # Freeze generators' layers while training critics
         self.Fx.trainable = False
         self.Gz.trainable = False
+        self.Qc.trainable = False
+        self.Qs.trainable = False
         self.Dx.trainable = True
         self.Dc.trainable = True
         self.Ds.trainable = True
@@ -426,9 +428,9 @@ class RepGAN(Model):
                 realScritic = self.Ds(realS)
 
                 # Calculate the discriminator loss using the fake and real logits
-                AdvDlossX  = self.AdvDlossGAN(realBCE,realXcritic)*self.PenAdvXloss
-                AdvDlossX += self.AdvDlossGAN(fakeBCE,fakeXcritic)*self.PenAdvXloss
-                #AdvDlossX  = self.AdvDlossWGAN(realXcritic,fakeXcritic)*self.PenAdvXloss
+                #AdvDlossX  = self.AdvDlossGAN(realBCE,realXcritic)*self.PenAdvXloss
+                #AdvDlossX += self.AdvDlossGAN(fakeBCE,fakeXcritic)*self.PenAdvXloss
+                AdvDlossX = self.AdvDlossWGAN(realXcritic,fakeXcritic)*self.PenAdvXloss
                 AdvDlossC = self.AdvDlossWGAN(realCcritic,fakeCcritic)*self.PenAdvCloss
                 AdvDlossS = self.AdvDlossWGAN(realScritic,fakeScritic)*self.PenAdvSloss
                 #AdvDlossN  = self.AdvDlossGAN(realBCE,realNcritic)*self.PenAdvNloss
@@ -436,7 +438,7 @@ class RepGAN(Model):
                 AdvDlossN = self.AdvDlossWGAN(realNcritic,fakeNcritic)*self.PenAdvNloss
                 #AdvDlossPenGradX = self.GradientPenaltyX(self.batchSize,realX,fakeX)*self.PenGradX
 
-                AdvDloss = AdvDlossX + AdvDlossC + AdvDlossS + AdvDlossN #AdvDlossPenGradX
+                AdvDloss = AdvDlossX + AdvDlossC + AdvDlossS + AdvDlossN #+ AdvDlossPenGradX
 
             # Get the gradients w.r.t the discriminator loss
             gradDx, gradDc, gradDs, gradDn = tape.gradient(AdvDloss,
@@ -456,6 +458,8 @@ class RepGAN(Model):
         # Freeze critics' layers while training generators
         self.Fx.trainable = True
         self.Gz.trainable = True
+        self.Qc.trainable = True
+        self.Qs.trainable = True
         self.Dx.trainable = False
         self.Dc.trainable = False
         self.Ds.trainable = False
@@ -488,9 +492,9 @@ class RepGAN(Model):
             recC = self.Qc(fakeX)
 
             # Adversarial ground truths
-            realBCE = tf.ones_like(fakeXcritic)
-            AdvGlossX = self.AdvGlossGAN(realBCE,fakeXcritic)*self.PenAdvXloss
-            #AdvGlossX = self.AdvGlossWGAN(fakeXcritic)*self.PenAdvXloss
+            # realBCE = tf.ones_like(fakeXcritic)
+            #AdvGlossX = self.AdvGlossGAN(realBCE,fakeXcritic)*self.PenAdvXloss
+            AdvGlossX = self.AdvGlossWGAN(fakeXcritic)*self.PenAdvXloss
             AdvGlossC = self.AdvGlossWGAN(fakeCcritic)*self.PenAdvCloss
             AdvGlossS = self.AdvGlossWGAN(fakeScritic)*self.PenAdvSloss
             AdvGlossN = self.AdvGlossWGAN(fakeNcritic)*self.PenAdvNloss
@@ -518,16 +522,25 @@ class RepGAN(Model):
         AdvDlossC_tracker.update_state(AdvDlossC)
         AdvDlossS_tracker.update_state(AdvDlossS)
         AdvDlossN_tracker.update_state(AdvDlossN)
+        #AdvDlossPenGradX_tracker.update_state(AdvDlossPenGradX)
+
+        AdvGlossX_tracker.update_state(AdvGlossX)
+        AdvGlossC_tracker.update_state(AdvGlossC)
+        AdvGlossS_tracker.update_state(AdvGlossS)
+        AdvGlossN_tracker.update_state(AdvGlossN)
+
         RecGlossX_tracker.update_state(RecGlossX)
         RecGlossC_tracker.update_state(RecGlossC)
         RecGlossS_tracker.update_state(RecGlossS)
-        #loss_tracker.update_state(loss)
-        #mae_metric.update_state(y, y_pred)
-        #return {"loss": loss_tracker.result(), "mae": mae_metric.result()}
 
-        return {"AdvDloss": AdvDLoss_tracker.result(),"AdvGloss": AdvGLoss_tracker.result(), "AdvDlossX": AdvDlossX_tracker.result(),
-            "AdvDlossC": AdvDlossC_tracker.result(),"AdvDlossS": AdvDlossS_tracker.result(),"AdvDlossN": AdvDlossN_tracker.result(),
-            "RecGlossX": RecGlossX_tracker.result(), "RecGlossC": RecGlossC_tracker.result(), "RecGlossS": RecGlossS_tracker.result()}
+        return {"AdvDlossX": AdvDlossX_tracker.result(),"AdvDlossC": AdvDlossC_tracker.result(),"AdvDlossS": AdvDlossS_tracker.result(),
+            "AdvDlossN": AdvDlossN_tracker.result(),"AdvGlossX": AdvGlossX_tracker.result(),"AdvGlossC": AdvGlossC_tracker.result(),
+            "AdvGlossS": AdvGlossS_tracker.result(),"AdvGlossN": AdvGlossN_tracker.result(),"RecGlossX": RecGlossX_tracker.result(), 
+            "RecGlossC": RecGlossC_tracker.result(), "RecGlossS": RecGlossS_tracker.result()}
+
+        #return {"AdvDloss": AdvDLoss_tracker.result(),"AdvGloss": AdvGLoss_tracker.result(), "AdvDlossX": AdvDlossX_tracker.result(),
+        #    "AdvDlossC": AdvDlossC_tracker.result(),"AdvDlossS": AdvDlossS_tracker.result(),"AdvDlossN": AdvDlossN_tracker.result(),
+        #    "RecGlossX": RecGlossX_tracker.result(), "RecGlossC": RecGlossC_tracker.result(), "RecGlossS": RecGlossS_tracker.result()}
 
     def call(self, X):
         [fakeS,fakeC,fakeN] = self.Fx(X)
