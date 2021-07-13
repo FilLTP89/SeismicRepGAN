@@ -14,7 +14,6 @@ import os
 os.environ['CUDA_VISIBLE_DEVICES'] = "0"
 
 import argparse
-import numpy as np
 import math as mt
 
 import tensorflow as tf
@@ -35,50 +34,19 @@ from tensorflow.keras.constraints import Constraint, min_max_norm
 from tensorflow.keras.initializers import RandomNormal
 from tensorflow.keras.wrappers.scikit_learn import KerasClassifier
 import timeit
-
-import scipy
-from scipy import signal
-
-import seaborn as sn
-from sklearn import metrics
-from sklearn.metrics import classification_report, confusion_matrix, ConfusionMatrixDisplay, multilabel_confusion_matrix
-from sklearn.metrics import explained_variance_score, max_error, mean_absolute_error, mean_squared_error, mean_squared_log_error
-from sklearn.model_selection import GridSearchCV
-
-import obspy.signal
-from obspy.signal.tf_misfit import plot_tf_gofs, eg, pg
-
-import matplotlib.mlab as mlab
-
-from scipy.stats import norm
-
-import itertools
-
-# import wandb
-# wandb.init()
-
-from matplotlib import rcParams
-rcParams['font.family'] = 'serif'
-rcParams['font.sans-serif'] = ['Tahoma']
-families = ['serif', 'sans-serif', 'cursive', 'fantasy', 'monospace']
-
-import pandas as pd
-from pandas.plotting import register_matplotlib_converters
-register_matplotlib_converters()
 from numpy.random import randn
 from numpy.random import randint
-
 from tensorflow.python.eager import context
 import kerastuner as kt
 from kerastuner.tuners import RandomSearch
 from kerastuner import HyperModel
-
 from numpy.linalg import norm
 import MDOFload as mdof
 import matplotlib.pyplot as plt
 
 from tensorflow.python.util.tf_export import tf_export
 from copy import deepcopy
+from plot_tools import *
 
 AdvDLoss_tracker = keras.metrics.Mean(name="loss")
 AdvDlossX_tracker = keras.metrics.Mean(name="loss")
@@ -1015,6 +983,20 @@ def Main(DeviceName):
 
         history = GiorgiaGAN.fit(Xtrn,epochs=options["epochs"],validation_data=Xvld,
             callbacks=callbacks)
+
+        PlotLoss(history) # Plot loss
+
+        PlotReconstructedTHs(GiorgiaGAN,Xvld) # Plot reconstructed time-histories
+
+        PlotCorrelationS(GiorgiaGAN,Xvld) # Plot s correlation
+
+        PlotDistributionN(GiorgiaGAN,Xvld) # Plot n distribution
+
+        # PlotTHSGoFs(GiorgiaGAN,Xvld) # Plot reconstructed time-histories
+
+        PlotBatchGoFs(GiorgiaGAN,Xvld) # Plot GoFs on a batch
+
+        PlotClassificationMetrics(GiorgiaGAN,Xvld) # Plot classification metrics
 
 if __name__ == '__Main__':
     DeviceName = tf.test.gpu_device_name()
