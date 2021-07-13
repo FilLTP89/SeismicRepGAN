@@ -42,6 +42,7 @@ from kerastuner.tuners import RandomSearch
 from kerastuner import HyperModel
 from numpy.linalg import norm
 import MDOFload as mdof
+#import OptimizeRepGAN as opt
 import matplotlib.pyplot as plt
 
 from tensorflow.python.util.tf_export import tf_export
@@ -84,7 +85,7 @@ def make_or_restore_model():
 
 def ParseOptions():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--epochs",type=int,default=1000,help='Number of epochs')
+    parser.add_argument("--epochs",type=int,default=10,help='Number of epochs')
     parser.add_argument("--Xsize",type=int,default=1024,help='Data space size')
     parser.add_argument("--nX",type=int,default=512,help='Number of signals')
     parser.add_argument("--nXchannels",type=int,default=2,help="Number of data channels")
@@ -997,6 +998,27 @@ def Main(DeviceName):
         PlotBatchGoFs(GiorgiaGAN,Xvld) # Plot GoFs on a batch
 
         PlotClassificationMetrics(GiorgiaGAN,Xvld) # Plot classification metrics
+
+        # #Hyperparameter tuning
+
+        # model = KerasClassifier(build_fn = opt.create_model(**options), batch_size=128, epochs=10)
+        # #now write out all the parameters you want to try out for the grid search
+        # kernel = [1, 2, 3]
+        # stride = [2, 4]
+        # #activation = ['relu', 'tanh', 'sigmoid']
+        # #learn_rate = [0.00005, 0.0002, 0.00001]
+        # #optimizer = ['Adam', 'RMSprop']
+        # #param_grid = dict(activation=activation, learn_rate=learn_rate, optimizer=optimizer)
+        # param_grid = dict(kernel_size=kernel, strides=stride)
+        # #param_grid= {'kernel': ('linear', 'rbf'),'C': [1, 10, 100]}
+        # grid = GridSearchCV(estimator=model, param_grid=param_grid)
+        # result = grid.fit(fakeX,realX)
+        # best_params = result.best_params_
+        # best_params.to_csv('Best parameters.csv', index= True)
+        # print("[INFO] grid search best parameters: {}".format(best_params))
+
+
+
 
 if __name__ == '__Main__':
     DeviceName = tf.test.gpu_device_name()

@@ -19,11 +19,17 @@ def CreateData(**kwargs):
     CreateData.__globals__.update(kwargs)
 
 
-    dfParam = dd.read_csv(opj(dataroot_1,"parameters_model.csv")).astype('float32')
+    dfParam1 = dd.read_csv(opj(dataroot_1,"parameters_model.csv")).astype('float32')
 
 
-    dfParam["mean"] = dfParam.mean(axis=1)
-    dfParam["std"] = dfParam.std(axis=1)
+    dfParam1["mean"] = dfParam1.mean(axis=1)
+    dfParam1["std"] = dfParam1.std(axis=1)
+
+    dfParam2 = dd.read_csv(opj(dataroot_2,"parameters_model.csv")).astype('float32')
+
+
+    dfParam2["mean"] = dfParam2.mean(axis=1)
+    dfParam2["std"] = dfParam2.std(axis=1)
 
     
     
