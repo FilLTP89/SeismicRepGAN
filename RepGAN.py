@@ -261,8 +261,8 @@ def GaussianNLL(true, pred):
 def MutualInfoLoss(c, c_given_x):
     """The mutual information metric we aim to minimize"""
     eps = 1e-8
-    conditional_entropy = tf.mean(-tf.sum(tf.log(c_given_x+eps)*c,axis=1))
-    entropy = tf.mean(-tf.sum(tf.log(c+eps)*c,axis=1))
+    conditional_entropy = tf.keras.backend.mean(-tf.keras.backend.sum(tf.keras.backend.log(c_given_x+eps)*c,axis=1))
+    entropy = tf.keras.backend.mean(-tf.keras.backend.sum(tf.keras.backend.log(c+eps)*c,axis=1))
 
     return conditional_entropy + entropy
 
