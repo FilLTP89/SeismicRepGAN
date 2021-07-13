@@ -19,42 +19,124 @@ def CreateData(**kwargs):
     CreateData.__globals__.update(kwargs)
 
 
-    dfParam = dd.read_csv(opj(dataroot,"parameters_model.csv")).astype('float32')
+    dfParam = dd.read_csv(opj(dataroot_1,"parameters_model.csv")).astype('float32')
 
 
     dfParam["mean"] = dfParam.mean(axis=1)
     dfParam["std"] = dfParam.std(axis=1)
 
     
-    X = []
+    
+    # # Initialize wtdof_v tensor
+    # for i1 in range(len(wtdof)):
+    #     if i1==0:
+    #         wtdof_v=[wtdof[i1]]
+    #         wtdof_v=np.array(wtdof_v)
+    #         np.expand_dims(wtdof_v, axis=0)
+    #     else:
+    #         i2=wtdof_v[i1-1]+wtdof[i1]
+    #         np.concatenate((wtdof_v,i2), axis=1)
+
+    # for i1 in range(nXchannels):
+    #     #load the measurements recorded by each single channel
+    #     if len(avu) == 0:
+    #         dataSrc = opj(dataroot,"{:>s}_damaged_concat_{:>s}_gdl_{:>d}.csv".format(pb,case,idChannels[i1]))
+    #     else:
+    #         dataSrc = opj(dataroot,"{:>s}_{:>s}_damaged_concat_{:>s}_gdl_{:>d}.csv".format(pb,avu,case,idChannels[i1]))
+
+    #     sdof=np.genfromtxt(dataSrc).astype(np.float32)
+
+        
+    #     #initialise X
+    #     if i1==0:
+    #         X = np.zeros((nX,nXchannels,Xsize),dtype=np.float32)
+    #     i2=0
+    #     for i3 in range(nX):
+    #         X[i3,i1,0:ntm]=sdof[i2:(i2+ntm)]
+    #         i2=i2+ntm
+
+    # scaler = StandardScaler()
+    # X = scaler.fit_transform(X)
+    # X = np.pad(X,((0,0),(0,0),(0,nxtpow2(X.shape[-1])-X.shape[-1])))
+    # X = np.swapaxes(X,1,2)
+
+    # Load data - Pirellone
+    X1 = []
+    
     for channel in idChannels:
         if len(avu) == 0:
-            dataSrc = opj(dataroot,"{:>s}_damaged_concat_{:>s}_gdl_{:>d}.csv".format(pb,case,channel))
+            dataSrc = opj(dataroot_1,"{:>s}_damaged_concat_{:>s}_gdl_{:>d}.csv".format(pb,case,channel))
         else:
-            dataSrc = opj(dataroot,"{:>s}_{:>s}_damaged_concat_{:>s}_gdl_{:>d}.csv".format(pb,avu,case,channel))
+            dataSrc = opj(dataroot_1,"{:>s}_{:>s}_damaged_concat_{:>s}_gdl_{:>d}.csv".format(pb,avu,case,channel))
     
-        X.append(np.genfromtxt(dataSrc).astype(np.float32).reshape(nX,1,-1))
+        
+        X1.append(np.genfromtxt(dataSrc).astype(np.float32).reshape(nX,1,-1))
 
-    X = np.concatenate(X,axis=1).reshape(-1,X[0].shape[-1])
+    X1 = np.concatenate(X1,axis=1).reshape(-1,X1[0].shape[-1])
     scaler = StandardScaler()
-    X = scaler.fit_transform(X).reshape((nX,len(idChannels),-1))
-    X = np.pad(X,((0,0),(0,0),(0,nxtpow2(X.shape[-1])-X.shape[-1])))
-    X = np.swapaxes(X,1,2)
+    X1 = scaler.fit_transform(X1).reshape((nX,len(idChannels),-1))
+    X1 = np.pad(X1,((0,0),(0,0),(0,nxtpow2(X1.shape[-1])-X1.shape[-1])))
+    X1 = np.swapaxes(X1,1,2)
+
+
+
+    # Load data - Edificio a taglio
+    X2 = []
+    for channel in idChannels:
+        if len(avu) == 0:
+            dataSrc = opj(dataroot_2,"{:>s}_damaged_concat_{:>s}_gdl_{:>d}.csv".format(pb,case,channel))
+        else:
+            dataSrc = opj(dataroot_2,"{:>s}_{:>s}_damaged_concat_{:>s}_gdl_{:>d}.csv".format(pb,avu,case,channel))
     
-    # Sampling of categorical variables c
-    c = np.zeros((latentCdim,X.shape[0]),dtype=np.float32)
-    c[0,:] = 1.0
-    np.random.shuffle(c)
+        
+        X2.append(np.genfromtxt(dataSrc).astype(np.float32).reshape(nX,1,-1))
 
-    c = c.T
-    # c = np.reshape(c,(*c.shape,1))
-    # c = np.stack([c for _ in idChannels],axis=-1)
+    X2 = np.concatenate(X2,axis=1).reshape(-1,X2[0].shape[-1])
+    scaler = StandardScaler()
+    X2 = scaler.fit_transform(X2).reshape((nX,len(idChannels),-1))
+    X2 = np.pad(X2,((0,0),(0,0),(0,nxtpow2(X2.shape[-1])-X2.shape[-1])))
+    X2 = np.swapaxes(X2,1,2)
 
-    # Sampling of continuous variables s
-    # s = np.random.uniform(low=-1.0,high=1.0000001,size=(X.shape[0],latentSdim)).astype(np.float32)
-    #Sampling of noise n
-    # n = np.random.normal(loc=0.0,scale=1.0,size=(X.shape[0],latentNdim)).astype(np.float32)
+    X = []
 
+    idx = np.random.choice(4, 2, replace=False)
+    idx.sort()
+
+    if idx[0] == 0 and idx[1] == 1:
+            X = X2[:,:,:]
+
+    if idx[0] == 2 and idx[1] == 3:
+            X = X1[:,:,:]
+
+    if idx[0] == 0 and idx[1] != 1:
+        X1 = X1[:,:,1:]
+        if idx[1] == 2:
+            X2 = X2[:,:,1:]
+        else:
+            X2 = X2[:,:,:-1]
+        X = np.concatenate([X1, X2], axis=-1)
+
+    if idx[0] == 1:
+        X1 = X1[:,:,:-1]
+        if idx[1] == 2:
+            X2 = X2[:,:,1:]
+        else:
+            X2 = X2[:,:,:-1]
+        X = np.concatenate([X1, X2], axis=-1)
+
+   
+
+    src_metadata = opj(dataroot_2,"{:>s}_labels_{:>s}.csv".format(pb,case))
+
+    labels = np.genfromtxt(src_metadata)
+    labels = labels.astype(int)
+
+    c = np.zeros((nX,latentCdim),dtype=np.float32)
+
+    for i1 in range(nX):
+        c[i1,labels[i1]] = 1.0
+
+ 
     h5f = h5py.File("{:>s}_gdl.h5".format(dataSrc.split('_gdl_')[0]),'w')
     h5f.create_dataset('X', data=X)
     h5f.create_dataset('c', data=c)

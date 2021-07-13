@@ -6,13 +6,11 @@ __copyright__ = "Copyright 2021, CentraleSupélec (MSSMat UMR CNRS 8579)"
 __credits__ = ["Filippo Gatti"]
 __license__ = "GPL"
 __version__ = "1.0.1"
-__maintainer__ = "Filippo Gatti"
+__Maintainer__ = "Filippo Gatti"
 __email__ = "filippo.gatti@centralesupelec.fr"
 __status__ = "Beta"
 
-import sys
 import os
-from os.path import join as opj
 os.environ['CUDA_VISIBLE_DEVICES'] = "0"
 
 import argparse
@@ -24,18 +22,18 @@ import tensorflow as tf
 gpu = tf.config.experimental.list_physical_devices('GPU')
 tf.config.experimental.set_memory_growth(gpu[0], True)
 
+
 from tensorflow import keras
 from tensorflow.keras import layers, Sequential, Model
 from tensorflow.keras.layers import BatchNormalization
 from tensorflow.keras.layers import Input, Dense, Reshape, Flatten, Dropout, Layer
-from tensorflow.keras.layers import Lambda, Concatenate, concatenate, Activation, ZeroPadding1D
+from tensorflow.keras.layers import Lambda, Concatenate, concatenate, ZeroPadding1D
 from tensorflow.keras.layers import LeakyReLU, ReLU, Softmax
 from tensorflow.keras.layers import Conv1D, Conv1DTranspose
 from tensorflow.keras.optimizers import Adam, RMSprop
 from tensorflow.keras.constraints import Constraint, min_max_norm
 from tensorflow.keras.initializers import RandomNormal
 from tensorflow.keras.wrappers.scikit_learn import KerasClassifier
-# import tensorflow_probability.distributions as tfd
 import timeit
 
 import scipy
@@ -292,23 +290,16 @@ class RepGAN(Model):
         """
             Build the discriminators
         """
-        self.Dx = self.build_Dx()
-        self.Dc = self.build_Dc()
-        self.Ds = self.build_Ds()
-        self.Dn = self.build_Dn()
+        self.Dx = self.BuildDx()
+        self.Dc = self.BuildDc()
+        self.Ds = self.BuildDs()
+        self.Dn = self.BuildDn()
         """
             Build Fx/Gz (generators)
         """
 
-        self.Fx, self.Qs, self.Qc  = self.build_Fx()
-        self.Gz = self.build_Gz()
-        self.Fx.save("Fx.h5")
-        self.Qs.save("Qs.h5")
-        self.Qc.save("Qc.h5")
-        self.Gz.save("Gz.h5")
-        self.Ds.save("Ds.h5")
-        self.Dn.save("Dn.h5")
-        self.Dc.save("Dc.h5")
+        self.Fx, self.Qs, self.Qc  = self.BuildFx()
+        self.Gz = self.BuildGz()
 
         tf.keras.utils.plot_model(self.Fx,to_file="Fx.png",
             show_shapes=True,show_layer_names=True)
@@ -542,6 +533,7 @@ class RepGAN(Model):
         #    "AdvDlossC": AdvDlossC_tracker.result(),"AdvDlossS": AdvDlossS_tracker.result(),"AdvDlossN": AdvDlossN_tracker.result(),
         #    "RecGlossX": RecGlossX_tracker.result(), "RecGlossC": RecGlossC_tracker.result(), "RecGlossS": RecGlossS_tracker.result()}
 
+
     def call(self, X):
         [fakeS,fakeC,fakeN] = self.Fx(X)
         fakeN = tf.clip_by_value(fakeN,-1.0,1.0)
@@ -553,7 +545,7 @@ class RepGAN(Model):
         fakeX_res = self.Gz((fakeS,fakeC,fakeN_res))
         return fakeX, fakeC, fakeS, fakeN, fakeX_res
 
-    def build_Fx(self):
+    def BuildFx(self):
         """
             Conv1D Fx structure
         """
@@ -747,6 +739,7 @@ class RepGAN(Model):
 
         # variable n
         n = BatchNormalization(momentum=0.95,name="FxBNN")(Zn)
+        
 
         Fx = keras.Model(X,[s,c,n],name="Fx")
         Qs = keras.Model(X,QsX,name="Qs")
@@ -755,7 +748,7 @@ class RepGAN(Model):
 
         return Fx,Qs,Qc
 
-    def build_Gz(self):
+    def BuildGz(self):
         """
             Conv1D Gz structure
             https://www.pyimagesearch.com/2019/02/04/keras-multiple-inputs-and-mixed-data/
@@ -880,7 +873,7 @@ class RepGAN(Model):
         Gz = keras.Model(inputs=[GzS.input,GzC.input,GzN.input],outputs=X,name="Gz")
         return Gz
 
-    def build_Dx(self):
+    def BuildDx(self):
         """
             Conv1D discriminator structure
         """
@@ -911,7 +904,7 @@ class RepGAN(Model):
         return Dx
 
 
-    def build_Dc(self):
+    def BuildDc(self):
         """
             Dense discriminator structure
         """
@@ -924,7 +917,7 @@ class RepGAN(Model):
         Dc = keras.Model(c,Pc,name="Dc")
         return Dc
 
-    def build_Dn(self):
+    def BuildDn(self):
         """
             Dense discriminator structure
         """
@@ -937,7 +930,7 @@ class RepGAN(Model):
         Dn = keras.Model(n,Pn,name="Dn")
         return Dn
 
-    def build_Ds(self):
+    def BuildDs(self):
         """
             Dense discriminator structure
         """
@@ -950,20 +943,17 @@ class RepGAN(Model):
         Ds = keras.Model(s,Ps,name="Ds")
         return Ds
 
-# hyperModel = RepGAN()
+    def DumpModels(self):
+        self.Fx.save("Fx.h5")
+        self.Qs.save("Qs.h5")
+        self.Qc.save("Qc.h5")
+        self.Gz.save("Gz.h5")
+        self.Ds.save("Ds.h5")
+        self.Dn.save("Dn.h5")
+        self.Dc.save("Dc.h5")
+        return
 
-# tuner = kt.Hyperband(hyperModel, objective="val_accuracy", max_epochs=30, hyperband_iterations=2)
-
-# tuner.search_space_summary()
-
-# tuner.search(Xtrn,epochs=options["epochs"],validation_data=Xvld,callbacks=[tf.keras.callbacks.EarlyStopping(patience=1)],)
-
-# bestModel = tuner.get_best_models(1)[0]
-
-# bestHyperparameters = tuner.get_best_hyperparameters(1)[0]
-
-
-def main(DeviceName):
+def Main(DeviceName):
 
     options = ParseOptions()
 
@@ -1020,64 +1010,15 @@ def main(DeviceName):
             Xtrn, Xvld, _ = mdof.LoadData(**options)
             # (Xtrn,Ctrn), (Xvld,Cvld), _ = mdof.LoadNumpyData(**options)
 
-
-
-        # Callbacks
-        #plotter = GANMonitor()
-
         callbacks = [keras.callbacks.ModelCheckpoint(filepath=checkpoint_dir + "/ckpt-{epoch}", 
-            save_freq='epoch',period=100)]
+            save_freq='epoch',period=100)] #keras.callbacks.EarlyStopping(patience=10)
 
         history = GiorgiaGAN.fit(Xtrn,epochs=options["epochs"],validation_data=Xvld,
             callbacks=callbacks)
 
-        realX = np.concatenate([x for x, c in Xvld], axis=0)
-        realC = np.concatenate([c for x, c in Xvld], axis=0)
-        fakeX,fakeC = GiorgiaGAN.predict(Xvld)
-        hfg = plt.figure(figsize=(12,6))
-        hax = hfg.add_subplot(111)
-        hax.plot(realX[0,:,0], color='black')
-        hax.plot(fakeX[0,:,0], color='orange')
-        hax.set_title('X reconstruction')
-        hax.set_ylabel('X')
-        hax.set_xlabel('t')
-        hax.legend(['X', 'G(F(X))'], loc='lower right')
-        plt.tight_layout()
-        plt.savefig('reconstruction.png',bbox_inches = 'tight')
-        plt.close()
-
-               
-
-        # Print loss
-        hfg = plt.figure(figsize=(12,6))
-        hax = hfg.add_subplot(111)
-        # hax.plot(history.history['AdvDloss'], color='b')
-        # hax.plot(history.history['AdvGloss'], color='g')
-        hax.plot(history.history['AdvDlossX'], color='r')
-        hax.plot(history.history['AdvDlossC'], color='c')
-        hax.plot(history.history['AdvDlossS'], color='m')
-        hax.plot(history.history['AdvDlossN'], color='gold')
-        #plt.plot(history.history['AdvDlossPenGradX'])
-        #plt.plot(history.history['AdvGlossX'])
-        #plt.plot(history.history['AdvGlossC'])
-        #plt.plot(history.history['AdvGlossS'])
-        #plt.plot(history.history['AdvGlossN'])
-        hax.plot(history.history['RecGlossX'], color='darkorange')
-        hax.plot(history.history['RecGlossC'], color='lime')
-        hax.plot(history.history['RecGlossS'], color='grey')
-        hax.set_title('model loss')
-        hax.set_ylabel('loss')
-        hax.set_xlabel('epoch')
-        hax.legend(['AdvDloss', 'AdvGloss','AdvDlossX','AdvDlossC','AdvDlossS','AdvDlossN',
-            'RecGlossX','RecGlossC','RecGlossS'], loc='lower right')
-        plt.tight_layout()
-        plt.savefig('loss.png',bbox_inches = 'tight')
-        plt.close()
-
-
-if __name__ == '__main__':
+if __name__ == '__Main__':
     DeviceName = tf.test.gpu_device_name()
-    main(DeviceName)
+    Main(DeviceName)
 
 # # We run each op once to warm up; see: https://stackoverflow.com/a/45067900
 # cpu()
@@ -1087,9 +1028,9 @@ if __name__ == '__main__':
 # print('Time (s) to convolve 32x7x7x3 filter over random 100x100x100x3 images '
 #       '(batch x height x width x channel). Sum of ten runs.')
 # print('CPU (s):')
-# cpu_time = timeit.timeit('cpu()', number=10, setup="from __main__ import cpu")
+# cpu_time = timeit.timeit('cpu()', number=10, setup="from __Main__ import cpu")
 # print(cpu_time)
 # print('GPU (s):')
-# gpu_time = timeit.timeit('gpu()', number=10, setup="from __main__ import gpu")
+# gpu_time = timeit.timeit('gpu()', number=10, setup="from __Main__ import gpu")
 # print(gpu_time)
 # print('GPU speedup over CPU: {}x'.format(int(cpu_time/gpu_time)))
