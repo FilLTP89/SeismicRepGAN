@@ -468,7 +468,7 @@ class RepGAN(Model):
         with tf.GradientTape(persistent=True) as tape:
             # Generate fake latent code from real signal
             [fakeS,fakeC,fakeN] = self.Fx(realX) # encoded z = Fx(X)
-            fakeN = tf.clip_by_value(fakeN,-1,1)
+            fakeN = tf.clip_by_value(fakeN,-1.0,1.0)
 
             # Discriminator determines validity of the real and fake S
             fakeScritic = self.Ds(fakeS)
@@ -512,8 +512,8 @@ class RepGAN(Model):
         # Update the weights of the generator using the generator optimizer
         self.FxOpt.apply_gradients(zip(gradFx,self.Fx.trainable_variables))
         self.GzOpt.apply_gradients(zip(gradGz,self.Gz.trainable_variables))
-        self.QsOpt.apply_gradients(zip(gradQs,self.Fx.trainable_variables))
-        self.QcOpt.apply_gradients(zip(gradQc,self.Gz.trainable_variables))
+        self.QsOpt.apply_gradients(zip(gradQs,self.Qs.trainable_variables))
+        self.QcOpt.apply_gradients(zip(gradQc,self.Qc.trainable_variables))
 
         # Compute our own metrics
         AdvDLoss_tracker.update_state(AdvDloss)
@@ -544,8 +544,14 @@ class RepGAN(Model):
 
     def call(self, X):
         [fakeS,fakeC,fakeN] = self.Fx(X)
+        fakeN = tf.clip_by_value(fakeN,-1.0,1.0)
         fakeX = self.Gz((fakeS,fakeC,fakeN))
-        return fakeX, fakeC
+        #fakeN_res = tf.random.shuffle(fakeN)
+        #fakeN_res = tf.random.Generator(copy_from=fakeN)
+        fakeN_res = tf.random.normal(mean=0.0,stddev=0.3,shape=tf.shape(fakeN))
+        fakeN_res = tf.clip_by_value(fakeN_res,-1.0,1.0)
+        fakeX_res = self.Gz((fakeS,fakeC,fakeN_res))
+        return fakeX, fakeC, fakeS, fakeN, fakeX_res
 
     def build_Fx(self):
         """
@@ -868,6 +874,8 @@ class RepGAN(Model):
         layer = self.nAElayers
         X = Conv1DTranspose(self.nXchannels,self.kernel,1,
             padding="same",use_bias=False,name="GzCNN{:>d}".format(layer+1))(Gz)
+        #X = Conv1DTranspose(self.nXchannels,self.kernel,1,
+        #    padding="same",activation='tanh',use_bias=False,name="GzCNN{:>d}".format(layer+1))(Gz)
 
         Gz = keras.Model(inputs=[GzS.input,GzC.input,GzN.input],outputs=X,name="Gz")
         return Gz
@@ -878,27 +886,27 @@ class RepGAN(Model):
         """
         layer = 0
         X = Input(shape=self.Xshape,name="X")
-        h = Conv1D(self.Xsize*self.stride**(-(layer+1)),
-                self.kernel,self.stride,padding="same",
-                data_format="channels_last",name="DxCNN0")(X)
         #h = Conv1D(self.Xsize*self.stride**(-(layer+1)),
-        #        self.kernel,self.stride,padding="same",kernel_constraint=self.ClipD,
+        #        self.kernel,self.stride,padding="same",
         #        data_format="channels_last",name="DxCNN0")(X)
+        h = Conv1D(self.Xsize*self.stride**(-(layer+1)),
+                self.kernel,self.stride,padding="same",kernel_constraint=self.ClipD,
+                data_format="channels_last",name="DxCNN0")(X)
         h = LeakyReLU(alpha=0.1,name="DxA0")(h)
 
         for layer in range(1,self.nDlayers):
-            h = Conv1D(self.Xsize*self.stride**(-(layer+1)),
-                self.kernel,self.stride,padding="same",
-                data_format="channels_last",name="DxCNN{:>d}".format(layer))(h)
             #h = Conv1D(self.Xsize*self.stride**(-(layer+1)),
-            #    self.kernel,self.stride,padding="same",kernel_constraint=self.ClipD,
+            #    self.kernel,self.stride,padding="same",
             #    data_format="channels_last",name="DxCNN{:>d}".format(layer))(h)
+            h = Conv1D(self.Xsize*self.stride**(-(layer+1)),
+                self.kernel,self.stride,padding="same",kernel_constraint=self.ClipD,
+                data_format="channels_last",name="DxCNN{:>d}".format(layer))(h)
             h = BatchNormalization(momentum=0.95,name="DxBN{:>d}".format(layer))(h)
             h = LeakyReLU(alpha=0.2,name="DxA{:>d}".format(layer))(h)
             h = Dropout(0.25,name="DxDO{:>d}".format(layer))(h)
         layer = self.nDlayers    
         h = Flatten(name="DxFL{:>d}".format(layer))(h)
-        Px = Dense(1,activation='sigmoid')(h)
+        Px = Dense(1,kernel_constraint=self.ClipD)(h)
         Dx = keras.Model(X,Px,name="Dx")
         return Dx
 
@@ -912,7 +920,7 @@ class RepGAN(Model):
         h = LeakyReLU()(h)
         h = Dense(3000,kernel_constraint=self.ClipD)(h)
         h = LeakyReLU()(h)
-        Pc = Dense(1,activation='linear')(h)
+        Pc = Dense(1,kernel_constraint=self.ClipD)(h)
         Dc = keras.Model(c,Pc,name="Dc")
         return Dc
 
@@ -925,7 +933,7 @@ class RepGAN(Model):
         h = LeakyReLU()(h)
         h = Dense(3000,kernel_constraint=self.ClipD)(h)
         h = LeakyReLU()(h) 
-        Pn = Dense(1,activation='sigmoid')(h)
+        Pn = Dense(1,kernel_constraint=self.ClipD)(h)
         Dn = keras.Model(n,Pn,name="Dn")
         return Dn
 
@@ -938,7 +946,7 @@ class RepGAN(Model):
         h = LeakyReLU()(h)
         h = Dense(3000,kernel_constraint=self.ClipD)(h)
         h = LeakyReLU()(h)
-        Ps = Dense(1,activation='linear')(h)
+        Ps = Dense(1,kernel_constraint=self.ClipD)(h)
         Ds = keras.Model(s,Ps,name="Ds")
         return Ds
 
@@ -980,6 +988,7 @@ def main(DeviceName):
         losses['AdvGlossGAN'] = tf.keras.losses.BinaryCrossentropy()
         losses['RecSloss'] = GaussianNLL
         losses['RecXloss'] = tf.keras.losses.MeanAbsoluteError()
+        #losses['RecXloss'] = tf.keras.losses.MeanSquaredError()
         losses['RecCloss'] = MutualInfoLoss
         losses['PenAdvXloss'] = 1.
         losses['PenAdvCloss'] = 1.
@@ -1001,7 +1010,7 @@ def main(DeviceName):
         GiorgiaGAN = RepGAN(options)
 
         # Compile the RepGAN model.
-        GiorgiaGAN.compile(optimizers,losses)
+        GiorgiaGAN.compile(optimizers,losses) #run_eagerly=True
 
         if options['CreateData']:
             # Create the dataset
