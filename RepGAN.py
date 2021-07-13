@@ -334,8 +334,10 @@ class RepGAN(Model):
 
     @property
     def metrics(self):
-        return [AdvDLoss_tracker,AdvGLoss_tracker,AdvDlossX_tracker,AdvDlossC_tracker,AdvDlossS_tracker,AdvDlossN_tracker,
-            RecGlossX_tracker,RecGlossC_tracker,RecGlossS_tracker]
+        #return [AdvDLoss_tracker,AdvGLoss_tracker,AdvDlossX_tracker,AdvDlossC_tracker,AdvDlossS_tracker,AdvDlossN_tracker,
+        #    RecGlossX_tracker,RecGlossC_tracker,RecGlossS_tracker]
+        return [AdvDLoss_tracker,AdvGLoss_tracker,AdvDlossX_tracker,AdvDlossC_tracker,AdvDlossS_tracker,AdvDlossN_tracker,AdvDlossPenGradX_tracker,
+            AdvGlossX_tracker,AdvGlossC_tracker,AdvGlossS_tracker,AdvGlossN_tracker,RecGlossX_tracker,RecGlossC_tracker,RecGlossS_tracker]
 
     def compile(self,optimizers,losses):
         super(RepGAN, self).compile()
