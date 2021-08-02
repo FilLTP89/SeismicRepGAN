@@ -42,8 +42,9 @@ from kerastuner.tuners import RandomSearch
 from kerastuner import HyperModel
 from numpy.linalg import norm
 import MDOFload as mdof
-#import OptimizeRepGAN as opt
 import matplotlib.pyplot as plt
+import h5py
+from sklearn.model_selection import GridSearchCV
 
 from tensorflow.python.util.tf_export import tf_export
 from copy import deepcopy
@@ -85,9 +86,9 @@ def make_or_restore_model():
 
 def ParseOptions():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--epochs",type=int,default=10,help='Number of epochs')
-    parser.add_argument("--Xsize",type=int,default=1024,help='Data space size')
-    parser.add_argument("--nX",type=int,default=512,help='Number of signals')
+    parser.add_argument("--epochs",type=int,default=1000,help='Number of epochs')
+    parser.add_argument("--Xsize",type=int,default=1024,help='Data space size')#4096
+    parser.add_argument("--nX",type=int,default=512,help='Number of signals')#100
     parser.add_argument("--nXchannels",type=int,default=2,help="Number of data channels")
     parser.add_argument("--nAElayers",type=int,default=3,help='Number of AE CNN layers')
     parser.add_argument("--nDlayers",type=int,default=10,help='Number of D CNN layers')
@@ -95,8 +96,8 @@ def ParseOptions():
     parser.add_argument("--stride",type=int,default=2,help='CNN stride')
     parser.add_argument("--nZfirst",type=int,default=8,help="Initial number of channels")
     parser.add_argument("--branching",type=str,default='conv',help='conv or dens')
-    parser.add_argument("--latentSdim",type=int,default=256,help="Latent space s dimension")
-    parser.add_argument("--latentCdim",type=int,default=5,help="Number of classes")
+    parser.add_argument("--latentSdim",type=int,default=64,help="Latent space s dimension")
+    parser.add_argument("--latentCdim",type=int,default=2,help="Number of classes")
     parser.add_argument("--latentNdim",type=int,default=64,help="Latent space n dimension")
     parser.add_argument("--nSlayers",type=int,default=3,help='Number of S-branch CNN layers')
     parser.add_argument("--nClayers",type=int,default=3,help='Number of C-branch CNN layers')
@@ -110,20 +111,17 @@ def ParseOptions():
     parser.add_argument("--batchSize",type=int,default=128,help='input batch size')    
     parser.add_argument("--nCritic",type=int,default=5,help='number of discriminator training steps')
     parser.add_argument("--clipValue",type=float,default=0.01,help='clip weight for WGAN')
-    parser.add_argument("--dataroot_1",type=str,default="/gpfs/workdir/invsem07/damaged_1_8P",help="Data root folder - Pirellone") #damaged_1_0
-    parser.add_argument("--dataroot_2",type=str,default="/gpfs/workdir/invsem07/damaged_1_3",help="Data root folder - Edificio a taglio") 
-    parser.add_argument("--idChannels",type=int,nargs='+',default=[1,39],help="Channel 1") #1,2,3,4
+    parser.add_argument("--dataroot_1",type=str,default="/gpfs/workdir/invsem07/damaged_1_5U",help="Data root folder - Undamaged")
+    parser.add_argument("--dataroot_2",type=str,default="/gpfs/workdir/invsem07/damaged_1_5D",help="Data root folder - Damaged") 
+    parser.add_argument("--idChannels",type=int,nargs='+',default=[1,39],help="Channel 1")
     parser.add_argument("--nParams",type=str,default=2,help="Number of parameters")
     parser.add_argument("--case",type=str,default="train_model",help="case")
     parser.add_argument("--avu",type=str,nargs='+',default="U",help="case avu")
-    parser.add_argument("--pb",type=str,default="BC",help="case pb")
+    parser.add_argument("--pb",type=str,default="BC",help="case pb")#DC
     parser.add_argument("--CreateData",action='store_true',default=True,help='Create data flag')
     parser.add_argument("--cuda",action='store_true',default=False,help='Use cuda powered GPU')
-    parser.add_argument('--tdof',default='A',help='Signal content (e.g. U, V, A) (mdof database only)') # eventually 'nargs='+' if different types of signals (e.g. displacements, velocities, accelerations etc.) are considered
-    parser.add_argument('--wtdof',nargs='+',default=[3],help='Specify the connection between wdof and tdof (mdof database only)')
     parser.add_argument('--dtm',type=float,default=0.001,help='time-step [s]')
-    parser.add_argument('--ntm',type=int,default=999,help='Number of time steps')
-    parser.add_argument('--batchPercent', type=int,nargs='+', default=[0.8,0.1,0.1], help='train/test/validation %')
+    parser.add_argument('--ntm',type=float,default=4096,help='Number of time steps')
     options = parser.parse_args().__dict__
 
     options['batchXshape'] = (options['batchSize'],options['Xsize'],options['nXchannels'])
@@ -366,7 +364,7 @@ class RepGAN(Model):
 
                 # Generate fake latent code from real signals
                 [fakeS,fakeC,fakeN] = self.Fx(realX) # encoded z = Fx(X)
-                fakeN = tf.clip_by_value(fakeN,-1.0,1.0)
+                #fakeN = tf.clip_by_value(fakeN,-1.0,1.0)
 
                 # Generate fake signals from real latent code
                 fakeX = self.Gz((realS,realC,realN)) # fake X = Gz(Fx(X))
@@ -428,7 +426,7 @@ class RepGAN(Model):
         with tf.GradientTape(persistent=True) as tape:
             # Generate fake latent code from real signal
             [fakeS,fakeC,fakeN] = self.Fx(realX) # encoded z = Fx(X)
-            fakeN = tf.clip_by_value(fakeN,-1.0,1.0)
+            #fakeN = tf.clip_by_value(fakeN,-1.0,1.0)
 
             # Discriminator determines validity of the real and fake S
             fakeScritic = self.Ds(fakeS)
@@ -505,14 +503,17 @@ class RepGAN(Model):
 
     def call(self, X):
         [fakeS,fakeC,fakeN] = self.Fx(X)
-        fakeN = tf.clip_by_value(fakeN,-1.0,1.0)
+        #fakeN = tf.clip_by_value(fakeN,-1.0,1.0)
         fakeX = self.Gz((fakeS,fakeC,fakeN))
-        #fakeN_res = tf.random.shuffle(fakeN)
-        #fakeN_res = tf.random.Generator(copy_from=fakeN)
         fakeN_res = tf.random.normal(mean=0.0,stddev=0.3,shape=tf.shape(fakeN))
-        fakeN_res = tf.clip_by_value(fakeN_res,-1.0,1.0)
         fakeX_res = self.Gz((fakeS,fakeC,fakeN_res))
         return fakeX, fakeC, fakeS, fakeN, fakeX_res
+
+    def generate(self, X, fakeC_new):
+        [fakeS,fakeC,fakeN] = self.Fx(X)
+        #fakeN = tf.clip_by_value(fakeN,-1.0,1.0)
+        fakeX_new = self.Gz((fakeS,fakeC_new,fakeN))
+        return fakeX_new
 
     def BuildFx(self):
         """
@@ -989,34 +990,27 @@ def Main(DeviceName):
 
         PlotLoss(history) # Plot loss
 
-        PlotReconstructedTHs(GiorgiaGAN,Xvld) # Plot reconstructed time-histories
+        Xtrn_u,  Xvld_u, _ = mdof.LoadUndamaged(**options)
+
+        Xtrn_d,  Xvld_d, _ = mdof.LoadDamaged(**options)
+
+        PlotReconstructedTHs(GiorgiaGAN,Xvld,Xvld_u,Xvld_d) # Plot reconstructed time-histories
 
         PlotCorrelationS(GiorgiaGAN,Xvld) # Plot s correlation
 
         PlotDistributionN(GiorgiaGAN,Xvld) # Plot n distribution
 
-        # PlotTHSGoFs(GiorgiaGAN,Xvld) # Plot reconstructed time-histories
+        PlotTHSGoFs(GiorgiaGAN,Xvld) # Plot reconstructed time-histories
+
+        PlotClassificationMetrics(GiorgiaGAN,Xvld) # Plot classification metrics
+
+        ViolinPlot(GiorgiaGAN,Xvld) # Violin plot
+
+        PlotPSD(Xvld_u,Xvld_d) # Plot PSD of undamaged and damaged signals
 
         PlotBatchGoFs(GiorgiaGAN,Xvld) # Plot GoFs on a batch
 
-        PlotClassificationMetrics(GiorgiaGAN,Xvld) # Plot classification metrics
-        # #Hyperparameter tuning
-
-        # model = KerasClassifier(build_fn = opt.create_model(**options), batch_size=128, epochs=10)
-        # #now write out all the parameters you want to try out for the grid search
-        # kernel = [1, 2, 3]
-        # stride = [2, 4]
-        # #activation = ['relu', 'tanh', 'sigmoid']
-        # #learn_rate = [0.00005, 0.0002, 0.00001]
-        # #optimizer = ['Adam', 'RMSprop']
-        # #param_grid = dict(activation=activation, learn_rate=learn_rate, optimizer=optimizer)
-        # param_grid = dict(kernel_size=kernel, strides=stride)
-        # #param_grid= {'kernel': ('linear', 'rbf'),'C': [1, 10, 100]}
-        # grid = GridSearchCV(estimator=model, param_grid=param_grid)
-        # result = grid.fit(fakeX,realX)
-        # best_params = result.best_params_
-        # best_params.to_csv('Best parameters.csv', index= True)
-        # print("[INFO] grid search best parameters: {}".format(best_params))
+        PlotBatchGoFs_new(GiorgiaGAN,Xvld_u,Xvld_d) # Plot GoFs on a batch (after the change of C)
 if __name__ == '__main__':
     DeviceName = tf.test.gpu_device_name()
     Main(DeviceName)
