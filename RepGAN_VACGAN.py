@@ -22,6 +22,8 @@ import tensorflow as tf
 gpu = tf.config.experimental.list_physical_devices('GPU')
 tf.config.experimental.set_memory_growth(gpu[0], True)
 
+
+
 from tensorflow import keras
 from tensorflow.keras import layers, Sequential, Model
 from tensorflow.keras.layers import BatchNormalization
@@ -87,9 +89,9 @@ def make_or_restore_model():
 
 def ParseOptions():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--epochs",type=int,default=2000,help='Number of epochs')
-    parser.add_argument("--Xsize",type=int,default=4096,help='Data space size')
-    parser.add_argument("--nX",type=int,default=200,help='Number of signals')
+    parser.add_argument("--epochs",type=int,default=2,help='Number of epochs')
+    parser.add_argument("--Xsize",type=int,default=4096,help='Data space size')#1024
+    parser.add_argument("--nX",type=int,default=200,help='Number of signals')#512
     parser.add_argument("--nXchannels",type=int,default=2,help="Number of data channels")
     parser.add_argument("--nAElayers",type=int,default=3,help='Number of AE CNN layers')
     parser.add_argument("--nDlayers",type=int,default=10,help='Number of D CNN layers')
@@ -124,8 +126,9 @@ def ParseOptions():
     parser.add_argument('--dtm',type=float,default=0.01,help='time-step [s]')
     parser.add_argument('--theta',type=float,default=0.997,help='Generator loss hyperparameter')
     parser.add_argument('--zeta',type=float,default=0.003,help='BCE loss hyperparameter')
-    parser.add_argument('--lambda',type=float,default=0.001,help='Learning rate for k')
+    parser.add_argument('--lambda_k',type=float,default=0.001,help='Learning rate for k')
     parser.add_argument('--gamma',type=float,default=0.5,help='Equilibrium hyperparameter')
+    parser.add_argument('--k',type=float,default=0.,help='Loss hyperparameter')
     options = parser.parse_args().__dict__
 
     options['batchXshape'] = (options['batchSize'],options['Xsize'],options['nXchannels'])
@@ -153,9 +156,9 @@ def ParseOptions():
 
 class RandomWeightedAverage(Layer):
     """Provides a (random) weighted average between real and generated signal samples"""
-    def _merge_function(self,inputs,**kwargs):
-        alpha = tf.random_uniform((32,1,1,1))
-        return (alpha*inputs[0])+((1.0-alpha)*inputs[1])
+    def _merge_function(self, inputs, **kwargs):
+        alpha = tf.random_uniform((32, 1, 1, 1))
+        return (alpha * inputs[0]) + ((1 - alpha) * inputs[1])
 
 class SamplingFxS(Layer):
     """Uses (z_mean, z_log_var) to sample z, the vector encoding a digit."""
@@ -359,9 +362,9 @@ class RepGAN(Model):
 
         realX, realC = realXC
         # Adversarial ground truths
-        critic = self.Dc(realC)
-        realBCE = tf.ones_like(critic)
-        fakeBCE = tf.zeros_like(critic)
+        criticX = self.Dx(realX)
+        realBCE = tf.ones_like(criticX)
+        fakeBCE = tf.zeros_like(criticX)
         self.batchSize = tf.shape(realX)[0]
 
         #------------------------------------------------
@@ -375,13 +378,14 @@ class RepGAN(Model):
         self.Qc.trainable = False
         self.Qs.trainable = False
         self.Dx.trainable = True
-        self.Dc.trainable = True
+        self.Dc.trainable = False
         self.Ds.trainable = True
         self.Dn.trainable = True
 
+
         
         for _ in range(self.nCritic):
-            #realS = tf.exp(tf.random.normal(mean=0.0,stddev=1.0,shape=[self.batchSize,self.latentSdim]))
+
             realS = tf.random.normal(mean=0.0,stddev=1.0,shape=[self.batchSize,self.latentSdim])
             realN = tf.random.normal(mean=0.0,stddev=0.3,shape=[self.batchSize,self.latentNdim])
 
@@ -399,10 +403,6 @@ class RepGAN(Model):
                 fakeXcritic = self.Dx(fakeX,training=True)
                 realXcritic = self.Dx(realX,training=True)
 
-                # Discriminator determines validity of the real and fake C
-                fakeCcritic = self.Dc(fakeC,training=True)
-                realCcritic = self.Dc(realC,training=True)
-
                 # Discriminator determines validity of the real and fake N
                 fakeNcritic = self.Dn(fakeN,training=True)
                 realNcritic = self.Dn(realN,training=True)
@@ -412,31 +412,18 @@ class RepGAN(Model):
                 realScritic = self.Ds(realS,training=True)
 
                 # Calculate the discriminator loss using the fake and real logits
-                #AdvDlossX  = self.AdvDlossGAN(realBCE,realXcritic)*self.PenAdvXloss
-                #AdvDlossX += self.AdvDlossGAN(fakeBCE,fakeXcritic)*self.PenAdvXloss
-                AdvDlossX = self.AdvDlossWGAN(realXcritic,fakeXcritic)*self.PenAdvXloss
-                #AdvDlossX = -tf.reduce_mean(tf.log(realXcritic+1e-8) + tf.log(1 - fakeXcritic+1e-8))*self.PenAdvXloss
-                #AdvDlossC = self.AdvDlossWGAN(realCcritic,fakeCcritic)*self.PenAdvCloss
-                AdvDlossC  = self.AdvDlossGAN(realBCE,realCcritic)*self.PenAdvCloss
-                AdvDlossC += self.AdvDlossGAN(fakeBCE,fakeCcritic)*self.PenAdvCloss
+                AdvDlossX_real  = self.AdvDlossGAN(realBCE,realXcritic)*self.PenAdvXloss
+                AdvDlossX_fake  = self.AdvDlossGAN(fakeBCE,fakeXcritic)*self.PenAdvXloss
                 AdvDlossS = self.AdvDlossWGAN(realScritic,fakeScritic)*self.PenAdvSloss
-                #AdvDlossS  = self.AdvDlossGAN(realBCE,realScritic)*self.PenAdvSloss
-                #AdvDlossS += self.AdvDlossGAN(fakeBCE,fakeScritic)*self.PenAdvSloss
-                #AdvDlossN  = self.AdvDlossGAN(realBCE,realNcritic)*self.PenAdvNloss
-                #AdvDlossN += self.AdvDlossGAN(fakeBCE,fakeNcritic)*self.PenAdvNloss
                 AdvDlossN = self.AdvDlossWGAN(realNcritic,fakeNcritic)*self.PenAdvNloss
-                #AdvDlossPenGradX = self.GradientPenaltyX(self.batchSize,realX,fakeX)*self.PenGradX
-                #AdvDlossPenGradS = self.GradientPenaltyS(self.batchSize,realS,fakeS)*self.PenGradS
 
-                AdvDloss = AdvDlossX + AdvDlossC + AdvDlossS + AdvDlossN #+ AdvDlossPenGradS #+AdvDlossPenGradX
+                AdvDloss = AdvDlossX_real - AdvDlossX_fake*self.k + AdvDlossS + AdvDlossN 
 
             # Get the gradients w.r.t the discriminator loss
-            gradDx, gradDc, gradDs, gradDn = tape.gradient(AdvDloss,
-                (self.Dx.trainable_variables, self.Dc.trainable_variables,
-                self.Ds.trainable_variables, self.Dn.trainable_variables))
+            gradDx, gradDs, gradDn = tape.gradient(AdvDloss,
+                (self.Dx.trainable_variables, self.Ds.trainable_variables, self.Dn.trainable_variables))
             # Update the weights of the discriminator using the discriminator optimizer
             self.DxOpt.apply_gradients(zip(gradDx,self.Dx.trainable_variables))
-            self.DcOpt.apply_gradients(zip(gradDc,self.Dc.trainable_variables))
             self.DsOpt.apply_gradients(zip(gradDs,self.Ds.trainable_variables))
             self.DnOpt.apply_gradients(zip(gradDn,self.Dn.trainable_variables))
 
@@ -451,11 +438,11 @@ class RepGAN(Model):
         self.Qc.trainable = True
         self.Qs.trainable = True
         self.Dx.trainable = False
-        self.Dc.trainable = False
+        self.Dc.trainable = True
         self.Ds.trainable = False
         self.Dn.trainable = False
 
-        #realS = tf.exp(tf.random.normal(mean=0.0,stddev=1.0,shape=[self.batchSize,self.latentSdim]))
+        
         realS = tf.random.normal(mean=0.0,stddev=1.0,shape=[self.batchSize,self.latentSdim])
         realN = tf.random.normal(mean=0.0,stddev=0.3,shape=[self.batchSize,self.latentNdim])
 
@@ -464,63 +451,61 @@ class RepGAN(Model):
             [fakeS,fakeC,fakeN] = self.Fx(realX,training=True) # encoded z = Fx(X)
             fakeN = tf.clip_by_value(fakeN,-1.0,1.0)
 
-            # Discriminator determines validity of the real and fake S
+            fakeX = self.Gz((realS,realC,realN),training=True) # fake X = Gz(Fx(X)
+
+            # Discriminator determines validity of the fake S
             fakeScritic = self.Ds(fakeS,training=True)
 
-            # Discriminator determines validity of the real and fake C
-            fakeCcritic = self.Dc(fakeC,training=True)
+            # Discriminator determines the class of the real and fake X
+            fakeCcritic = self.Dc(fakeX,training=True)
+            realCcritic = self.Dc(realX,training=True)
 
-            # Discriminator determines validity of the real and fake N
+            # Discriminator determines validity of the fake N
             fakeNcritic = self.Dn(fakeN,training=True)
 
-            fakeX = self.Gz((realS,realC,realN),training=True) # fake X = Gz(Fx(X))
-
-            # Discriminator determines validity of the real and fake X
+            # Discriminator determines validity of the fake X
             fakeXcritic = self.Dx(fakeX,training=True)
 
             # Reconstruction
             recX = self.Gz((fakeS,fakeC,fakeN),training=True)
             recS = self.Qs(fakeX,training=True)
-            # recSmu,recSsigma = self.Qs(fakeX)
-            # self.QsDist = tfd.MultivariateNormalDiag(loc=recSmu,scale_diag=recSsigma)
             recC = self.Qc(fakeX,training=True)
 
             # Adversarial ground truths
             # realBCE = tf.ones_like(fakeXcritic)
-            #AdvGlossX = self.AdvGlossGAN(realBCE,fakeXcritic)*self.PenAdvXloss
-            AdvGlossX = self.AdvGlossWGAN(fakeXcritic)*self.PenAdvXloss
-            #AdvGlossX = - tf.reduce_mean(tf.log(fakeXcritic+1e-8))
-            #AdvGlossC = self.AdvGlossWGAN(fakeCcritic)*self.PenAdvCloss
-            AdvGlossC = self.AdvGlossGAN(realBCE,fakeCcritic)*self.PenAdvCloss
+            AdvGlossX = self.AdvGlossGAN(realBCE,fakeXcritic)*self.PenAdvXloss
+            AdvGlossC  = self.AdvGlossGAN(realC,realCcritic)*self.PenAdvCloss
+            AdvGlossC += self.AdvGlossGAN(fakeC,fakeCcritic)*self.PenAdvCloss
             AdvGlossS = self.AdvGlossWGAN(fakeScritic)*self.PenAdvSloss
             AdvGlossN = self.AdvGlossWGAN(fakeNcritic)*self.PenAdvNloss
             RecGlossX = self.RecXloss(realX,recX)*self.PenRecXloss
             RecGlossS = self.RecSloss(realS,recS)*self.PenRecSloss
-            #RecGlossS = -tf.reduce_mean(recS.log_prob(realS))
             RecGlossC = self.RecCloss(realC,recC)*self.PenRecCloss
             
-            AdvGloss = AdvGlossX + AdvGlossC + AdvGlossS + AdvGlossN + RecGlossX + RecGlossC + RecGlossS
+            AdvGloss = (AdvGlossX + AdvGlossS + AdvGlossN)*self.theta + AdvGlossC*self.zeta + RecGlossX + RecGlossC + RecGlossS
+
+            balance = self.gamma * AdvDloss - AdvGloss
+            self.k = tf.assign(self.k_t, tf.clip_by_value(self.k_t + self.lambda_k * balance, 0, 1))
 
         # Get the gradients w.r.t the generator loss
-        gradFx, gradGz, gradQs, gradQc = tape.gradient(AdvGloss,
+        gradFx, gradGz, gradQs, gradQc, gradDc = tape.gradient(AdvGloss,
             (self.Fx.trainable_variables,self.Gz.trainable_variables,
-             self.Qs.trainable_variables,self.Qc.trainable_variables))
+             self.Qs.trainable_variables,self.Qc.trainable_variables,self.Dc.trainable_variables))
 
         # Update the weights of the generator using the generator optimizer
         self.FxOpt.apply_gradients(zip(gradFx,self.Fx.trainable_variables))
         self.GzOpt.apply_gradients(zip(gradGz,self.Gz.trainable_variables))
         self.QsOpt.apply_gradients(zip(gradQs,self.Qs.trainable_variables))
         self.QcOpt.apply_gradients(zip(gradQc,self.Qc.trainable_variables))
+        self.DcOpt.apply_gradients(zip(gradDc,self.Dc.trainable_variables))
 
         # Compute our own metrics
         AdvDLoss_tracker.update_state(AdvDloss)
         AdvGLoss_tracker.update_state(AdvGloss)
         AdvDlossX_tracker.update_state(AdvDlossX)
-        AdvDlossC_tracker.update_state(AdvDlossC)
+        #AdvDlossC_tracker.update_state(AdvDlossC)
         AdvDlossS_tracker.update_state(AdvDlossS)
         AdvDlossN_tracker.update_state(AdvDlossN)
-        #AdvDlossPenGradX_tracker.update_state(AdvDlossPenGradX)
-        #AdvDlossPenGradS_tracker.update_state(AdvDlossPenGradS)
 
         AdvGlossX_tracker.update_state(AdvGlossX)
         AdvGlossC_tracker.update_state(AdvGlossC)
@@ -531,7 +516,7 @@ class RepGAN(Model):
         RecGlossC_tracker.update_state(RecGlossC)
         RecGlossS_tracker.update_state(RecGlossS)
 
-        return {"AdvDlossX": AdvDlossX_tracker.result(),"AdvDlossC": AdvDlossC_tracker.result(),"AdvDlossS": AdvDlossS_tracker.result(),
+        return {"AdvDlossX": AdvDlossX_tracker.result(),"AdvDlossS": AdvDlossS_tracker.result(),
             "AdvDlossN": AdvDlossN_tracker.result(),"AdvGlossX": AdvGlossX_tracker.result(),"AdvGlossC": AdvGlossC_tracker.result(),
             "AdvGlossS": AdvGlossS_tracker.result(),"AdvGlossN": AdvGlossN_tracker.result(),"RecGlossX": RecGlossX_tracker.result(), 
             "RecGlossC": RecGlossC_tracker.result(), "RecGlossS": RecGlossS_tracker.result(),"fakeX":tf.math.reduce_mean(fakeXcritic),"realX":tf.math.reduce_mean(realXcritic),
@@ -877,10 +862,10 @@ class RepGAN(Model):
             Gz = LeakyReLU(alpha=0.1,name="GzA{:>d}".format(layer+1))(Gz) #Activation('relu')(Gz)
 
         layer = self.nAElayers
-        X = Conv1DTranspose(self.nXchannels,self.kernel,1,
-            padding="same",use_bias=False,name="GzCNN{:>d}".format(layer+1))(Gz)
         #X = Conv1DTranspose(self.nXchannels,self.kernel,1,
-        #    padding="same",activation='tanh',use_bias=False,name="GzCNN{:>d}".format(layer+1))(Gz)
+        #    padding="same",use_bias=False,name="GzCNN{:>d}".format(layer+1))(Gz)
+        X = Conv1DTranspose(self.nXchannels,self.kernel,1,
+            padding="same",activation='tanh',use_bias=False,name="GzCNN{:>d}".format(layer+1))(Gz)
 
         Gz = keras.Model(inputs=[GzS.input,GzC.input,GzN.input],outputs=X,name="Gz")
         return Gz
@@ -892,62 +877,48 @@ class RepGAN(Model):
         layer = 0
         X = Input(shape=self.Xshape,name="X")
         h = Conv1D(self.Xsize*self.stride**(-(layer+1)),
-                self.kernel,self.stride,padding="same",kernel_constraint=ClipConstraint(self.clipValue),
+                self.kernel,self.stride,padding="same",
                 data_format="channels_last",name="DxCNN0")(X)
         h = LeakyReLU(alpha=0.1,name="DxA0")(h)
 
         for layer in range(1,self.nDlayers):
             h = Conv1D(self.Xsize*self.stride**(-(layer+1)),
-                self.kernel,self.stride,padding="same",kernel_constraint=ClipConstraint(self.clipValue),
+                self.kernel,self.stride,padding="same",
                 data_format="channels_last",name="DxCNN{:>d}".format(layer))(h)
             h = BatchNormalization(momentum=0.95,name="DxBN{:>d}".format(layer))(h)
             h = LeakyReLU(alpha=0.2,name="DxA{:>d}".format(layer))(h)
             h = Dropout(0.25,name="DxDO{:>d}".format(layer))(h)
         layer = self.nDlayers    
         h = Flatten(name="DxFL{:>d}".format(layer))(h)
-        Px = Dense(1,kernel_constraint=ClipConstraint(self.clipValue))(h)
+        Px = Dense(1)(h)
         Dx = keras.Model(X,Px,name="Dx")
         return Dx
 
 
     def BuildDc(self):
         """
-            Dense discriminator structure
+            Conv1D discriminator structure
         """
-        c = Input(shape=(self.latentCdim,))
-        #h = Dense(3000,kernel_constraint=self.ClipD)(c)
-        h = Dense(3000,kernel_constraint=ClipConstraint(self.clipValue))(c)
-        h = LeakyReLU()(h)
-        h = Dense(3000,kernel_constraint=ClipConstraint(self.clipValue))(h)
-        h = LeakyReLU()(h)
-        Pc = Dense(1,activation=tf.keras.activations.sigmoid,kernel_constraint=ClipConstraint(self.clipValue))(h)
-        Dc = keras.Model(c,Pc,name="Dc")
+        layer = 0
+        X = Input(shape=self.Xshape)
+        h = Conv1D(self.Xsize*self.stride**(-(layer+1)),
+                self.kernel,self.stride,padding="same",
+                data_format="channels_last",name="DcCNN0")(X)
+        h = ReLU(name="DcA0")(h)
+
+        for layer in range(1,self.nClayers):
+            h = Conv1D(self.Xsize*self.stride**(-(layer+1)),
+                self.kernel,self.stride,padding="same",
+                data_format="channels_last",name="DcCNN{:>d}".format(layer))(h)
+            h = BatchNormalization(momentum=0.95,name="DcBN{:>d}".format(layer))(h)
+            h = ReLU(name="DcA{:>d}".format(layer))(h)
+            h = Dropout(0.25,name="DcDO{:>d}".format(layer))(h)
+        layer = self.nClayers  
+        h = Flatten(name="DcFL{:>d}".format(layer))(h)  
+        h = Dense(1024)(h)
+        Pc = Dense(1,activation=tf.keras.activations.sigmoid)(h)
+        Dc = keras.Model(X,Pc,name="Dc")
         return Dc
-
-    # def BuildDc(self):
-    #     """
-    #         Conv1D discriminator structure
-    #     """
-    #     layer = 0
-    #     c = Input(shape=(self.latentCdim,))
-    #     h = Conv1D(self.latentCdim*self.stride**(-(layer+1)),
-    #             self.kernel,self.stride,padding="same",kernel_constraint=ClipConstraint(self.clipValue),
-    #             data_format="channels_last",name="DcCNN0")(X)
-    #     h = LeakyReLU(alpha=0.1,name="DcA0")(h)
-
-    #     for layer in range(1,self.nClayers):
-    #         h = Conv1D(self.latentCdim*self.stride**(-(layer+1)),
-    #             self.kernel,self.stride,padding="same",kernel_constraint=ClipConstraint(self.clipValue),
-    #             data_format="channels_last",name="DcCNN{:>d}".format(layer))(h)
-    #         h = BatchNormalization(momentum=0.95,name="DcBN{:>d}".format(layer))(h)
-    #         h = LeakyReLU(alpha=0.2,name="DcA{:>d}".format(layer))(h)
-    #         h = Dropout(0.25,name="DcDO{:>d}".format(layer))(h)
-    #     layer = self.nClayers  
-    #     h = Flatten(name="DcFL{:>d}".format(layer))(h)  
-    #     h = Dense(3000,kernel_constraint=ClipConstraint(self.clipValue))(h)
-    #     Pc = Dense(1,activation=tf.keras.activations.sigmoid,kernel_constraint=ClipConstraint(self.clipValue))(h)
-    #     Dc = keras.Model(c,Pc,name="Dc")
-    #     return Dc
 
 
     def BuildDn(self):
@@ -996,15 +967,14 @@ def Main(DeviceName):
 
     with tf.device(DeviceName):
         optimizers = {}
-        optimizers['DxOpt'] = RMSprop(learning_rate=0.00005) #Adam(learning_rate=0.0002, beta_1=0.5, beta_2=0.9999)
-        optimizers['DcOpt'] = RMSprop(learning_rate=0.00005)
-        #optimizers['DcOpt'] = SGD(learning_rate=0.01, momentum=0.9, nesterov=True)
+        optimizers['DxOpt'] = Adam(learning_rate=0.0001, beta_1=0.5, beta_2=0.9999)
+        optimizers['DcOpt'] = SGD(learning_rate=0.01, momentum=0.9, nesterov=True)
         optimizers['DsOpt'] = RMSprop(learning_rate=0.00005)
         optimizers['DnOpt'] = RMSprop(learning_rate=0.00005)
-        optimizers['FxOpt'] = Adam(learning_rate=0.0002, beta_1=0.5, beta_2=0.9999)
-        optimizers['GzOpt'] = Adam(learning_rate=0.0002, beta_1=0.5, beta_2=0.9999)
-        optimizers['QsOpt'] = Adam(learning_rate=0.0002, beta_1=0.5, beta_2=0.9999)
-        optimizers['QcOpt'] = Adam(learning_rate=0.0002, beta_1=0.5, beta_2=0.9999)
+        optimizers['FxOpt'] = Adam(learning_rate=0.0001, beta_1=0.5, beta_2=0.9999)
+        optimizers['GzOpt'] = Adam(learning_rate=0.0001, beta_1=0.5, beta_2=0.9999)
+        optimizers['QsOpt'] = Adam(learning_rate=0.0001, beta_1=0.5, beta_2=0.9999)
+        optimizers['QcOpt'] = Adam(learning_rate=0.0001, beta_1=0.5, beta_2=0.9999)
 
         losses = {}
         losses['AdvDlossWGAN'] = WassersteinDiscriminatorLoss
@@ -1054,33 +1024,33 @@ def Main(DeviceName):
 
         GiorgiaGAN.DumpModels()
 
-        PlotLoss(history) # Plot loss
+        pt2.PlotLoss(history) # Plot loss
 
         Xtrn_u,  Xvld_u, _ = mdof.LoadUndamaged(**options)
 
         Xtrn_d,  Xvld_d, _ = mdof.LoadDamaged(**options)
 
-        PlotReconstructedTHs(GiorgiaGAN,Xvld,Xvld_u,Xvld_d) # Plot reconstructed time-histories
+        pt2.PlotReconstructedTHs(GiorgiaGAN,Xvld,Xvld_u,Xvld_d) # Plot reconstructed time-histories
 
-        PlotCorrelationS(GiorgiaGAN,Xvld) # Plot s correlation
+        pt2.PlotCorrelationS(GiorgiaGAN,Xvld) # Plot s correlation
 
-        PlotDistributionN(GiorgiaGAN,Xvld) # Plot n distribution
+        pt2.PlotDistributionN(GiorgiaGAN,Xvld) # Plot n distribution
 
-        PlotTHSGoFs(GiorgiaGAN,Xvld) # Plot reconstructed time-histories
+        pt2.PlotTHSGoFs(GiorgiaGAN,Xvld) # Plot reconstructed time-histories
 
-        ViolinPlot(GiorgiaGAN,Xvld) # Violin plot
+        pt2.ViolinPlot(GiorgiaGAN,Xvld) # Violin plot
 
-        PlotPSD(Xvld_u,Xvld_d) # Plot PSD of undamaged and damaged signals
+        pt2.PlotPSD(Xvld_u,Xvld_d) # Plot PSD of undamaged and damaged signals
 
-        PlotBatchGoFs(GiorgiaGAN,Xvld,1) # Plot GoFs on a batch
+        pt2.PlotBatchGoFs(GiorgiaGAN,Xvld,1) # Plot GoFs on a batch
 
         #PlotBatchGoFs(GiorgiaGAN,Xtrn,0)
 
-        PlotBatchGoFs_new(GiorgiaGAN,Xvld_u,Xvld_d) # Plot GoFs on a batch (after the change of C)
+        pt2.PlotBatchGoFs_new(GiorgiaGAN,Xvld_u,Xvld_d) # Plot GoFs on a batch (after the change of C)
 
-        PlotClassificationMetrics(GiorgiaGAN,Xvld) # Plot classification metrics
+        pt2.PlotClassificationMetrics(GiorgiaGAN,Xvld) # Plot classification metrics
 
-        SwarmPlot(GiorgiaGAN,Xvld) # Swarm plot
+        pt2.SwarmPlot(GiorgiaGAN,Xvld) # Swarm plot
 
         #Hyperparameter_tuning(Xtrn)
         
