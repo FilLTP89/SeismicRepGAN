@@ -158,18 +158,17 @@ class RandomWeightedAverage(Layer):
         return (alpha*inputs[0])+((1.0-alpha)*inputs[1])
 
 class SamplingFxS(Layer):
-    """Uses (z_mean, z_log_var) to sample z, the vector encoding a digit."""
+    """Uses (z_mean, z_std) to sample z, the vector encoding a digit."""
 
     def call(self, inputs):
-        #z_mean, z_std = inputs
-        z_mean, z_log_var = inputs
+        z_mean, z_std = inputs
         batch = tf.shape(z_mean)[0]
         dim = tf.shape(z_mean)[1]
         epsilon = tf.keras.backend.random_normal(shape=(batch, dim))
         #logz = z_mean + tf.exp(0.5 * z_log_var) * epsilon
         #return tf.exp(logz)
-        return z_mean + tf.exp(0.5 * z_log_var) * epsilon
-        #return z_mean + z_std * epsilon
+        # return z_mean + tf.exp(0.5 * z_log_var) * epsilon
+        return z_mean + z_std * epsilon
 
 # clip model weights to a given hypercube
 class ClipConstraint(Constraint):
@@ -210,20 +209,17 @@ def WassersteinGeneratorLoss(y_fake):
 #             img.save("generated_img_{i}_{epoch}.png".format(i=i, epoch=epoch))
 
 
-def GaussianNLL(true, pred):
+def GaussianNLL(true,pred):
     """
-     Gaussian negative loglikelihood loss function 
+     Gaussian negative loglikelihood loss function
+        true=s
+        pred=Qs(Gz(s,c,n))
     """
-
     n_dims = int(int(pred.shape[1])/2)
     mu = pred[:, 0:n_dims]
     sigma = pred[:, n_dims:]
-    # logsigma = pred[:, n_dims:]
     mse = -0.5*tf.keras.backend.sum(tf.keras.backend.square((true-mu)/sigma),axis=1)
-    # mse = -0.5*tf.keras.backend.sum(tf.keras.backend.square((true-mu)/tf.keras.backend.exp(logsigma)),axis=1)
-
     sigma_trace = -tf.keras.backend.sum(tf.keras.backend.log(sigma), axis=1)
-    # sigma_trace = -tf.keras.backend.sum(logsigma, axis=1)
     log2pi = -0.5*n_dims*np.log(2*np.pi)
     log_likelihood = mse+sigma_trace+log2pi
 
@@ -379,7 +375,6 @@ class RepGAN(Model):
         self.Ds.trainable = True
         self.Dn.trainable = True
 
-        
         for _ in range(self.nCritic):
             #realS = tf.exp(tf.random.normal(mean=0.0,stddev=1.0,shape=[self.batchSize,self.latentSdim]))
             realS = tf.random.normal(mean=0.0,stddev=1.0,shape=[self.batchSize,self.latentSdim])
@@ -455,7 +450,6 @@ class RepGAN(Model):
         self.Ds.trainable = False
         self.Dn.trainable = False
 
-        #realS = tf.exp(tf.random.normal(mean=0.0,stddev=1.0,shape=[self.batchSize,self.latentSdim]))
         realS = tf.random.normal(mean=0.0,stddev=1.0,shape=[self.batchSize,self.latentSdim])
         realN = tf.random.normal(mean=0.0,stddev=0.3,shape=[self.batchSize,self.latentNdim])
 
@@ -480,7 +474,7 @@ class RepGAN(Model):
 
             # Reconstruction
             recX = self.Gz((fakeS,fakeC,fakeN),training=True)
-            recS = self.Qs(fakeX,training=True)
+            recS = self.Qs(fakeX,training=True) # Qs( Gz( Fx(s) ) )  
             # recSmu,recSsigma = self.Qs(fakeX)
             # self.QsDist = tfd.MultivariateNormalDiag(loc=recSmu,scale_diag=recSsigma)
             recC = self.Qc(fakeX,training=True)
