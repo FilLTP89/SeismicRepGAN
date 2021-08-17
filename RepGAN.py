@@ -520,7 +520,6 @@ class RepGAN(Model):
 
     def call(self, X):
         [fakeS,fakeC,fakeN] = self.Fx(X)
-        fakeN = tf.clip_by_value(fakeN,-1.0,1.0)
         fakeX = self.Gz((fakeS,fakeC,fakeN))
         fakeN_res = tf.random.normal(mean=0.0,stddev=0.3,shape=tf.shape(fakeN))
         fakeX_res = self.Gz((fakeS,fakeC,fakeN_res))
@@ -528,7 +527,6 @@ class RepGAN(Model):
 
     def generate(self, X, fakeC_new):
         [fakeS,fakeC,fakeN] = self.Fx(X)
-        fakeN = tf.clip_by_value(fakeN,-1.0,1.0)
         fakeX = self.Gz((fakeS,fakeC_new,fakeN))
         return fakeX
 
@@ -982,19 +980,13 @@ def Main(DeviceName):
 
         PlotReconstructedTHs(GiorgiaGAN,Xvld,Xvld_u,Xvld_d) # Plot reconstructed time-histories
 
-        PlotCorrelationS(GiorgiaGAN,Xvld) # Plot s correlation
-
         PlotDistributionN(GiorgiaGAN,Xvld) # Plot n distribution
 
         PlotTHSGoFs(GiorgiaGAN,Xvld) # Plot reconstructed time-histories
 
         ViolinPlot(GiorgiaGAN,Xvld) # Violin plot
 
-        PlotPSD(Xvld_u,Xvld_d) # Plot PSD of undamaged and damaged signals
-
         PlotBatchGoFs(GiorgiaGAN,Xvld,1) # Plot GoFs on a batch
-
-        #PlotBatchGoFs(GiorgiaGAN,Xtrn,0)
 
         PlotBatchGoFs_new(GiorgiaGAN,Xvld_u,Xvld_d) # Plot GoFs on a batch (after the change of C)
 
@@ -1002,10 +994,6 @@ def Main(DeviceName):
 
         SwarmPlot(GiorgiaGAN,Xvld) # Swarm plot
 
-        #Hyperparameter_tuning(Xtrn)
-        
-
-        
 if __name__ == '__main__':
     DeviceName = tf.test.gpu_device_name()
     Main(DeviceName)
