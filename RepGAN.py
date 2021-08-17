@@ -50,7 +50,7 @@ from tensorflow.python.util.tf_export import tf_export
 from copy import deepcopy
 from plot_tools import *
 
-AdvDLoss_tracker = keras.metrics.Mean(name="loss")
+AdvDLoss_tracker  = keras.metrics.Mean(name="loss")
 AdvDlossX_tracker = keras.metrics.Mean(name="loss")
 AdvDlossC_tracker = keras.metrics.Mean(name="loss")
 AdvDlossS_tracker = keras.metrics.Mean(name="loss")
@@ -66,17 +66,11 @@ RecGlossX_tracker = keras.metrics.Mean(name="loss")
 RecGlossC_tracker = keras.metrics.Mean(name="loss")
 RecGlossS_tracker = keras.metrics.Mean(name="loss")
 
-#gpu_devices = tf.config.experimental.list_physical_devices('GPU')
-
-
 checkpoint_dir = "./ckpt"
 if not os.path.exists(checkpoint_dir):
     os.makedirs(checkpoint_dir)
 
-
 def make_or_restore_model():
-    # Either restore the latest model, or create a fresh one
-    # if there is no checkpoint available.
     checkpoints = [checkpoint_dir + "/" + name for name in os.listdir(checkpoint_dir)]
     if checkpoints:
         latest_checkpoint = max(checkpoints, key=os.path.getctime)
@@ -146,16 +140,8 @@ def ParseOptions():
 
     options['nDlayers'] = min(options['nDlayers'],int(mt.log(options['Xsize'],options['stride'])))
 
-    # assert options['nSchannels'] >= 1
-    # assert options['Ssize'] >= options['Zsize']//(options['stride']**options['nSlayers'])
-
     return options
 
-class RandomWeightedAverage(Layer):
-    """Provides a (random) weighted average between real and generated signal samples"""
-    def _merge_function(self,inputs,**kwargs):
-        alpha = tf.random_uniform((32,1,1,1))
-        return (alpha*inputs[0])+((1.0-alpha)*inputs[1])
 
 class SamplingFxS(Layer):
     """Uses (z_mean, z_std) to sample z, the vector encoding a digit."""
@@ -178,8 +164,6 @@ class ClipConstraint(Constraint):
     # clip model weights to hypercube
     def __call__(self, weights):
         return tf.keras.backend.clip(weights, -self.clip_value, self.clip_value)
-
-    # get the config
     def get_config(self):
         return {'clip_value': self.clip_value}
 
@@ -188,25 +172,10 @@ def WassersteinDiscriminatorLoss(y_true, y_fake):
     fake_loss = tf.reduce_mean(y_fake)
     return fake_loss - real_loss
 
-
-# Define the loss functions for the generator.
 def WassersteinGeneratorLoss(y_fake):
     return -tf.reduce_mean(y_fake)
 
 
-# class GANMonitor(keras.callbacks.Callback):
-#     def __init__(self,num_img=6,latent_dim=128):
-#         self.num_img = num_img
-#         self.latent_dim = latent_dim
-
-#     def on_epoch_end(self, epoch, logs=None):
-#         random_latent_vectors = tf.random.normal(shape=(self.num_img, self.latent_dim))
-#         generated_images = self.model.generator(random_latent_vectors)
-
-#         for i in range(self.num_img):
-#             img = generated_images[i].numpy()
-#             img = keras.preprocessing.image.array_to_img(img)
-#             img.save("generated_img_{i}_{epoch}.png".format(i=i, epoch=epoch))
 
 
 def GaussianNLL(true,pred):
@@ -225,24 +194,12 @@ def GaussianNLL(true,pred):
 
     return tf.keras.backend.mean(-log_likelihood)
 
-def MutualInfoLoss(c, c_given_x):
-    """The mutual information metric we aim to minimize"""
+def MutualInfoLoss(c,c_given_x):
     eps = 1e-8
     conditional_entropy = -tf.keras.backend.mean(tf.keras.backend.sum(tf.keras.backend.log(c_given_x+eps)*c,axis=1))
     #entropy = -tf.keras.backend.mean(tf.keras.backend.sum(tf.keras.backend.log(c+eps)*c,axis=1))
 
     return conditional_entropy #+ entropy
-
-# select real samples
-def generate_real_samples(dataset, n_samples):
-    # choose random instances
-    idx = np.random.randint(low=0, high=dataset.shape[0], size=n_samples)
-    #X[tf.arange(size_batch), rand_idx] = dataset
-    X = tf.gather(dataset, idx)
-    #idx = np.random.randint(0, size=(dataset.shape[0], n_samples))
-    # select images
-    #X = dataset[idx]
-
     return X
 
 class RepGAN(Model):
@@ -289,27 +246,30 @@ class RepGAN(Model):
 
     def get_config(self):
         config = super().get_config().copy()
-        config.update({
-            'size': self.size
-        })
+        config.update({'size': self.size})
         return config    
 
     @property
     def metrics(self):
-        #return [AdvDLoss_tracker,AdvGLoss_tracker,AdvDlossX_tracker,AdvDlossC_tracker,AdvDlossS_tracker,AdvDlossN_tracker,
-        #    RecGlossX_tracker,RecGlossC_tracker,RecGlossS_tracker]
-        return [AdvDLoss_tracker,AdvGLoss_tracker,AdvDlossX_tracker,AdvDlossC_tracker,AdvDlossS_tracker,AdvDlossN_tracker,AdvDlossPenGradX_tracker,
-            AdvDlossPenGradS_tracker,AdvGlossX_tracker,AdvGlossC_tracker,AdvGlossS_tracker,AdvGlossN_tracker,RecGlossX_tracker,RecGlossC_tracker,RecGlossS_tracker]
+        return [AdvDLoss_tracker,
+            AdvGLoss_tracker,
+            AdvDlossX_tracker,
+            AdvDlossC_tracker,
+            AdvDlossS_tracker,
+            AdvDlossN_tracker,
+            AdvDlossPenGradX_tracker,
+            AdvDlossPenGradS_tracker,
+            AdvGlossX_tracker,
+            AdvGlossC_tracker,
+            AdvGlossS_tracker,
+            AdvGlossN_tracker,
+            RecGlossX_tracker,
+            RecGlossC_tracker,
+            RecGlossS_tracker]
 
-    def compile(self,optimizers,losses): #run_eagerly
+    def compile(self,optimizers,losses):
         super(RepGAN, self).compile()
-        """
-            Optimizers
-        """
         self.__dict__.update(optimizers)
-        """
-            Losses
-        """
         self.__dict__.update(losses)
 
     def GradientPenaltyX(self,batchSize,realX,fakeX):
@@ -359,11 +319,6 @@ class RepGAN(Model):
         realBCE = tf.ones_like(critic)
         fakeBCE = tf.zeros_like(critic)
         self.batchSize = tf.shape(realX)[0]
-
-        #------------------------------------------------
-        #           Construct Computational Graph
-        #               for the Discriminator
-        #------------------------------------------------
 
         # Freeze generators' layers while training critics
         self.Fx.trainable = False
@@ -435,11 +390,6 @@ class RepGAN(Model):
             self.DsOpt.apply_gradients(zip(gradDs,self.Ds.trainable_variables))
             self.DnOpt.apply_gradients(zip(gradDn,self.Dn.trainable_variables))
 
-        #----------------------------------------
-        #      Construct Computational Graph
-        #               for Generator
-        #----------------------------------------
-
         # Freeze critics' layers while training generators
         self.Fx.trainable = True
         self.Gz.trainable = True
@@ -456,20 +406,10 @@ class RepGAN(Model):
         with tf.GradientTape(persistent=True) as tape:
             # Generate fake latent code from real signal
             [fakeS,fakeC,fakeN] = self.Fx(realX,training=True) # encoded z = Fx(X)
-            fakeN = tf.clip_by_value(fakeN,-1.0,1.0)
-
-            # Discriminator determines validity of the real and fake S
             fakeScritic = self.Ds(fakeS,training=True)
-
-            # Discriminator determines validity of the real and fake C
             fakeCcritic = self.Dc(fakeC,training=True)
-
-            # Discriminator determines validity of the real and fake N
             fakeNcritic = self.Dn(fakeN,training=True)
-
-            fakeX = self.Gz((realS,realC,realN),training=True) # fake X = Gz(Fx(X))
-
-            # Discriminator determines validity of the real and fake X
+            fakeX = self.Gz((realS,realC,realN),training=True)
             fakeXcritic = self.Dx(fakeX,training=True)
 
             # Reconstruction
@@ -547,8 +487,8 @@ class RepGAN(Model):
     def generate(self, X, fakeC_new):
         [fakeS,fakeC,fakeN] = self.Fx(X)
         fakeN = tf.clip_by_value(fakeN,-1.0,1.0)
-        fakeX_new = self.Gz((fakeS,fakeC_new,fakeN))
-        return fakeX_new
+        fakeX = self.Gz((fakeS,fakeC_new,fakeN))
+        return fakeX
 
     def BuildFx(self):
         """
@@ -806,18 +746,6 @@ class RepGAN(Model):
             Zs = Dropout(0.2,name="GzDOS{:>d}".format(self.nSlayers))(Zs)
             GzS = keras.Model(s,Zs)
 
-            # # s average
-            # Zmu = Dense(self.Ssize*self.nSchannels,name="GzFW0")(s)
-            # Zmu = BatchNormalization(name="GzBNS0")(Zmu)
-            # Zmu = Reshape((self.Ssize,self.nSchannels))(Zmu)
-            # Gsmu = keras.Model(s,Zmu)
-
-            # # s logsigma
-            # Zlv = Dense(self.Ssize*self.nSchannels,name="GzFW0")(s)
-            # Zlv = BatchNormalization(name="GzBNS0")(Zlv)
-            # Zlv = Reshape((self.Ssize,self.nSchannels))(Zlv)
-            # Gslv = keras.Model(s,Zlv)
-
             # variable c
             Zc = Dense(self.Csize*self.nCchannels,name="GzFWC0")(c)
             Zc = BatchNormalization(name="GzBNC0")(Zc)
@@ -871,10 +799,10 @@ class RepGAN(Model):
             Gz = LeakyReLU(alpha=0.1,name="GzA{:>d}".format(layer+1))(Gz) #Activation('relu')(Gz)
 
         layer = self.nAElayers
+        # X = Conv1DTranspose(self.nXchannels,self.kernel,1,
+        #     padding="same",use_bias=False,name="GzCNN{:>d}".format(layer+1))(Gz)
         X = Conv1DTranspose(self.nXchannels,self.kernel,1,
-            padding="same",use_bias=False,name="GzCNN{:>d}".format(layer+1))(Gz)
-        #X = Conv1DTranspose(self.nXchannels,self.kernel,1,
-        #    padding="same",activation='tanh',use_bias=False,name="GzCNN{:>d}".format(layer+1))(Gz)
+           padding="same",activation='tanh',use_bias=False,name="GzCNN{:>d}".format(layer+1))(Gz)
 
         Gz = keras.Model(inputs=[GzS.input,GzC.input,GzN.input],outputs=X,name="Gz")
         return Gz
@@ -917,32 +845,6 @@ class RepGAN(Model):
         Pc = Dense(1,activation=tf.keras.activations.sigmoid,kernel_constraint=ClipConstraint(self.clipValue))(h)
         Dc = keras.Model(c,Pc,name="Dc")
         return Dc
-
-    # def BuildDc(self):
-    #     """
-    #         Conv1D discriminator structure
-    #     """
-    #     layer = 0
-    #     c = Input(shape=(self.latentCdim,))
-    #     h = Conv1D(self.latentCdim*self.stride**(-(layer+1)),
-    #             self.kernel,self.stride,padding="same",kernel_constraint=ClipConstraint(self.clipValue),
-    #             data_format="channels_last",name="DcCNN0")(X)
-    #     h = LeakyReLU(alpha=0.1,name="DcA0")(h)
-
-    #     for layer in range(1,self.nClayers):
-    #         h = Conv1D(self.latentCdim*self.stride**(-(layer+1)),
-    #             self.kernel,self.stride,padding="same",kernel_constraint=ClipConstraint(self.clipValue),
-    #             data_format="channels_last",name="DcCNN{:>d}".format(layer))(h)
-    #         h = BatchNormalization(momentum=0.95,name="DcBN{:>d}".format(layer))(h)
-    #         h = LeakyReLU(alpha=0.2,name="DcA{:>d}".format(layer))(h)
-    #         h = Dropout(0.25,name="DcDO{:>d}".format(layer))(h)
-    #     layer = self.nClayers  
-    #     h = Flatten(name="DcFL{:>d}".format(layer))(h)  
-    #     h = Dense(3000,kernel_constraint=ClipConstraint(self.clipValue))(h)
-    #     Pc = Dense(1,activation=tf.keras.activations.sigmoid,kernel_constraint=ClipConstraint(self.clipValue))(h)
-    #     Dc = keras.Model(c,Pc,name="Dc")
-    #     return Dc
-
 
     def BuildDn(self):
         """
@@ -990,9 +892,8 @@ def Main(DeviceName):
 
     with tf.device(DeviceName):
         optimizers = {}
-        optimizers['DxOpt'] = RMSprop(learning_rate=0.00005) #Adam(learning_rate=0.0002, beta_1=0.5, beta_2=0.9999)
+        optimizers['DxOpt'] = RMSprop(learning_rate=0.00005)
         optimizers['DcOpt'] = RMSprop(learning_rate=0.00005)
-        #optimizers['DcOpt'] = SGD(learning_rate=0.01, momentum=0.9, nesterov=True)
         optimizers['DsOpt'] = RMSprop(learning_rate=0.00005)
         optimizers['DnOpt'] = RMSprop(learning_rate=0.00005)
         optimizers['FxOpt'] = Adam(learning_rate=0.0002, beta_1=0.5, beta_2=0.9999)
@@ -1007,7 +908,6 @@ def Main(DeviceName):
         losses['AdvGlossGAN'] = tf.keras.losses.BinaryCrossentropy()
         losses['RecSloss'] = GaussianNLL
         losses['RecXloss'] = tf.keras.losses.MeanAbsoluteError()
-        #losses['RecXloss'] = tf.keras.losses.MeanSquaredError()
         losses['RecCloss'] = MutualInfoLoss
         losses['PenAdvXloss'] = 1.
         losses['PenAdvCloss'] = 1.
