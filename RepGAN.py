@@ -200,20 +200,31 @@ def WassersteinDiscriminatorLoss(y_true, y_fake):
 def WassersteinGeneratorLoss(y_fake):
     return -tf.reduce_mean(y_fake)
 
-
-
-
-def GaussianNLL(true,pred):
+def GaussianNLLfromNorm(true,pred):
     """
      Gaussian negative loglikelihood loss function
-        true=s
-        pred=Qs(Gz(s,c,n))
     """
     n_dims = int(int(pred.shape[1])/2)
     mu = pred[:, 0:n_dims]
     sigma = pred[:, n_dims:]
-    mse = -0.5*tf.keras.backend.sum(tf.keras.backend.square((true-mu)/sigma),axis=1)
-    sigma_trace = -tf.keras.backend.sum(tf.keras.backend.log(sigma), axis=1)
+    mse = -0.5*tf.keras.backend.sum(tf.keras.backend.square((true-mu)/sigma),axis=-1)
+    sigma_trace = -tf.keras.backend.sum(tf.keras.backend.log(sigma),axis=-1)
+    log2pi = -0.5*n_dims*np.log(2*np.pi)
+    log_likelihood = mse+sigma_trace+log2pi
+
+    return tf.keras.backend.mean(-log_likelihood)
+
+
+def GaussianNLLfromLogVariance(true,pred):
+    """
+     Gaussian negative loglikelihood loss function
+    """
+    n_dims = int(int(pred.shape[1])/2)
+    mu = pred[:, 0:n_dims]
+    lv = pred[:, n_dims:]
+    sigma = tf.exp(0.5*lv)
+    mse = -0.5*tf.keras.backend.sum(tf.keras.backend.square((true-mu)/sigma),axis=-1)
+    sigma_trace = -tf.keras.backend.sum(tf.keras.backend.log(sigma),axis=-1)
     log2pi = -0.5*n_dims*np.log(2*np.pi)
     log_likelihood = mse+sigma_trace+log2pi
 
@@ -686,7 +697,6 @@ class RepGAN(Model):
 
         # variable n
         n = BatchNormalization(momentum=0.95,name="FxBNN")(Zn)
-        
 
         Fx = keras.Model(X,[s,c,n],name="Fx")
         Qs = keras.Model(X,QsX,name="Qs")
@@ -818,7 +828,6 @@ class RepGAN(Model):
                 data_format="channels_last",name="DxCNN0")(X)
         h = LeakyReLU(alpha=0.1,name="DxA0")(h)
         h = Dropout(0.25,name="DxDO0")(h)
-
         for layer in range(1,self.nDlayers):
             h = Conv1D(self.Xsize*self.stride**(-(layer+1)),
                 self.kernel,self.stride,padding="same",kernel_constraint=ClipConstraint(self.clipValue),
@@ -917,7 +926,7 @@ def Main(DeviceName):
         losses['AdvGlossWGAN'] = WassersteinGeneratorLoss
         losses['AdvDlossGAN'] = tf.keras.losses.BinaryCrossentropy()
         losses['AdvGlossGAN'] = tf.keras.losses.BinaryCrossentropy()
-        losses['RecSloss'] = GaussianNLL
+        losses['RecSloss'] = GaussianNLLfromLogVariance
         losses['RecXloss'] = tf.keras.losses.MeanAbsoluteError()
         losses['RecCloss'] = MutualInfoLoss
         losses['PenAdvXloss'] = 1.
