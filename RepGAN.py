@@ -142,19 +142,44 @@ def ParseOptions():
 
     return options
 
-
-class SamplingFxS(Layer):
-    """Uses (z_mean, z_std) to sample z, the vector encoding a digit."""
-
+class SamplingFxNormSfromSigma(Layer):
     def call(self, inputs):
         z_mean, z_std = inputs
+        # z_mean, z_log_var = inputs
         batch = tf.shape(z_mean)[0]
         dim = tf.shape(z_mean)[1]
-        epsilon = tf.keras.backend.random_normal(shape=(batch, dim))
-        #logz = z_mean + tf.exp(0.5 * z_log_var) * epsilon
-        #return tf.exp(logz)
-        # return z_mean + tf.exp(0.5 * z_log_var) * epsilon
-        return z_mean + z_std * epsilon
+        # epsilon = tf.keras.backend.random_normal(shape=(batch, dim))
+        z = z_mean + tf.multiply(z_std,tf.random_normal([1]))
+        return z
+
+class SamplingFxLogNormSfromSigma(Layer):
+    def call(self, inputs):
+        z_lambda, z_xi = inputs
+        batch = tf.shape(z_mean)[0]
+        dim = tf.shape(z_mean)[1]
+        # epsilon = tf.keras.backend.random_normal(shape=(batch, dim))
+        logz = z_lambda + tf.multiply(z_std,tf.random_normal([1]))
+        return tf.exp(logz)
+
+
+class SamplingFxNormSfromLogVariance(Layer):
+    def call(self, inputs):
+        z_mean, z_lsd = inputs
+        # z_mean, z_log_var = inputs
+        batch = tf.shape(z_mean)[0]
+        dim = tf.shape(z_mean)[1]
+        # epsilon = tf.keras.backend.random_normal(shape=(batch, dim))
+        z = z_mean + tf.multiply(tf.exp(z_lsd*0.5),tf.random_normal([1]))
+        return z
+
+class SamplingFxLogNormSfromLogVariance(Layer):
+    def call(self, inputs):
+        z_lambda, z_xi = inputs
+        batch = tf.shape(z_mean)[0]
+        dim = tf.shape(z_mean)[1]
+        # epsilon = tf.keras.backend.random_normal(shape=(batch, dim))
+        logz = z_lambda + tf.multiply(tf.exp(z_lsd*0.5),tf.random_normal([1]))
+        return tf.exp(logz)
 
 # clip model weights to a given hypercube
 class ClipConstraint(Constraint):
