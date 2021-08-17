@@ -505,8 +505,8 @@ class RepGAN(Model):
         h = Conv1D(self.nZfirst, #*self.nSchannels*self.stride**(-self.nAElayers+layer+1),
                 self.kernel,1,padding="same", # self.kernel,self.stride,padding="same",
                 data_format="channels_last",name="FxCNN0")(X)
-        h = BatchNormalization(momentum=0.95,name="FxBN0")(h)
         h = LeakyReLU(alpha=0.1,name="FxA0")(h)
+        h = BatchNormalization(momentum=0.95,name="FxBN0")(h)
         h = Dropout(0.2,name="FxDO0")(h)
 
         # Common encoder CNN layers
@@ -515,8 +515,8 @@ class RepGAN(Model):
             h = Conv1D(self.nZfirst*self.stride**(layer+1),
                 self.kernel,self.stride,padding="same",
                 data_format="channels_last",name="FxCNN{:>d}".format(layer+1))(h)
-            h = BatchNormalization(momentum=0.95,name="FxBN{:>d}".format(layer+1))(h)
             h = LeakyReLU(alpha=0.1,name="FxA{:>d}".format(layer+1))(h)
+            h = BatchNormalization(momentum=0.95,name="FxBN{:>d}".format(layer+1))(h)
             h = Dropout(0.2,name="FxDO{:>d}".format(layer+1))(h)
 
         # Last common CNN layer (no stride, same channels) before branching
@@ -525,8 +525,8 @@ class RepGAN(Model):
         h = Conv1D(self.nZchannels,
             self.kernel,1,padding="same",
             data_format="channels_last",name="FxCNN{:>d}".format(layer+1))(h)
-        h = BatchNormalization(momentum=0.95,name="FxBN{:>d}".format(layer+1))(h)
         h = LeakyReLU(alpha=0.1,name="FxA{:>d}".format(layer+1))(h)
+        h = BatchNormalization(momentum=0.95,name="FxBN{:>d}".format(layer+1))(h)
         z = Dropout(0.2,name="FxDO{:>d}".format(layer+1))(h)
         # z ---> Zshape = (Zsize,nZchannels)
 
@@ -535,8 +535,8 @@ class RepGAN(Model):
             # Flatten and branch
             h = Flatten(name="FxFL{:>d}".format(layer+1))(z)
             h = Dense(self.latentZdim,name="FxFW{:>d}".format(layer+1))(h)
+            h = LeakyReLU(alpha=0.1,name="FxA{:>d}".format(layer+1))(h)
             h = BatchNormalization(momentum=0.95,name="FxBN{:>d}".format(layer+1))(h)
-            zf = LeakyReLU(alpha=0.1,name="FxA{:>d}".format(layer+1))(h)
 
             # variable s
             # s-average
@@ -560,32 +560,32 @@ class RepGAN(Model):
             Zmu = Conv1D(self.nZchannels*self.Sstride**(layer+1),
                 self.Skernel,self.Sstride,padding="same",
                 data_format="channels_last",name="FxCNNmuS{:>d}".format(layer+1))(z)
-            Zmu = BatchNormalization(momentum=0.95,name="FxBNmuS{:>d}".format(layer+1))(Zmu)
             Zmu = LeakyReLU(alpha=0.1,name="FxAmuS{:>d}".format(layer+1))(Zmu)
+            Zmu = BatchNormalization(momentum=0.95,name="FxBNmuS{:>d}".format(layer+1))(Zmu)
             Zmu = Dropout(0.2,name="FxDOmuS{:>d}".format(layer+1))(Zmu)
 
             # s-log std
             Zlv = Conv1D(self.nZchannels*self.Sstride**(layer+1),
                 self.Skernel,self.Sstride,padding="same",
                 data_format="channels_last",name="FxCNNlvS{:>d}".format(layer+1))(z)
-            Zlv = BatchNormalization(momentum=0.95,name="FxBNlvS{:>d}".format(layer+1))(Zlv)
             Zlv = LeakyReLU(alpha=0.1,name="FxAlvS{:>d}".format(layer+1))(Zlv)
+            Zlv = BatchNormalization(momentum=0.95,name="FxBNlvS{:>d}".format(layer+1))(Zlv)
             Zlv = Dropout(0.2,name="FxDOlvS{:>d}".format(layer+1))(Zlv)
 
             # variable c
             Zc = Conv1D(self.nZchannels*self.Cstride**(layer+1),
                     self.Ckernel,self.Cstride,padding="same",
                     data_format="channels_last",name="FxCNNC{:>d}".format(layer+1))(z)
-            Zc = BatchNormalization(momentum=0.95,name="FxBNC{:>d}".format(layer+1))(Zc)
             Zc = LeakyReLU(alpha=0.1,name="FxAC{:>d}".format(layer+1))(Zc)
+            Zc = BatchNormalization(momentum=0.95,name="FxBNC{:>d}".format(layer+1))(Zc)
             Zc = Dropout(0.2,name="FxDOC{:>d}".format(layer+1))(Zc)
 
             # variable n
             Zn = Conv1D(self.nZchannels*self.Nstride**(layer+1),
                     self.Nkernel,self.Nstride,padding="same",
                     data_format="channels_last",name="FxCNNN{:>d}".format(layer+1))(z)
-            Zn = BatchNormalization(momentum=0.95,name="FxBNN{:>d}".format(layer+1))(Zn)
             Zn = LeakyReLU(alpha=0.1,name="FxAN{:>d}".format(layer+1))(Zn)
+            Zn = BatchNormalization(momentum=0.95,name="FxBNN{:>d}".format(layer+1))(Zn)
             Zn = Dropout(0.2,name="FxDON{:>d}".format(layer+1))(Zn)
 
             # variable s
@@ -594,94 +594,70 @@ class RepGAN(Model):
                 Zmu = Conv1D(self.nZchannels*self.Sstride**(layer+1),
                     self.Skernel,self.Sstride,padding="same",
                     data_format="channels_last",name="FxCNNmuS{:>d}".format(layer+1))(Zmu)
-                Zmu = BatchNormalization(momentum=0.95,name="FxBNmuS{:>d}".format(layer+1))(Zmu)
                 Zmu = LeakyReLU(alpha=0.1,name="FxAmuS{:>d}".format(layer+1))(Zmu)
+                Zmu = BatchNormalization(momentum=0.95,name="FxBNmuS{:>d}".format(layer+1))(Zmu)
                 Zmu = Dropout(0.2,name="FxDOmuS{:>d}".format(layer+1))(Zmu)
 
                 # s-log std
                 Zlv = Conv1D(self.nZchannels*self.Sstride**(layer+1),
                     self.Skernel,self.Sstride,padding="same",
                     data_format="channels_last",name="FxCNNlvS{:>d}".format(layer+1))(Zlv)
-                Zlv = BatchNormalization(momentum=0.95,name="FxBNlvS{:>d}".format(layer+1))(Zlv)
                 Zlv = LeakyReLU(alpha=0.1,name="FxAlvS{:>d}".format(layer+1))(Zlv)
+                Zlv = BatchNormalization(momentum=0.95,name="FxBNlvS{:>d}".format(layer+1))(Zlv)
                 Zlv = Dropout(0.2,name="FxDOlvS{:>d}".format(layer+1))(Zlv)
 
-            # variable c
+            # c
             for layer in range(1,self.nClayers):
                 Zc = Conv1D(self.nZchannels*self.Cstride**(layer+1),
                     self.Ckernel,self.Cstride,padding="same",
                     data_format="channels_last",name="FxCNNC{:>d}".format(layer+1))(Zc)
-                Zc = BatchNormalization(momentum=0.95,name="FxBNC{:>d}".format(layer+1))(Zc)
                 Zc = LeakyReLU(alpha=0.1,name="FxAC{:>d}".format(layer+1))(Zc)
+                Zc = BatchNormalization(momentum=0.95,name="FxBNC{:>d}".format(layer+1))(Zc)
                 Zc = Dropout(0.2,name="FxDOC{:>d}".format(layer+1))(Zc)
 
-            # variable n
+            # n
             for layer in range(1,self.nNlayers):
                 Zn = Conv1D(self.nZchannels*self.Nstride**(layer+1),
                     self.Nkernel,self.Nstride,padding="same",
                     data_format="channels_last",name="FxCNNN{:>d}".format(layer+1))(Zn)
-                Zn = BatchNormalization(momentum=0.95,name="FxBNN{:>d}".format(layer+1))(Zn)
                 Zn = LeakyReLU(alpha=0.1,name="FxAN{:>d}".format(layer+1))(Zn)
+                Zn = BatchNormalization(momentum=0.95,name="FxBNN{:>d}".format(layer+1))(Zn)
                 Zn = Dropout(0.2,name="FxDON{:>d}".format(layer+1))(Zn)
 
-            # variable s
-            # layer = self.nSlayers
-            # Zmu = Conv1D(self.nZchannels*self.Sstride**(layer+1),
-            #     self.Skernel,self.Sstride,padding="same",
-            #     data_format="channels_last",name="FxCNNmuS{:>d}".format(layer+1))(Zmu)
-            # Zmu = BatchNormalization(momentum=0.95,name="FxBNmuS{:>d}".format(layer+1))(Zmu)
-            # Zmu = LeakyReLU(alpha=0.1,name="FxAmuS{:>d}".format(layer+1))(Zmu)
-            # Zmu = Dropout(0.2,name="FxDOmuS{:>d}".format(layer+1))(Zmu)
+            # s-average
             Zmu = Flatten(name="FxFLmuS{:>d}".format(layer+1))(Zmu)
             Zmu = Dense(self.latentSdim,name="FxFWmuS")(Zmu)
+            Zmu = LeakyReLU(alpha=0.1,name="FxAmuS{:>d}".format(layer+1))(Zmu)
             Zmu = BatchNormalization(momentum=0.95,name="FxBNmuS")(Zmu)
 
-            # s-log std
-            # Zlv = Conv1D(self.nZchannels*self.Sstride**(layer+1),
-            #         self.Skernel,self.Sstride,padding="same",
-            #     data_format="channels_last",name="FxCNNlvS{:>d}".format(layer+1))(Zlv)
-            # Zlv = BatchNormalization(momentum=0.95,name="FxBNlvS{:>d}".format(layer+1))(Zlv)
-            # Zlv = LeakyReLU(alpha=0.1,name="FxAlvS{:>d}".format(layer+1))(Zlv)
-            # Zlv = Dropout(0.2,name="FxDOlvS{:>d}".format(layer+1))(Zlv)
+            # s-log variance
             Zlv = Flatten(name="FxFLlvS{:>d}".format(layer+1))(Zlv)
-            Zsigma = Dense(self.latentSdim,activation=tf.keras.activations.sigmoid,
-                name="FxFWlvS")(Zlv)
-            # Zlv = Dense(self.latentSdim,name="FxFWlvS")(Zlv)
-            # Zlv = BatchNormalization(momentum=0.95,name="FxBNlvS")(Zlv)
-            # CLIP Zlv
-            Zsigma_clip = tf.clip_by_value(Zsigma,-1.0,1.0)
+            Zlv = Dense(self.latentSdim,name="FxFWlvS")(Zlv)
+            Zlv = LeakyReLU(alpha=0.1,name="FxAlvS{:>d}".format(layer+1))(Zlv)
+            Zlv = BatchNormalization(momentum=0.95,name="FxBNlvS")(Zlv)
 
-            # variable c
+            # c
             layer = self.nClayers
-            # Zc = Conv1D(self.nZchannels*self.Cstride**(layer+1),
-            #         self.Ckernel,self.Cstride,padding="same",
-            #         data_format="channels_last",name="FxCNNC{:>d}".format(layer+1))(Zc)
-            # Zc = BatchNormalization(momentum=0.95,name="FxBNC{:>d}".format(layer+1))(Zc)
-            # Zc = LeakyReLU(alpha=0.1,name="FxAC{:>d}".format(layer+1))(Zc)
-            # Zc = Dropout(0.2,name="FxDOC{:>d}".format(layer+1))(Zc)
             Zc = Flatten(name="FxFLC{:>d}".format(layer+1))(Zc)
             Zc = Dense(self.latentCdim,name="FxFWC")(Zc)
+            Zc = LeakyReLU(alpha=0.1,name="FxAC{:>d}".format(layer+1))(Zc)
             Zc = BatchNormalization(momentum=0.95,name="FxBNC")(Zc)
 
-            # variable n
+            # n
             layer = self.nNlayers
-            # Zn = Conv1D(self.nZchannels*self.Nstride**(layer+1),
-            #     self.Nkernel,self.Nstride,padding="same",
-            #     data_format="channels_last",name="FxCNNN{:>d}".format(layer+1))(Zn)
-            # Zn = BatchNormalization(momentum=0.95,name="FxBNN{:>d}".format(layer+1))(Zn)
-            # Zn = LeakyReLU(alpha=0.1,name="FxAN{:>d}".format(layer+1))(Zn)
-            # Zn = Dropout(0.2,name="FxDON{:>d}".format(layer+1))(Zn)
             Zn = Flatten(name="FxFLN{:>d}".format(layer+1))(Zn)
-            Zn = Dense(self.latentNdim,name="FxFWN")(Zn)
+            Zn = Dense(self.latentNdim,name="FxFWN{:>d}".format(layer+1))(Zn)
+            Zn = LeakyReLU(alpha=0.1,name="FxAN{:>d}".format(layer+1))(Zn)
 
         # variable s
-        s = SamplingFxS()([Zmu,Zsigma_clip])
-        #QsX = tfp.distributions.MultivariateNormalDiag(loc=self.Zmu, scale_diag=self.Zsigma)
-        QsX = Concatenate(axis=-1)([Zmu,Zsigma])
+        s = SamplingFxNormSfromLogVariance()([Zmu,Zlv])
+        QsX = Concatenate(axis=-1)([Zmu,Zlv])
 
         # variable c
-        c   = Softmax(name="FxAC")(Zc)
+        c = Softmax(name="FxAC")(Zc)
+        c = BatchNormalization(momentum=0.95,name="FxBNC")(c)
         QcX = Softmax(name="QcAC")(Zc)
+        QcX = BatchNormalization(momentum=0.95,name="QcBNC")(QcX)
 
         # variable n
         n = BatchNormalization(momentum=0.95,name="FxBNN")(Zn)
@@ -689,7 +665,6 @@ class RepGAN(Model):
 
         Fx = keras.Model(X,[s,c,n],name="Fx")
         Qs = keras.Model(X,QsX,name="Qs")
-        # Qs = keras.Model(X,[Zmu,Zsigma],name="Qs")
         Qc = keras.Model(X,QcX,name="Qc")
 
         return Fx,Qs,Qc
@@ -722,8 +697,8 @@ class RepGAN(Model):
 
             Gz = concatenate([GzS.output,GzC.output,GzN.output])
             Gz = Reshape((self.Zsize,self.nZchannels))(z)
-            Gz = BatchNormalization(axis=-1,momentum=0.95)(Gz)
             Gz = LeakyReLU(alpha=0.1,name="GzA0".format(layer+1))(Gz)
+            Gz = BatchNormalization(axis=-1,momentum=0.95)(Gz)
 
         elif 'conv' in self.branching:
             # variable s
@@ -735,14 +710,14 @@ class RepGAN(Model):
                 Zs = Conv1DTranspose(int(self.nSchannels*self.Sstride**(-layer)),
                     self.Skernel,self.Sstride,padding="same",
                     data_format="channels_last",name="GzCNNS{:>d}".format(layer))(Zs)
-                Zs = BatchNormalization(momentum=0.95,name="GzBNS{:>d}".format(layer))(Zs)
                 Zs = LeakyReLU(alpha=0.1,name="GzAS{:>d}".format(layer))(Zs)
+                Zs = BatchNormalization(momentum=0.95,name="GzBNS{:>d}".format(layer))(Zs)
                 Zs = Dropout(0.2,name="GzDOS{:>d}".format(layer))(Zs)
             Zs = Conv1DTranspose(int(self.nSchannels*self.Sstride**(-self.nSlayers)),
                 self.Skernel,self.Sstride,padding="same",
                 data_format="channels_last",name="GzCNNS{:>d}".format(self.nSlayers))(Zs)
-            Zs = BatchNormalization(momentum=0.95,name="GzBNS{:>d}".format(self.nSlayers))(Zs)
             Zs = LeakyReLU(alpha=0.1,name="GzAS{:>d}".format(self.nSlayers))(Zs)
+            Zs = BatchNormalization(momentum=0.95,name="GzBNS{:>d}".format(self.nSlayers))(Zs)
             Zs = Dropout(0.2,name="GzDOS{:>d}".format(self.nSlayers))(Zs)
             GzS = keras.Model(s,Zs)
 
@@ -754,14 +729,14 @@ class RepGAN(Model):
                 Zc = Conv1DTranspose(int(self.nCchannels*self.Cstride**(-layer)),
                     self.Ckernel,self.Cstride,padding="same",
                     data_format="channels_last",name="GzCNNC{:>d}".format(layer))(Zc)
-                Zc = BatchNormalization(momentum=0.95,name="GzBNC{:>d}".format(layer))(Zc)
                 Zc = LeakyReLU(alpha=0.1,name="GzAC{:>d}".format(layer))(Zc)
+                Zc = BatchNormalization(momentum=0.95,name="GzBNC{:>d}".format(layer))(Zc)
                 Zc = Dropout(0.2,name="GzDOC{:>d}".format(layer))(Zc)
             Zc = Conv1DTranspose(int(self.nCchannels*self.Cstride**(-self.nClayers)),
                 self.Ckernel,self.Cstride,padding="same",
                 data_format="channels_last",name="GzCNNC{:>d}".format(self.nClayers))(Zc)
-            Zc = BatchNormalization(momentum=0.95,name="GzBNC{:>d}".format(self.nClayers))(Zc)
             Zc = LeakyReLU(alpha=0.1,name="GzAC{:>d}".format(self.nClayers))(Zc)
+            Zc = BatchNormalization(momentum=0.95,name="GzBNC{:>d}".format(self.nClayers))(Zc)
             Zc = Dropout(0.2,name="GzDOC{:>d}".format(self.nClayers))(Zc)
             GzC = keras.Model(c,Zc)
 
@@ -773,14 +748,14 @@ class RepGAN(Model):
                 Zn = Conv1DTranspose(int(self.nNchannels*self.Nstride**(-layer)),
                     self.Nkernel,self.Nstride,padding="same",
                     data_format="channels_last",name="GzCNNN{:>d}".format(layer))(Zn)
-                Zn = BatchNormalization(momentum=0.95,name="GzBNN{:>d}".format(layer))(Zn)
                 Zn = LeakyReLU(alpha=0.1,name="GzAN{:>d}".format(layer))(Zn)
+                Zn = BatchNormalization(momentum=0.95,name="GzBNN{:>d}".format(layer))(Zn)
                 Zn = Dropout(0.2,name="GzDON{:>d}".format(layer))(Zn)
             Zn = Conv1DTranspose(int(self.nNchannels*self.Nstride**(-self.nNlayers)),
                 self.Nkernel,self.Nstride,padding="same",
                 data_format="channels_last",name="GzCNNN{:>d}".format(self.nNlayers))(Zn)
-            Zn = BatchNormalization(momentum=0.95,name="GzBNN{:>d}".format(self.nNlayers))(Zn)
             Zn = LeakyReLU(alpha=0.1,name="GzAN{:>d}".format(self.nNlayers))(Zn)
+            Zn = BatchNormalization(momentum=0.95,name="GzBNN{:>d}".format(self.nNlayers))(Zn)
             Zn = Dropout(0.2,name="GzDON{:>d}".format(self.nNlayers))(Zn)
             GzN = keras.Model(n,Zn)
 
@@ -788,15 +763,15 @@ class RepGAN(Model):
             Gz = Conv1DTranspose(self.nZchannels,
                     self.kernel,1,padding="same",
                     data_format="channels_last",name="GzCNN0")(Gz)
-            Gz = BatchNormalization(axis=-1,momentum=0.95,name="GzBN0")(Gz)
             Gz = LeakyReLU(alpha=0.1,name="GzA0".format(layer+1))(Gz)
+            Gz = BatchNormalization(axis=-1,momentum=0.95,name="GzBN0")(Gz)
 
         for layer in range(self.nAElayers):
             Gz = Conv1DTranspose(self.nZchannels//self.stride**(layer+1),
                 self.kernel,self.stride,padding="same",use_bias=False,
                 name="GzCNN{:>d}".format(layer+1))(Gz)
+            Gz = LeakyReLU(alpha=0.1,name="GzA{:>d}".format(layer+1))(Gz)
             Gz = BatchNormalization(axis=-1,momentum=0.95,name="GzBN{:>d}".format(layer+1))(Gz)
-            Gz = LeakyReLU(alpha=0.1,name="GzA{:>d}".format(layer+1))(Gz) #Activation('relu')(Gz)
 
         layer = self.nAElayers
         # X = Conv1DTranspose(self.nXchannels,self.kernel,1,
@@ -817,17 +792,20 @@ class RepGAN(Model):
                 self.kernel,self.stride,padding="same",kernel_constraint=ClipConstraint(self.clipValue),
                 data_format="channels_last",name="DxCNN0")(X)
         h = LeakyReLU(alpha=0.1,name="DxA0")(h)
+        h = Dropout(0.25,name="DxDO0")(h)
 
         for layer in range(1,self.nDlayers):
             h = Conv1D(self.Xsize*self.stride**(-(layer+1)),
                 self.kernel,self.stride,padding="same",kernel_constraint=ClipConstraint(self.clipValue),
                 data_format="channels_last",name="DxCNN{:>d}".format(layer))(h)
+            h = LeakyReLU(alpha=0.1,name="DxA{:>d}".format(layer))(h)
             h = BatchNormalization(momentum=0.95,name="DxBN{:>d}".format(layer))(h)
-            h = LeakyReLU(alpha=0.2,name="DxA{:>d}".format(layer))(h)
             h = Dropout(0.25,name="DxDO{:>d}".format(layer))(h)
         layer = self.nDlayers    
         h = Flatten(name="DxFL{:>d}".format(layer))(h)
         Px = Dense(1,kernel_constraint=ClipConstraint(self.clipValue))(h)
+        # h = BatchNormalization(momentum=0.95,name="DxBN{:>d}".format(layer))(h)
+        # Px = Dropout(0.25,name="DxDO{:>d}".format(layer))(h)
         Dx = keras.Model(X,Px,name="Dx")
         return Dx
 
@@ -837,11 +815,13 @@ class RepGAN(Model):
             Dense discriminator structure
         """
         c = Input(shape=(self.latentCdim,))
-        #h = Dense(3000,kernel_constraint=self.ClipD)(c)
         h = Dense(3000,kernel_constraint=ClipConstraint(self.clipValue))(c)
-        h = LeakyReLU()(h)
+        h = LeakyReLU(alpha=0.1)(h)
+        h = Dropout(0.25)(h)
         h = Dense(3000,kernel_constraint=ClipConstraint(self.clipValue))(h)
-        h = LeakyReLU()(h)
+        h = LeakyReLU(alpha=0.1)(h)
+        h = BatchNormalization(momentum=0.95,)(h)
+        h = Dropout(0.25)(h)
         Pc = Dense(1,activation=tf.keras.activations.sigmoid,kernel_constraint=ClipConstraint(self.clipValue))(h)
         Dc = keras.Model(c,Pc,name="Dc")
         return Dc
@@ -852,9 +832,12 @@ class RepGAN(Model):
         """
         n = Input(shape=(self.latentNdim,))
         h = Dense(3000,kernel_constraint=ClipConstraint(self.clipValue))(n)
-        h = LeakyReLU()(h)
+        h = LeakyReLU(alpha=0.1)(h)
+        h = Dropout(0.25)(h)
         h = Dense(3000,kernel_constraint=ClipConstraint(self.clipValue))(h)
-        h = LeakyReLU()(h) 
+        h = LeakyReLU(alpha=0.1)(h)
+        h = BatchNormalization(momentum=0.95,)(h)
+        h = Dropout(0.25)(h) 
         Pn = Dense(1,kernel_constraint=ClipConstraint(self.clipValue))(h)
         Dn = keras.Model(n,Pn,name="Dn")
         return Dn
@@ -865,9 +848,12 @@ class RepGAN(Model):
         """
         s = Input(shape=(self.latentSdim,))
         h = Dense(3000,kernel_constraint=ClipConstraint(self.clipValue))(s)
-        h = LeakyReLU()(h)
+        h = LeakyReLU(alpha=0.1)(h)
+        h = Dropout(0.25)(h)
         h = Dense(3000,kernel_constraint=ClipConstraint(self.clipValue))(h)
-        h = LeakyReLU()(h)
+        h = LeakyReLU(alpha=0.1)(h)
+        h = BatchNormalization(momentum=0.95,)(h)
+        h = Dropout(0.25)(h)
         #Ps = Dense(1,activation=tf.keras.activations.sigmoid)(h)
         Ps = Dense(1,kernel_constraint=ClipConstraint(self.clipValue))(h)
         Ds = keras.Model(s,Ps,name="Ds")
