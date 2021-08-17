@@ -82,7 +82,7 @@ def make_or_restore_model():
 def ParseOptions():
     parser = argparse.ArgumentParser()
     parser.add_argument("--epochs",type=int,default=2000,help='Number of epochs')
-    parser.add_argument("--Xsize",type=int,default=4096,help='Data space size')
+    parser.add_argument("--Xsize",type=int,default=1024,help='Data space size')
     parser.add_argument("--nX",type=int,default=200,help='Number of signals')
     parser.add_argument("--nXchannels",type=int,default=2,help="Number of data channels")
     parser.add_argument("--nAElayers",type=int,default=3,help='Number of AE CNN layers')
@@ -91,9 +91,9 @@ def ParseOptions():
     parser.add_argument("--stride",type=int,default=2,help='CNN stride')
     parser.add_argument("--nZfirst",type=int,default=8,help="Initial number of channels")
     parser.add_argument("--branching",type=str,default='conv',help='conv or dens')
-    parser.add_argument("--latentSdim",type=int,default=128,help="Latent space s dimension")
+    parser.add_argument("--latentSdim",type=int,default=2,help="Latent space s dimension")
     parser.add_argument("--latentCdim",type=int,default=2,help="Number of classes")
-    parser.add_argument("--latentNdim",type=int,default=8,help="Latent space n dimension")
+    parser.add_argument("--latentNdim",type=int,default=20,help="Latent space n dimension")
     parser.add_argument("--nSlayers",type=int,default=3,help='Number of S-branch CNN layers')
     parser.add_argument("--nClayers",type=int,default=3,help='Number of C-branch CNN layers')
     parser.add_argument("--nNlayers",type=int,default=3,help='Number of N-branch CNN layers')
@@ -106,8 +106,8 @@ def ParseOptions():
     parser.add_argument("--batchSize",type=int,default=25,help='input batch size')    
     parser.add_argument("--nCritic",type=int,default=5,help='number of discriminator training steps')
     parser.add_argument("--clipValue",type=float,default=0.01,help='clip weight for WGAN')
-    parser.add_argument("--dataroot_1",type=str,default="/gpfs/workdir/invsem07/stead_1_6U",help="Data root folder - Undamaged")
-    parser.add_argument("--dataroot_2",type=str,default="/gpfs/workdir/invsem07/stead_1_6D",help="Data root folder - Damaged") 
+    parser.add_argument("--dataroot_1",type=str,default="/gpfs/workdir/invsem07/stead_1_8U",help="Data root folder - Undamaged")
+    parser.add_argument("--dataroot_2",type=str,default="/gpfs/workdir/invsem07/stead_1_8D",help="Data root folder - Damaged") 
     parser.add_argument("--idChannels",type=int,nargs='+',default=[1,39],help="Channel 1")
     parser.add_argument("--nParams",type=str,default=2,help="Number of parameters")
     parser.add_argument("--case",type=str,default="train_model",help="case")
@@ -115,11 +115,7 @@ def ParseOptions():
     parser.add_argument("--pb",type=str,default="DC",help="case pb")#DC
     parser.add_argument("--CreateData",action='store_true',default=True,help='Create data flag')
     parser.add_argument("--cuda",action='store_true',default=False,help='Use cuda powered GPU')
-    parser.add_argument('--dtm',type=float,default=0.01,help='time-step [s]')
-    parser.add_argument('--theta',type=float,default=0.997,help='Generator loss hyperparameter')
-    parser.add_argument('--zeta',type=float,default=0.003,help='BCE loss hyperparameter')
-    parser.add_argument('--lambda',type=float,default=0.001,help='Learning rate for k')
-    parser.add_argument('--gamma',type=float,default=0.5,help='Equilibrium hyperparameter')
+    parser.add_argument('--dtm',type=float,default=0.04,help='time-step [s]')
     options = parser.parse_args().__dict__
 
     options['batchXshape'] = (options['batchSize'],options['Xsize'],options['nXchannels'])
@@ -372,10 +368,13 @@ class RepGAN(Model):
         self.Ds.trainable = True
         self.Dn.trainable = True
 
+        realS = tf.random.normal(mean=0.0,stddev=0.5,shape=[self.batchSize,self.latentSdim])
+        realN = tf.random.normal(mean=0.0,stddev=0.3,shape=[self.batchSize,self.latentNdim])
+
         for _ in range(self.nCritic):
             #realS = tf.exp(tf.random.normal(mean=0.0,stddev=1.0,shape=[self.batchSize,self.latentSdim]))
-            realS = tf.random.normal(mean=0.0,stddev=1.0,shape=[self.batchSize,self.latentSdim])
-            realN = tf.random.normal(mean=0.0,stddev=0.3,shape=[self.batchSize,self.latentNdim])
+            #realS = tf.random.normal(mean=0.0,stddev=0.5,shape=[self.batchSize,self.latentSdim])
+            #realN = tf.random.normal(mean=0.0,stddev=0.3,shape=[self.batchSize,self.latentNdim])
 
             with tf.GradientTape(persistent=True) as tape:
 
@@ -404,13 +403,13 @@ class RepGAN(Model):
                 realScritic = self.Ds(realS,training=True)
 
                 # Calculate the discriminator loss using the fake and real logits
-                #AdvDlossX  = self.AdvDlossGAN(realBCE,realXcritic)*self.PenAdvXloss
-                #AdvDlossX += self.AdvDlossGAN(fakeBCE,fakeXcritic)*self.PenAdvXloss
-                AdvDlossX = self.AdvDlossWGAN(realXcritic,fakeXcritic)*self.PenAdvXloss
+                AdvDlossX  = self.AdvDlossGAN(realBCE,realXcritic)*self.PenAdvXloss
+                AdvDlossX += self.AdvDlossGAN(fakeBCE,fakeXcritic)*self.PenAdvXloss
+                #AdvDlossX = self.AdvDlossWGAN(realXcritic,fakeXcritic)*self.PenAdvXloss
                 #AdvDlossX = -tf.reduce_mean(tf.log(realXcritic+1e-8) + tf.log(1 - fakeXcritic+1e-8))*self.PenAdvXloss
-                #AdvDlossC = self.AdvDlossWGAN(realCcritic,fakeCcritic)*self.PenAdvCloss
-                AdvDlossC  = self.AdvDlossGAN(realBCE,realCcritic)*self.PenAdvCloss
-                AdvDlossC += self.AdvDlossGAN(fakeBCE,fakeCcritic)*self.PenAdvCloss
+                AdvDlossC = self.AdvDlossWGAN(realCcritic,fakeCcritic)*self.PenAdvCloss
+                #AdvDlossC  = self.AdvDlossGAN(realBCE,realCcritic)*self.PenAdvCloss
+                #AdvDlossC += self.AdvDlossGAN(fakeBCE,fakeCcritic)*self.PenAdvCloss
                 AdvDlossS = self.AdvDlossWGAN(realScritic,fakeScritic)*self.PenAdvSloss
                 #AdvDlossS  = self.AdvDlossGAN(realBCE,realScritic)*self.PenAdvSloss
                 #AdvDlossS += self.AdvDlossGAN(fakeBCE,fakeScritic)*self.PenAdvSloss
@@ -463,11 +462,11 @@ class RepGAN(Model):
 
             # Adversarial ground truths
             # realBCE = tf.ones_like(fakeXcritic)
-            #AdvGlossX = self.AdvGlossGAN(realBCE,fakeXcritic)*self.PenAdvXloss
-            AdvGlossX = self.AdvGlossWGAN(fakeXcritic)*self.PenAdvXloss
+            AdvGlossX = self.AdvGlossGAN(realBCE,fakeXcritic)*self.PenAdvXloss
+            #AdvGlossX = self.AdvGlossWGAN(fakeXcritic)*self.PenAdvXloss
             #AdvGlossX = - tf.reduce_mean(tf.log(fakeXcritic+1e-8))
-            #AdvGlossC = self.AdvGlossWGAN(fakeCcritic)*self.PenAdvCloss
-            AdvGlossC = self.AdvGlossGAN(realBCE,fakeCcritic)*self.PenAdvCloss
+            AdvGlossC = self.AdvGlossWGAN(fakeCcritic)*self.PenAdvCloss
+            #AdvGlossC = self.AdvGlossGAN(realBCE,fakeCcritic)*self.PenAdvCloss
             AdvGlossS = self.AdvGlossWGAN(fakeScritic)*self.PenAdvSloss
             AdvGlossN = self.AdvGlossWGAN(fakeNcritic)*self.PenAdvNloss
             RecGlossX = self.RecXloss(realX,recX)*self.PenRecXloss
@@ -828,20 +827,21 @@ class RepGAN(Model):
         layer = 0
         X = Input(shape=self.Xshape,name="X")
         h = Conv1D(self.Xsize*self.stride**(-(layer+1)),
-                self.kernel,self.stride,padding="same",kernel_constraint=ClipConstraint(self.clipValue),
+                self.kernel,self.stride,padding="same",
                 data_format="channels_last",name="DxCNN0")(X)
         h = LeakyReLU(alpha=0.1,name="DxA0")(h)
         h = Dropout(0.25,name="DxDO0")(h)
         for layer in range(1,self.nDlayers):
             h = Conv1D(self.Xsize*self.stride**(-(layer+1)),
-                self.kernel,self.stride,padding="same",kernel_constraint=ClipConstraint(self.clipValue),
+                self.kernel,self.stride,padding="same",
                 data_format="channels_last",name="DxCNN{:>d}".format(layer))(h)
             h = LeakyReLU(alpha=0.1,name="DxA{:>d}".format(layer))(h)
             h = BatchNormalization(momentum=0.95,name="DxBN{:>d}".format(layer))(h)
             h = Dropout(0.25,name="DxDO{:>d}".format(layer))(h)
         layer = self.nDlayers    
         h = Flatten(name="DxFL{:>d}".format(layer))(h)
-        Px = Dense(1,kernel_constraint=ClipConstraint(self.clipValue))(h)
+        Px = Dense(1,activation=tf.keras.activations.sigmoid)(h)
+        #Px = Dense(1,kernel_constraint=ClipConstraint(self.clipValue))(h)
         # h = BatchNormalization(momentum=0.95,name="DxBN{:>d}".format(layer))(h)
         # Px = Dropout(0.25,name="DxDO{:>d}".format(layer))(h)
         Dx = keras.Model(X,Px,name="Dx")
@@ -902,6 +902,7 @@ class RepGAN(Model):
         self.Qs.save("Qs.h5")
         self.Qc.save("Qc.h5")
         self.Gz.save("Gz.h5")
+        self.Dx.save("Dx.h5")
         self.Ds.save("Ds.h5")
         self.Dn.save("Dn.h5")
         self.Dc.save("Dc.h5")
@@ -980,8 +981,6 @@ def Main(DeviceName):
 
         PlotReconstructedTHs(GiorgiaGAN,Xvld,Xvld_u,Xvld_d) # Plot reconstructed time-histories
 
-        PlotDistributionN(GiorgiaGAN,Xvld) # Plot n distribution
-
         PlotTHSGoFs(GiorgiaGAN,Xvld) # Plot reconstructed time-histories
 
         ViolinPlot(GiorgiaGAN,Xvld) # Violin plot
@@ -990,7 +989,7 @@ def Main(DeviceName):
 
         PlotBatchGoFs_new(GiorgiaGAN,Xvld_u,Xvld_d) # Plot GoFs on a batch (after the change of C)
 
-        PlotClassificationMetrics(GiorgiaGAN,Xvld) # Plot classification metrics
+        #PlotClassificationMetrics(GiorgiaGAN,Xvld) # Plot classification metrics
 
         SwarmPlot(GiorgiaGAN,Xvld) # Swarm plot
 
