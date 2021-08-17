@@ -322,27 +322,35 @@ class RepGAN(Model):
             # 1. Get the discriminator output for this interpolated image.
             predX = self.Dx(intX,training=True)
 
-    def GradientPenaltyS(self,batchSize,realX,fakeX):
+        # 2. Calculate the gradients w.r.t to this interpolated image.
+        GradDx = gp_tape.gradient(predX, [intX])[0]
+        # 3. Calculate the norm of the gradients.
+        NormGradX = tf.sqrt(tf.reduce_sum(tf.square(GradDx), axis=[1]))
+        gp = tf.reduce_mean((NormGradX - 1.0) ** 2)
+        return gp
+
+
+    def GradientPenaltyS(self,batchSize,realS,fakeS):
         """ Calculates the gradient penalty.
 
         This loss is calculated on an interpolated image
         and added to the discriminator loss.
         """
         # Get the interpolated image
-        alpha = tf.random.normal([batchSize, 1], 0.0, 1.0)
-        diffX = fakeX - realX
-        intX = realX + alpha * diffX
+        alpha = tf.random.normal([batchSize,1],0.0,1.0)
+        diffS = fakeS - realS
+        intS = realS + alpha * diffS
 
         with tf.GradientTape() as gp_tape:
-            gp_tape.watch(intX)
+            gp_tape.watch(intS)
             # 1. Get the discriminator output for this interpolated image.
-            predX = self.Ds(intX,training=True)
+            predS = self.Ds(intS,training=True)
 
         # 2. Calculate the gradients w.r.t to this interpolated image.
-        GradX = gp_tape.gradient(predX, [intX])[0]
+        GradDs = gp_tape.gradient(predS, [intS])[0]
         # 3. Calculate the norm of the gradients.
-        NormGradX = tf.sqrt(tf.reduce_sum(tf.square(GradX), axis=[1]))
-        gp = tf.reduce_mean((NormGradX - 1.0) ** 2)
+        NormGradS = tf.sqrt(tf.reduce_sum(tf.square(GradDs), axis=[1]))
+        gp = tf.reduce_mean((NormGradS - 1.0) ** 2)
         return gp
 
     def train_step(self, realXC):
