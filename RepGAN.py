@@ -443,7 +443,7 @@ class RepGAN(Model):
         self.Dn.trainable = False
 
         realS = tf.random.normal(mean=0.0,stddev=1.0,shape=[self.batchSize,self.latentSdim])
-        realN = tf.random.normal(mean=0.0,stddev=0.3,shape=[self.batchSize,self.latentNdim])
+        realN = tf.random.normal(mean=0.0,stddev=1.0,shape=[self.batchSize,self.latentNdim])
 
         with tf.GradientTape(persistent=True) as tape:
             # Generate fake latent code from real signal
