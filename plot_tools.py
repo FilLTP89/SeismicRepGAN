@@ -38,6 +38,10 @@ from statistics import mean
 import plotly.graph_objects as go
 import plotly.express as px
 
+
+from random import seed
+from random import randint
+
 import matplotlib.font_manager
 rcParams['font.family'] = 'serif'
 rcParams['font.sans-serif'] = ['Helvetica']
@@ -70,7 +74,7 @@ def PlotLoss(history):
     hax.set_rasterized(True)
     loss = {}
     loss[r"$AdvDlossX$"] = history.history['AdvDlossX']
-    #loss[r"$AdvDlossC$"] = history.history['AdvDlossC']
+    loss[r"$AdvDlossC$"] = history.history['AdvDlossC']
     loss[r"$AdvDlossS$"] = history.history['AdvDlossS']
     loss[r"$AdvDlossN$"] = history.history['AdvDlossN']
     loss[r"$AdvGlossX$"] = history.history['AdvGlossX']
@@ -80,11 +84,17 @@ def PlotLoss(history):
     loss[r"$RecGlossX$"] = history.history['RecGlossX']
     loss[r"$RecGlossC$"] = history.history['RecGlossC']
     loss[r"$RecGlossS$"] = history.history['RecGlossS']
+    loss[r"$Classloss$"] = history.history['Classloss']
+    #loss[r"$AdvDlossClass$"] = history.history['AdvDlossClass']
+    #loss[r"$AdvGlossClass$"] = history.history['AdvGlossClass']
+    
     clr = sn.color_palette("bright",len(loss.keys()))
     i=0
     for k,v in loss.items():
         hax.plot(range(len(v)),v,linewidth=2,label=r"{}".format(k),color=clr[i])
         i+=1
+    #hax.plot(history.history['AdvDlossClass'], linewidth=2,label=r"$AdvDlossClass$", color = 'violet')
+    #hax.plot(history.history['AdvGlossClass'], linewidth=2,label=r"$AdvGlossClass$", color = 'palegreen')
     #hax.plot(history.history['AdvDloss'], color='b')
     #hax.plot(history.history['AdvGloss'], color='g')
     # hax.plot(history.history['AdvDlossX'],linewidth=2) #color='r',linewidth=2)
@@ -106,9 +116,9 @@ def PlotLoss(history):
     #    'AdvGlossC','AdvGlossS','AdvGlossN','RecGlossX','RecGlossC','RecGlossS'], loc='lower right')
     #hax.legend(['AdvDlossX','AdvDlossC','AdvDlossS','AdvDlossN','AdvGlossX',
     #    'AdvGlossC','AdvGlossS','AdvGlossN','RecGlossX','RecGlossC','RecGlossS'], loc='lower right')
-    labels_legend= [r"$\mathcal{L}_{AdvX}$",r"$\mathcal{L}_{AdvS}$",r"$\mathcal{L}_{AdvN}$",
-        r"$\mathcal{L}_{GenX}$",r"$\mathcal{L}_{GenC}$",r"$\mathcal{L}_{GenS}$",
-        r"$\mathcal{L}_{GenN}$",r"$\mathcal{L}_{RecX}$",r"$\mathcal{L}_{RecC}$",r"$\mathcal{L}_{RecS}$"]#r"$\mathcal{L}_{AdvPenGradS}$",r"$\mathcal{L}_{AdvC}$"
+    labels_legend= [r"$\mathcal{L}_{AdvX}$",r"$\mathcal{L}_{AdvC}$",r"$\mathcal{L}_{AdvS}$",r"$\mathcal{L}_{AdvN}$",
+        r"$\mathcal{L}_{GenX}$",r"$\mathcal{L}_{GenC}$",r"$\mathcal{L}_{GenS}$",r"$\mathcal{L}_{GenN}$",r"$\mathcal{L}_{RecX}$",
+        r"$\mathcal{L}_{RecC}$",r"$\mathcal{L}_{RecS}$",r"$\mathcal{L}_{Classloss}$"]#,r"$\mathcal{L}_{AdvClass}$",r"$\mathcal{L}_{GenClass}$"
     hax.legend(labels_legend,fontsize=14,frameon=False)
     hax.tick_params(axis='both', labelsize=14)
     hax.set_xlabel(r"$n_{epochs}$",fontsize=20,fontweight='bold')
@@ -143,7 +153,7 @@ def PlotLoss(history):
     hax.set_xlabel(r'$n_{epochs}$', fontsize=20,fontweight='bold')
     hax.legend(loc='best',frameon=False,fontsize=12)
     plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/D_c.png',bbox_inches = 'tight')
-    plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/D_c.eps',bbox_inches = 'tight',dpi=200)
+    #plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/D_c.eps',bbox_inches = 'tight',dpi=200)
     plt.close()
 
     hfg = plt.figure(figsize=(12,6))
@@ -182,8 +192,11 @@ def PlotReconstructedTHs(model,realXC,realXC_u,realXC_d):
     # Print real vs reconstructed signal
     hfg = plt.figure(figsize=(12,6),tight_layout=True)
     hax = hfg.add_subplot(111)
-    hax.plot(realX[0,:,0], color='black')
-    hax.plot(fakeX[0,:,0], color='orange')
+    t = np.zeros(realX.shape[1])
+    for i in range(realX.shape[1]-1):
+        t[i+1] = (i+1)*0.04
+    hax.plot(t,realX[0,:,0], color='black')
+    hax.plot(t,fakeX[0,:,0], color='orange')
     hax.set_title(r'$X \hspace{0.5} reconstruction$', fontsize=22,fontweight='bold')
     hax.set_ylabel(r'$X(t) \hspace{0.5} [1]$', fontsize=20,fontweight='bold')
     hax.set_xlabel(r'$t \hspace{0.5} [s]$', fontsize=20,fontweight='bold')
@@ -196,9 +209,9 @@ def PlotReconstructedTHs(model,realXC,realXC_u,realXC_d):
     # Print reconstructed signal after fakeN resampling
     hfg = plt.figure(figsize=(12,6),tight_layout=True)
     hax = hfg.add_subplot(111)
-    hax.plot(realX[0,:,0], color='black')
-    hax.plot(fakeX[0,:,0], color='orange')
-    hax.plot(fakeX_res[0,:,0], color='green')
+    hax.plot(t,realX[0,:,0], color='black')
+    hax.plot(t,fakeX[0,:,0], color='orange')
+    hax.plot(t,fakeX_res[0,:,0], color='green')
     hax.set_title(r'$X \hspace{0.5} reconstruction$', fontsize=22,fontweight='bold')
     hax.set_ylabel(r'$X(t) \hspace{0.5} [1]$', fontsize=20,fontweight='bold')
     hax.set_xlabel(r'$t \hspace{0.5} [s]$', fontsize=20,fontweight='bold')
@@ -220,8 +233,8 @@ def PlotReconstructedTHs(model,realXC,realXC_u,realXC_d):
     # Print real vs reconstructed signal
     hfg = plt.figure(figsize=(12,6),tight_layout=True)
     hax = hfg.add_subplot(111)
-    hax.plot(realX_d[0,:,0], color='black')
-    hax.plot(fakeX_new[0,:,0], color='orange')
+    hax.plot(t,realX_d[0,:,0], color='black')
+    hax.plot(t,fakeX_new[0,:,0], color='orange')
     hax.set_title(r'$X \hspace{0.5} reconstruction$', fontsize=22,fontweight='bold')
     hax.set_ylabel(r'$X(t) \hspace{0.5} [1]$', fontsize=20,fontweight='bold')
     hax.set_xlabel(r'$t \hspace{0.5} [s]$', fontsize=20,fontweight='bold')
@@ -403,16 +416,27 @@ def PlotTHSGoFs(model,realXC):
     # b = np.zeros(fakeX.shape[1])
 
     ## Print signal GoF
-    for j in range(2):
-        for i in range(realX.shape[0]):
-            plot_tf_gofs(realX[i,:,j],fakeX[i,:,j],dt=0.01,fmin=0.1,fmax=30.0,t0=0.0,nf=100,w0=6,norm='global',st2_isref=True,
-                a=10.,k=1.,left=0.1,bottom=0.125, h_1=0.2,h_2=0.125,h_3=0.2,w_1=0.2,w_2=0.6,w_cb=0.01, d_cb=0.0,show=False,
-                plot_args=['k', 'r', 'b'],ylim=0., clim=0.)
-            plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/gof_{:>d}_{:>d}.png'.format(j,i),bbox_inches = 'tight')
-            #plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/gof_{:>d}_{:>d}.eps'.format(j,i),bbox_inches = 'tight',dpi=200)
-            plt.close()
+    # for j in range(2):
+    #     for i in range(realX.shape[0]):
+    #         plot_tf_gofs(realX[i,:,j],fakeX[i,:,j],dt=0.04,fmin=0.1,fmax=30.0,t0=0.0,nf=100,w0=6,norm='global',st2_isref=True,
+    #             a=10.,k=1.,left=0.1,bottom=0.125, h_1=0.2,h_2=0.125,h_3=0.2,w_1=0.2,w_2=0.6,w_cb=0.01, d_cb=0.0,show=False,
+    #             plot_args=['k', 'r', 'b'],ylim=0., clim=0.)
+    #         plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/gof_{:>d}_{:>d}.png'.format(j,i),bbox_inches = 'tight')
+    #         #plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/gof_{:>d}_{:>d}.eps'.format(j,i),bbox_inches = 'tight',dpi=200)
+    #         plt.close()
 
-    # plot_tf_gofs(realX[0,:,0],fakeX[0,:,0],dt=0.01,t0=0.0,fmin=0.1,fmax=30.0,nf=100,w0=6,norm='global',st2_isref=True,
+
+    
+    i = randint(0, realX.shape[0])
+    j = randint(0,1) 
+    plot_tf_gofs(realX[i,:,j],fakeX[i,:,j],dt=0.04,fmin=0.1,fmax=30.0,t0=0.0,nf=100,w0=6,norm='global',st2_isref=True,
+        a=10.,k=1.,left=0.1,bottom=0.125, h_1=0.2,h_2=0.125,h_3=0.2,w_1=0.2,w_2=0.6,w_cb=0.01, d_cb=0.0,show=False,
+        plot_args=['k', 'r', 'b'],ylim=0., clim=0.)
+    plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/gof_{:>d}_{:>d}.png'.format(j,i),bbox_inches = 'tight')
+    #plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/gof_{:>d}_{:>d}.eps'.format(j,i),bbox_inches = 'tight',dpi=200)
+    plt.close()
+
+    # plot_tf_gofs(realX[0,:,0],fakeX[0,:,0],dt=0.04,t0=0.0,fmin=0.1,fmax=30.0,nf=100,w0=6,norm='global',st2_isref=True,
     #     a=10.,k=1.,left=0.1,bottom=0.125, h_1=0.2,h_2=0.125,h_3=0.2,w_1=0.2,w_2=0.6,w_cb=0.01, d_cb=0.0,show=False,
     #     plot_args=['k', 'r', 'b'],ylim=0., clim=0.)
     # plt.tick_params(axis='both', labelsize=14)
@@ -425,7 +449,7 @@ def PlotTHSGoFs(model,realXC):
 #     plt.scatter(*args, **kwargs)
 #     return
 
-def PlotEGPGgrid(n,col_x,col_y,col_k,df,k_is_color=False, scatter_alpha=.7):
+def PlotEGPGgrid(col_x,col_y,col_k,df,k_is_color=False, scatter_alpha=.7):
     k=0
     for name, df_group in df.groupby(col_k):
         k+=1
@@ -457,12 +481,12 @@ def PlotEGPGgrid(n,col_x,col_y,col_k,df,k_is_color=False, scatter_alpha=.7):
     ## Do also global Hist:
     g.ax_joint.set_xticks(list(np.linspace(0,10,11)))
     g.ax_joint.set_yticks(list(np.linspace(0,10,11)))
-    g.ax_joint.spines['right'].set_visible(True)
+    g.ax_joint.spines['right'].set_visible(False)
     g.ax_joint.spines['left'].set_visible(True)
     g.ax_joint.spines['bottom'].set_visible(True)
-    g.ax_joint.spines['top'].set_visible(True)
-    plt.legend(legends)
-    plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/Gz(Fx(X))_gofs_{:>d}.png'.format(n),bbox_inches = 'tight')
+    g.ax_joint.spines['top'].set_visible(False)
+    plt.legend(legends,frameon=False)
+    plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/Gz(Fx(X))_gofs.png',bbox_inches = 'tight')
     #plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/Gz(Fx(X))_gofs_{:>d}.eps'.format(n),bbox_inches = 'tight',dpi=200)
     plt.close()
 
@@ -498,10 +522,10 @@ def PlotEGPGgrid_new(col_x,col_y,col_k,df, k_is_color=False, scatter_alpha=.7):
     ## Do also global Hist:
     g.ax_joint.set_xticks(list(np.linspace(0,10,11)))
     g.ax_joint.set_yticks(list(np.linspace(0,10,11)))
-    g.ax_joint.spines['right'].set_visible(True)
+    g.ax_joint.spines['right'].set_visible(False)
     g.ax_joint.spines['left'].set_visible(True)
     g.ax_joint.spines['bottom'].set_visible(True)
-    g.ax_joint.spines['top'].set_visible(True)
+    g.ax_joint.spines['top'].set_visible(False)
     plt.legend(legends)
     plt.title(r"$EG / PG \hspace{0.5} plot $", fontsize=22,fontweight='bold')
     plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/Gz(Fx(X))_gofs_new.png',bbox_inches = 'tight')
@@ -511,30 +535,67 @@ def PlotEGPGgrid_new(col_x,col_y,col_k,df, k_is_color=False, scatter_alpha=.7):
 
     return 
 
-def PlotBatchGoFs(model,realXC,n):
+def PlotBatchGoFs(model,Xtrn,Xvld):
     # Plot GoFs on a batch
     #realX, realC = realXC
-    realX = np.concatenate([x for x, c in realXC], axis=0)
-    realC = np.concatenate([c for x, c in realXC], axis=0)
-    fakeX,fakeC,fakeS,fakeN,fakeX_res = model.predict(realX)    
-    
-    egpg = np.zeros((realX.shape[0],2),dtype=np.float32)
+    realX_trn = np.concatenate([x for x, c in Xtrn], axis=0)
+    realC_trn = np.concatenate([c for x, c in Xtrn], axis=0)
+    fakeX_trn,_,_,_,_ = model.predict(realX_trn)
 
-    for i in range(realX.shape[0]):
-        st1 = np.squeeze((realX[i,:,:]))
-        st2 = np.squeeze((fakeX[i,:,:]))
-        egpg[i,0] = np.mean(eg(st1,st2,dt=0.01,fmin=0.1,fmax=30.0,nf=100,w0=6,norm='global',st2_isref=True,a=10.,k=1.))
-        egpg[i,1] = np.mean(pg(st1,st2,dt=0.01,fmin=0.1,fmax=30.0,nf=100,w0=6,norm='global',st2_isref=True,a=10.,k=1.))
-        #eg_1 = eg(realX[i,:,0],fakeX[i,:,0],dt=0.01,fmin=0.1,fmax=30.0,nf=100,w0=6,norm='global',st2_isref=True,a=10.,k=1.)
-        #pg_1 = pg(realX[i,:,0],fakeX[i,:,0],dt=0.01,fmin=0.1,fmax=30.0,nf=100,w0=6,norm='global',st2_isref=True,a=10.,k=1.)
-        #eg_2 = eg(realX[i,:,1],fakeX[i,:,1],dt=0.01,fmin=0.1,fmax=30.0,nf=100,w0=6,norm='global',st2_isref=True,a=10.,k=1.)
-        #pg_2 = pg(realX[i,:,1],fakeX[i,:,1],dt=0.01,fmin=0.1,fmax=30.0,nf=100,w0=6,norm='global',st2_isref=True,a=10.,k=1.)
-        #egpg[i,0] = (eg_1+eg_2)//2
-        #egpg[i,1] = (pg_1+pg_2)//2
-    egpg_df = pd.DataFrame(egpg,columns=['EG','PG'])
-    egpg_df['kind']=r"$G_z(F_x(x))$"
-    egpg_df.to_csv('/gpfs/workdir/invsem07/GiorgiaGAN/results/EG_PG_{:>d}.csv'.format(n), index= True)
-    PlotEGPGgrid(n,'EG','PG','kind',df=egpg_df)
+    realX_vld = np.concatenate([x for x, c in Xvld], axis=0)
+    realC_vld = np.concatenate([c for x, c in Xvld], axis=0)
+    fakeX_vld,_,_,_,_ = model.predict(realX_vld)    
+    
+    egpg_trn_0 = np.zeros((realX_trn.shape[0],2),dtype=np.float32)
+    egpg_trn_1 = np.zeros((realX_trn.shape[0],2),dtype=np.float32)
+    st1 = np.zeros((realX_trn.shape[0],realX_trn.shape[1]))
+    st2 = np.zeros((realX_trn.shape[0],realX_trn.shape[1]))
+
+    for i in range(realX_trn.shape[0]):
+        st1 = realX_trn[i,:,0]
+        st2 = fakeX_trn[i,:,0]
+        egpg_trn_0[i,0] = eg(st1,st2,dt=0.04,fmin=0.1,fmax=30.0,nf=100,w0=6,norm='global',st2_isref=True,a=10.,k=1.)
+        egpg_trn_0[i,1] = pg(st1,st2,dt=0.04,fmin=0.1,fmax=30.0,nf=100,w0=6,norm='global',st2_isref=True,a=10.,k=1.)
+
+    for i in range(realX_trn.shape[0]):
+        st1 = realX_trn[i,:,1]
+        st2 = fakeX_trn[i,:,1]
+        egpg_trn_1[i,0] = eg(st1,st2,dt=0.04,fmin=0.1,fmax=30.0,nf=100,w0=6,norm='global',st2_isref=True,a=10.,k=1.)
+        egpg_trn_1[i,1] = pg(st1,st2,dt=0.04,fmin=0.1,fmax=30.0,nf=100,w0=6,norm='global',st2_isref=True,a=10.,k=1.)
+
+    egpg_vld_0 = np.zeros((realX_vld.shape[0],2),dtype=np.float32)
+    egpg_vld_1 = np.zeros((realX_vld.shape[0],2),dtype=np.float32)
+    st1 = np.zeros((realX_vld.shape[0],realX_vld.shape[1]))
+    st2 = np.zeros((realX_vld.shape[0],realX_vld.shape[1]))
+
+    for i in range(realX_vld.shape[0]):
+        st1 = realX_vld[i,:,0]
+        st2 = fakeX_vld[i,:,0]
+        egpg_vld_0[i,0] = eg(st1,st2,dt=0.04,fmin=0.1,fmax=30.0,nf=100,w0=6,norm='global',st2_isref=True,a=10.,k=1.)
+        egpg_vld_0[i,1] = pg(st1,st2,dt=0.04,fmin=0.1,fmax=30.0,nf=100,w0=6,norm='global',st2_isref=True,a=10.,k=1.)
+
+    for i in range(realX_vld.shape[0]):
+        st1 = realX_vld[i,:,1]
+        st2 = fakeX_vld[i,:,1]
+        egpg_vld_1[i,0] = eg(st1,st2,dt=0.04,fmin=0.1,fmax=30.0,nf=100,w0=6,norm='global',st2_isref=True,a=10.,k=1.)
+        egpg_vld_1[i,1] = pg(st1,st2,dt=0.04,fmin=0.1,fmax=30.0,nf=100,w0=6,norm='global',st2_isref=True,a=10.,k=1.)
+
+    egpg_df_trn_0 = pd.DataFrame(egpg_trn_0,columns=['EG','PG'])
+    egpg_df_trn_0['kind']=r"$G_z(F_x(x)) \hspace{0.5} train$"
+
+    egpg_df_trn_1 = pd.DataFrame(egpg_trn_1,columns=['EG','PG'])
+    egpg_df_trn_1['kind']=r"$G_z(F_x(x)) \hspace{0.5} train$"
+
+    egpg_df_vld_0 = pd.DataFrame(egpg_vld_0,columns=['EG','PG'])
+    egpg_df_vld_0['kind']=r"$G_z(F_x(x)) \hspace{0.5} validation$"
+
+    egpg_df_vld_1 = pd.DataFrame(egpg_vld_1,columns=['EG','PG'])
+    egpg_df_vld_1['kind']=r"$G_z(F_x(x)) \hspace{0.5} validation$"
+
+    egpg_df = pd.concat([egpg_df_trn_0,egpg_df_trn_1,egpg_df_vld_0,egpg_df_vld_1])
+
+    egpg_df.to_csv('/gpfs/workdir/invsem07/GiorgiaGAN/results/EG_PG.csv', index= True)
+    PlotEGPGgrid('EG','PG','kind',df=egpg_df)
 
 def PlotBatchGoFs_new(model,realXC_u,realXC_d):
     # Plot GoFs on a batch
@@ -552,12 +613,12 @@ def PlotBatchGoFs_new(model,realXC_u,realXC_d):
     for i in range(realX_u.shape[0]):
         st1 = np.squeeze((realX_d[i,:,:]))
         st2 = np.squeeze((fakeX_new[i,:,:]))
-        egpg[i,0] = np.mean(eg(st1,st2,dt=0.01,fmin=0.1,fmax=30.0,nf=100,w0=6,norm='global',st2_isref=True,a=10.,k=1.))
-        egpg[i,1] = np.mean(pg(st1,st2,dt=0.01,fmin=0.1,fmax=30.0,nf=100,w0=6,norm='global',st2_isref=True,a=10.,k=1.))
-        # eg_1 = eg(realX[i,:,0],fakeX[i,:,0],dt=0.01,fmin=0.1,fmax=30.0,nf=100,w0=6,norm='global',st2_isref=True,a=10.,k=1.)
-        # pg_1 = pg(realX[i,:,0],fakeX[i,:,0],dt=0.01,fmin=0.1,fmax=30.0,nf=100,w0=6,norm='global',st2_isref=True,a=10.,k=1.)
-        # eg_2 = eg(realX[i,:,1],fakeX[i,:,1],dt=0.01,fmin=0.1,fmax=30.0,nf=100,w0=6,norm='global',st2_isref=True,a=10.,k=1.)
-        # pg_2 = pg(realX[i,:,1],fakeX[i,:,1],dt=0.01,fmin=0.1,fmax=30.0,nf=100,w0=6,norm='global',st2_isref=True,a=10.,k=1.)
+        egpg[i,0] = np.mean(eg(st1,st2,dt=0.04,fmin=0.1,fmax=30.0,nf=100,w0=6,norm='global',st2_isref=True,a=10.,k=1.))
+        egpg[i,1] = np.mean(pg(st1,st2,dt=0.04,fmin=0.1,fmax=30.0,nf=100,w0=6,norm='global',st2_isref=True,a=10.,k=1.))
+        # eg_1 = eg(realX[i,:,0],fakeX[i,:,0],dt=0.04,fmin=0.1,fmax=30.0,nf=100,w0=6,norm='global',st2_isref=True,a=10.,k=1.)
+        # pg_1 = pg(realX[i,:,0],fakeX[i,:,0],dt=0.04,fmin=0.1,fmax=30.0,nf=100,w0=6,norm='global',st2_isref=True,a=10.,k=1.)
+        # eg_2 = eg(realX[i,:,1],fakeX[i,:,1],dt=0.04,fmin=0.1,fmax=30.0,nf=100,w0=6,norm='global',st2_isref=True,a=10.,k=1.)
+        # pg_2 = pg(realX[i,:,1],fakeX[i,:,1],dt=0.04,fmin=0.1,fmax=30.0,nf=100,w0=6,norm='global',st2_isref=True,a=10.,k=1.)
         # egpg[i,0] = (eg_1+eg_2)//2
         # egpg[i,1] = (pg_1+pg_2)//2
     egpg_df = pd.DataFrame(egpg,columns=['EG','PG'])

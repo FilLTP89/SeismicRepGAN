@@ -82,7 +82,7 @@ def make_or_restore_model():
 def ParseOptions():
     parser = argparse.ArgumentParser()
     parser.add_argument("--epochs",type=int,default=2000,help='Number of epochs')
-    parser.add_argument("--Xsize",type=int,default=1024,help='Data space size')
+    parser.add_argument("--Xsize",type=int,default=2048,help='Data space size')
     parser.add_argument("--nX",type=int,default=200,help='Number of signals')
     parser.add_argument("--nXchannels",type=int,default=2,help="Number of data channels")
     parser.add_argument("--nAElayers",type=int,default=3,help='Number of AE CNN layers')
@@ -106,8 +106,8 @@ def ParseOptions():
     parser.add_argument("--batchSize",type=int,default=25,help='input batch size')    
     parser.add_argument("--nCritic",type=int,default=5,help='number of discriminator training steps')
     parser.add_argument("--clipValue",type=float,default=0.01,help='clip weight for WGAN')
-    parser.add_argument("--dataroot_1",type=str,default="/gpfs/workdir/invsem07/stead_1_8U",help="Data root folder - Undamaged")
-    parser.add_argument("--dataroot_2",type=str,default="/gpfs/workdir/invsem07/stead_1_8D",help="Data root folder - Damaged") 
+    parser.add_argument("--dataroot_1",type=str,default="/gpfs/workdir/invsem07/stead_1_1U",help="Data root folder - Undamaged")
+    parser.add_argument("--dataroot_2",type=str,default="/gpfs/workdir/invsem07/stead_1_1D",help="Data root folder - Damaged") 
     parser.add_argument("--idChannels",type=int,nargs='+',default=[1,39],help="Channel 1")
     parser.add_argument("--nParams",type=str,default=2,help="Number of parameters")
     parser.add_argument("--case",type=str,default="train_model",help="case")
@@ -145,7 +145,7 @@ class SamplingFxNormSfromSigma(Layer):
         batch = tf.shape(z_mean)[0]
         dim = tf.shape(z_mean)[1]
         # epsilon = tf.keras.backend.random_normal(shape=(batch, dim))
-        z = z_mean + tf.multiply(z_std,tf.random_normal([1]))
+        z = z_mean + tf.multiply(z_std,tf.random.normal([1]))
         return z
 
 class SamplingFxLogNormSfromSigma(Layer):
@@ -154,7 +154,7 @@ class SamplingFxLogNormSfromSigma(Layer):
         batch = tf.shape(z_mean)[0]
         dim = tf.shape(z_mean)[1]
         # epsilon = tf.keras.backend.random_normal(shape=(batch, dim))
-        logz = z_lambda + tf.multiply(z_std,tf.random_normal([1]))
+        logz = z_lambda + tf.multiply(z_std,tf.random.normal([1]))
         return tf.exp(logz)
 
 
@@ -165,7 +165,7 @@ class SamplingFxNormSfromLogVariance(Layer):
         batch = tf.shape(z_mean)[0]
         dim = tf.shape(z_mean)[1]
         # epsilon = tf.keras.backend.random_normal(shape=(batch, dim))
-        z = z_mean + tf.multiply(tf.exp(z_lsd*0.5),tf.random_normal([1]))
+        z = z_mean + tf.multiply(tf.exp(z_lsd*0.5),tf.random.normal([1]))
         return z
 
 class SamplingFxLogNormSfromLogVariance(Layer):
@@ -174,7 +174,7 @@ class SamplingFxLogNormSfromLogVariance(Layer):
         batch = tf.shape(z_mean)[0]
         dim = tf.shape(z_mean)[1]
         # epsilon = tf.keras.backend.random_normal(shape=(batch, dim))
-        logz = z_lambda + tf.multiply(tf.exp(z_lsd*0.5),tf.random_normal([1]))
+        logz = z_lambda + tf.multiply(tf.exp(z_lsd*0.5),tf.random.normal([1]))
         return tf.exp(logz)
 
 # clip model weights to a given hypercube
@@ -353,9 +353,12 @@ class RepGAN(Model):
 
         realX, realC = realXC
         # Adversarial ground truths
-        critic = self.Dc(realC)
-        realBCE = tf.ones_like(critic)
-        fakeBCE = tf.zeros_like(critic)
+        critic_X = self.Dx(realX)
+        realBCE_X = tf.ones_like(critic_X)
+        fakeBCE_X = tf.zeros_like(critic_X)
+        critic_C = self.Dc(realC)
+        realBCE_C = tf.ones_like(critic_C)
+        fakeBCE_C = tf.zeros_like(critic_C)
         self.batchSize = tf.shape(realX)[0]
 
         # Freeze generators' layers while training critics
@@ -368,8 +371,14 @@ class RepGAN(Model):
         self.Ds.trainable = True
         self.Dn.trainable = True
 
-        realS = tf.random.normal(mean=0.0,stddev=0.5,shape=[self.batchSize,self.latentSdim])
-        realN = tf.random.normal(mean=0.0,stddev=0.3,shape=[self.batchSize,self.latentNdim])
+        realS = tf.random.normal(mean=0.0,stddev=1.0,shape=[self.batchSize,self.latentSdim])
+        realN = tf.random.normal(mean=0.0,stddev=1.0,shape=[self.batchSize,self.latentNdim])
+        critic_S = self.Ds(realS)
+        realBCE_S = tf.ones_like(critic_S)
+        fakeBCE_S = tf.zeros_like(critic_S)
+        critic_N = self.Dn(realN)
+        realBCE_N = tf.ones_like(critic_N)
+        fakeBCE_N = tf.zeros_like(critic_N)
 
         for _ in range(self.nCritic):
             #realS = tf.exp(tf.random.normal(mean=0.0,stddev=1.0,shape=[self.batchSize,self.latentSdim]))
@@ -380,11 +389,10 @@ class RepGAN(Model):
 
 
                 # Generate fake latent code from real signals
-                [fakeS,fakeC,fakeN] = self.Fx(realX,training=True) # encoded z = Fx(X)
-                fakeN = tf.clip_by_value(fakeN,-1.0,1.0)
+                [fakeS,fakeC,fakeN] = self.Fx(realX) # encoded z = Fx(X)
 
                 # Generate fake signals from real latent code
-                fakeX = self.Gz((realS,realC,realN),training=True) # fake X = Gz(Fx(X))
+                fakeX = self.Gz((realS,realC,realN)) # fake X = Gz(Fx(X))
 
                 # Discriminator determines validity of the real and fake X
                 fakeXcritic = self.Dx(fakeX,training=True)
@@ -403,19 +411,19 @@ class RepGAN(Model):
                 realScritic = self.Ds(realS,training=True)
 
                 # Calculate the discriminator loss using the fake and real logits
-                AdvDlossX  = self.AdvDlossGAN(realBCE,realXcritic)*self.PenAdvXloss
-                AdvDlossX += self.AdvDlossGAN(fakeBCE,fakeXcritic)*self.PenAdvXloss
+                AdvDlossX  = self.AdvDlossGAN(realBCE_X,realXcritic)*self.PenAdvXloss
+                AdvDlossX += self.AdvDlossGAN(fakeBCE_X,fakeXcritic)*self.PenAdvXloss
                 #AdvDlossX = self.AdvDlossWGAN(realXcritic,fakeXcritic)*self.PenAdvXloss
                 #AdvDlossX = -tf.reduce_mean(tf.log(realXcritic+1e-8) + tf.log(1 - fakeXcritic+1e-8))*self.PenAdvXloss
-                AdvDlossC = self.AdvDlossWGAN(realCcritic,fakeCcritic)*self.PenAdvCloss
-                #AdvDlossC  = self.AdvDlossGAN(realBCE,realCcritic)*self.PenAdvCloss
-                #AdvDlossC += self.AdvDlossGAN(fakeBCE,fakeCcritic)*self.PenAdvCloss
-                AdvDlossS = self.AdvDlossWGAN(realScritic,fakeScritic)*self.PenAdvSloss
-                #AdvDlossS  = self.AdvDlossGAN(realBCE,realScritic)*self.PenAdvSloss
-                #AdvDlossS += self.AdvDlossGAN(fakeBCE,fakeScritic)*self.PenAdvSloss
-                #AdvDlossN  = self.AdvDlossGAN(realBCE,realNcritic)*self.PenAdvNloss
-                #AdvDlossN += self.AdvDlossGAN(fakeBCE,fakeNcritic)*self.PenAdvNloss
-                AdvDlossN = self.AdvDlossWGAN(realNcritic,fakeNcritic)*self.PenAdvNloss
+                #AdvDlossC = self.AdvDlossWGAN(realCcritic,fakeCcritic)*self.PenAdvCloss
+                AdvDlossC  = self.AdvDlossGAN(realBCE_C,realCcritic)*self.PenAdvCloss
+                AdvDlossC += self.AdvDlossGAN(fakeBCE_C,fakeCcritic)*self.PenAdvCloss
+                #AdvDlossS = self.AdvDlossWGAN(realScritic,fakeScritic)*self.PenAdvSloss
+                AdvDlossS  = self.AdvDlossGAN(realBCE_S,realScritic)*self.PenAdvSloss
+                AdvDlossS += self.AdvDlossGAN(fakeBCE_S,fakeScritic)*self.PenAdvSloss
+                AdvDlossN  = self.AdvDlossGAN(realBCE_N,realNcritic)*self.PenAdvNloss
+                AdvDlossN += self.AdvDlossGAN(fakeBCE_N,fakeNcritic)*self.PenAdvNloss
+                #AdvDlossN = self.AdvDlossWGAN(realNcritic,fakeNcritic)*self.PenAdvNloss
                 #AdvDlossPenGradX = self.GradientPenaltyX(self.batchSize,realX,fakeX)*self.PenGradX
                 #AdvDlossPenGradS = self.GradientPenaltyS(self.batchSize,realS,fakeS)*self.PenGradS
 
@@ -441,34 +449,36 @@ class RepGAN(Model):
         self.Ds.trainable = False
         self.Dn.trainable = False
 
-        realS = tf.random.normal(mean=0.0,stddev=1.0,shape=[self.batchSize,self.latentSdim])
-        realN = tf.random.normal(mean=0.0,stddev=1.0,shape=[self.batchSize,self.latentNdim])
+        #realS = tf.random.normal(mean=0.0,stddev=1.0,shape=[self.batchSize,self.latentSdim])
+        #realN = tf.random.normal(mean=0.0,stddev=1.0,shape=[self.batchSize,self.latentNdim])
 
         with tf.GradientTape(persistent=True) as tape:
             # Generate fake latent code from real signal
             [fakeS,fakeC,fakeN] = self.Fx(realX,training=True) # encoded z = Fx(X)
-            fakeScritic = self.Ds(fakeS,training=True)
-            fakeCcritic = self.Dc(fakeC,training=True)
-            fakeNcritic = self.Dn(fakeN,training=True)
+
+            fakeScritic = self.Ds(fakeS)
+            fakeCcritic = self.Dc(fakeC)
+            fakeNcritic = self.Dn(fakeN)
+
             fakeX = self.Gz((realS,realC,realN),training=True)
-            fakeXcritic = self.Dx(fakeX,training=True)
+
+            fakeXcritic = self.Dx(fakeX)
 
             # Reconstruction
             recX = self.Gz((fakeS,fakeC,fakeN),training=True)
-            recS = self.Qs(fakeX,training=True) # Qs( Gz( Fx(s) ) )  
-            # recSmu,recSsigma = self.Qs(fakeX)
-            # self.QsDist = tfd.MultivariateNormalDiag(loc=recSmu,scale_diag=recSsigma)
+            recS = self.Qs(fakeX,training=True) # Qs( Gz( Fx(s) ) )
             recC = self.Qc(fakeX,training=True)
 
             # Adversarial ground truths
-            # realBCE = tf.ones_like(fakeXcritic)
-            AdvGlossX = self.AdvGlossGAN(realBCE,fakeXcritic)*self.PenAdvXloss
+            AdvGlossX = self.AdvGlossGAN(realBCE_X,fakeXcritic)*self.PenAdvXloss
             #AdvGlossX = self.AdvGlossWGAN(fakeXcritic)*self.PenAdvXloss
             #AdvGlossX = - tf.reduce_mean(tf.log(fakeXcritic+1e-8))
-            AdvGlossC = self.AdvGlossWGAN(fakeCcritic)*self.PenAdvCloss
-            #AdvGlossC = self.AdvGlossGAN(realBCE,fakeCcritic)*self.PenAdvCloss
-            AdvGlossS = self.AdvGlossWGAN(fakeScritic)*self.PenAdvSloss
-            AdvGlossN = self.AdvGlossWGAN(fakeNcritic)*self.PenAdvNloss
+            #AdvGlossC = self.AdvGlossWGAN(fakeCcritic)*self.PenAdvCloss
+            AdvGlossC = self.AdvGlossGAN(realBCE_C,fakeCcritic)*self.PenAdvCloss
+            #AdvGlossS = self.AdvGlossWGAN(fakeScritic)*self.PenAdvSloss
+            #AdvGlossN = self.AdvGlossWGAN(fakeNcritic)*self.PenAdvNloss
+            AdvGlossS = self.AdvGlossGAN(realBCE_S,fakeScritic)*self.PenAdvSloss
+            AdvGlossN = self.AdvGlossGAN(realBCE_N,fakeNcritic)*self.PenAdvNloss
             RecGlossX = self.RecXloss(realX,recX)*self.PenRecXloss
             RecGlossS = self.RecSloss(realS,recS)*self.PenRecSloss
             #RecGlossS = -tf.reduce_mean(recS.log_prob(realS))
@@ -520,7 +530,7 @@ class RepGAN(Model):
     def call(self, X):
         [fakeS,fakeC,fakeN] = self.Fx(X)
         fakeX = self.Gz((fakeS,fakeC,fakeN))
-        fakeN_res = tf.random.normal(mean=0.0,stddev=0.3,shape=tf.shape(fakeN))
+        fakeN_res = tf.random.normal(mean=0.0,stddev=1.0,shape=tf.shape(fakeN))
         fakeX_res = self.Gz((fakeS,fakeC,fakeN_res))
         return fakeX, fakeC, fakeS, fakeN, fakeX_res
 
@@ -666,26 +676,26 @@ class RepGAN(Model):
             # s-average
             Zmu = Flatten(name="FxFLmuS{:>d}".format(layer+1))(Zmu)
             Zmu = Dense(self.latentSdim,name="FxFWmuS")(Zmu)
-            Zmu = LeakyReLU(alpha=0.1,name="FxAmuS{:>d}".format(layer+1))(Zmu)
+            Zmu = LeakyReLU(alpha=0.1,name="FxAmuS{:>d}".format(layer+2))(Zmu)
             Zmu = BatchNormalization(momentum=0.95,name="FxBNmuS")(Zmu)
 
             # s-log variance
             Zlv = Flatten(name="FxFLlvS{:>d}".format(layer+1))(Zlv)
             Zlv = Dense(self.latentSdim,name="FxFWlvS")(Zlv)
-            Zlv = LeakyReLU(alpha=0.1,name="FxAlvS{:>d}".format(layer+1))(Zlv)
+            Zlv = LeakyReLU(alpha=0.1,name="FxAlvS{:>d}".format(layer+2))(Zlv)
             Zlv = BatchNormalization(momentum=0.95,name="FxBNlvS")(Zlv)
 
             # c
             layer = self.nClayers
             Zc = Flatten(name="FxFLC{:>d}".format(layer+1))(Zc)
             Zc = Dense(self.latentCdim,name="FxFWC")(Zc)
-            Zc = LeakyReLU(alpha=0.1,name="FxAC{:>d}".format(layer+1))(Zc)
+            Zc = LeakyReLU(alpha=0.1,name="FxAC{:>d}".format(layer+2))(Zc)
             Zc = BatchNormalization(momentum=0.95,name="FxBNC")(Zc)
 
             # n
             layer = self.nNlayers
             Zn = Flatten(name="FxFLN{:>d}".format(layer+1))(Zn)
-            Zn = Dense(self.latentNdim,name="FxFWN{:>d}".format(layer+1))(Zn)
+            Zn = Dense(self.latentNdim,name="FxFWN{:>d}".format(layer+2))(Zn)
             Zn = LeakyReLU(alpha=0.1,name="FxAN{:>d}".format(layer+1))(Zn)
 
         # variable s
@@ -694,9 +704,9 @@ class RepGAN(Model):
 
         # variable c
         c = Softmax(name="FxAC")(Zc)
-        c = BatchNormalization(momentum=0.95,name="FxBNC")(c)
+        #c = BatchNormalization(momentum=0.95,name="FxBNC2")(c)
         QcX = Softmax(name="QcAC")(Zc)
-        QcX = BatchNormalization(momentum=0.95,name="QcBNC")(QcX)
+        #QcX = BatchNormalization(momentum=0.95,name="QcBNC")(QcX)
 
         # variable n
         n = BatchNormalization(momentum=0.95,name="FxBNN")(Zn)
@@ -812,11 +822,10 @@ class RepGAN(Model):
             Gz = BatchNormalization(axis=-1,momentum=0.95,name="GzBN{:>d}".format(layer+1))(Gz)
 
         layer = self.nAElayers
-        # X = Conv1DTranspose(self.nXchannels,self.kernel,1,
-        #     padding="same",use_bias=False,name="GzCNN{:>d}".format(layer+1))(Gz)
+        #X = Conv1DTranspose(self.nXchannels,self.kernel,1,
+        #    padding="same",use_bias=False,name="GzCNN{:>d}".format(layer+1))(Gz)
         X = Conv1DTranspose(self.nXchannels,self.kernel,1,
-           padding="same",activation='tanh',use_bias=False,name="GzCNN{:>d}".format(layer+1))(Gz)
-
+           padding="same",activation='tanh',use_bias=False,name="GzCNN{:>d}".format(layer+1))(Gz) #activation='tanh'
         Gz = keras.Model(inputs=[GzS.input,GzC.input,GzN.input],outputs=X,name="Gz")
         return Gz
 
@@ -841,9 +850,6 @@ class RepGAN(Model):
         layer = self.nDlayers    
         h = Flatten(name="DxFL{:>d}".format(layer))(h)
         Px = Dense(1,activation=tf.keras.activations.sigmoid)(h)
-        #Px = Dense(1,kernel_constraint=ClipConstraint(self.clipValue))(h)
-        # h = BatchNormalization(momentum=0.95,name="DxBN{:>d}".format(layer))(h)
-        # Px = Dropout(0.25,name="DxDO{:>d}".format(layer))(h)
         Dx = keras.Model(X,Px,name="Dx")
         return Dx
 
@@ -853,14 +859,14 @@ class RepGAN(Model):
             Dense discriminator structure
         """
         c = Input(shape=(self.latentCdim,))
-        h = Dense(3000,kernel_constraint=ClipConstraint(self.clipValue))(c)
+        h = Dense(3000)(c)
         h = LeakyReLU(alpha=0.1)(h)
         h = Dropout(0.25)(h)
-        h = Dense(3000,kernel_constraint=ClipConstraint(self.clipValue))(h)
+        h = Dense(3000)(h)
         h = LeakyReLU(alpha=0.1)(h)
         h = BatchNormalization(momentum=0.95,)(h)
         h = Dropout(0.25)(h)
-        Pc = Dense(1,activation=tf.keras.activations.sigmoid,kernel_constraint=ClipConstraint(self.clipValue))(h)
+        Pc = Dense(1,activation=tf.keras.activations.sigmoid)(h)
         Dc = keras.Model(c,Pc,name="Dc")
         return Dc
 
@@ -869,14 +875,14 @@ class RepGAN(Model):
             Dense discriminator structure
         """
         n = Input(shape=(self.latentNdim,))
-        h = Dense(3000,kernel_constraint=ClipConstraint(self.clipValue))(n)
+        h = Dense(3000)(n)
         h = LeakyReLU(alpha=0.1)(h)
         h = Dropout(0.25)(h)
-        h = Dense(3000,kernel_constraint=ClipConstraint(self.clipValue))(h)
+        h = Dense(3000)(h)
         h = LeakyReLU(alpha=0.1)(h)
         h = BatchNormalization(momentum=0.95,)(h)
         h = Dropout(0.25)(h) 
-        Pn = Dense(1,kernel_constraint=ClipConstraint(self.clipValue))(h)
+        Pn = Dense(1,activation=tf.keras.activations.sigmoid)(h)
         Dn = keras.Model(n,Pn,name="Dn")
         return Dn
 
@@ -885,15 +891,15 @@ class RepGAN(Model):
             Dense discriminator structure
         """
         s = Input(shape=(self.latentSdim,))
-        h = Dense(3000,kernel_constraint=ClipConstraint(self.clipValue))(s)
+        h = Dense(3000)(s)
         h = LeakyReLU(alpha=0.1)(h)
         h = Dropout(0.25)(h)
-        h = Dense(3000,kernel_constraint=ClipConstraint(self.clipValue))(h)
+        h = Dense(3000)(h)
         h = LeakyReLU(alpha=0.1)(h)
         h = BatchNormalization(momentum=0.95,)(h)
         h = Dropout(0.25)(h)
         #Ps = Dense(1,activation=tf.keras.activations.sigmoid)(h)
-        Ps = Dense(1,kernel_constraint=ClipConstraint(self.clipValue))(h)
+        Ps = Dense(1,activation=tf.keras.activations.sigmoid)(h)
         Ds = keras.Model(s,Ps,name="Ds")
         return Ds
 
@@ -917,10 +923,10 @@ def Main(DeviceName):
 
     with tf.device(DeviceName):
         optimizers = {}
-        optimizers['DxOpt'] = RMSprop(learning_rate=0.00005)
-        optimizers['DcOpt'] = RMSprop(learning_rate=0.00005)
-        optimizers['DsOpt'] = RMSprop(learning_rate=0.00005)
-        optimizers['DnOpt'] = RMSprop(learning_rate=0.00005)
+        optimizers['DxOpt'] = Adam(learning_rate=0.0002, beta_1=0.5, beta_2=0.9999)
+        optimizers['DcOpt'] = Adam(learning_rate=0.0002, beta_1=0.5, beta_2=0.9999)#RMSprop(learning_rate=0.00005)
+        optimizers['DsOpt'] = Adam(learning_rate=0.0002, beta_1=0.5, beta_2=0.9999)#RMSprop(learning_rate=0.00005)
+        optimizers['DnOpt'] = Adam(learning_rate=0.0002, beta_1=0.5, beta_2=0.9999)#RMSprop(learning_rate=0.00005)
         optimizers['FxOpt'] = Adam(learning_rate=0.0002, beta_1=0.5, beta_2=0.9999)
         optimizers['GzOpt'] = Adam(learning_rate=0.0002, beta_1=0.5, beta_2=0.9999)
         optimizers['QsOpt'] = Adam(learning_rate=0.0002, beta_1=0.5, beta_2=0.9999)
@@ -985,9 +991,9 @@ def Main(DeviceName):
 
         ViolinPlot(GiorgiaGAN,Xvld) # Violin plot
 
-        PlotBatchGoFs(GiorgiaGAN,Xvld,1) # Plot GoFs on a batch
+        PlotBatchGoFs(GiorgiaGAN,Xtrn,Xvld) # Plot GoFs on a batch
 
-        PlotBatchGoFs_new(GiorgiaGAN,Xvld_u,Xvld_d) # Plot GoFs on a batch (after the change of C)
+        #PlotBatchGoFs_new(GiorgiaGAN,Xvld_u,Xvld_d) # Plot GoFs on a batch (after the change of C)
 
         #PlotClassificationMetrics(GiorgiaGAN,Xvld) # Plot classification metrics
 

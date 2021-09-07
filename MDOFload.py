@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 from os.path import join as opj
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler,MinMaxScaler
+from sklearn.preprocessing import StandardScaler,MinMaxScaler,MaxAbsScaler
 from sklearn.utils import shuffle
 import dask
 import dask.dataframe as dd
@@ -92,30 +92,61 @@ def CreateData(**kwargs):
     # h5f.create_dataset('c1', data=c1)
     # h5f.close()
 
-    # # Load data - Damaged
+    #Load data - Undamaged
 
-    # for i1 in range(nXchannels):
-    #     #load the measurements recorded by each single channel
-    #     dataSrc = opj(dataroot_2,"damaged_{:>s}_{:>s}_concat_dof_{:>d}.csv".format(avu,pb,idChannels[i1]))
+    X1 = np.zeros((nX//2,nXchannels,Xsize),dtype=np.float32)
+    i1 = 0
 
-    #     sdof=np.genfromtxt(dataSrc).astype(np.float32)
+    for channel in idChannels:
+        #load the measurements recorded by each single channel
+        dataSrc = opj(dataroot_1,"undamaged_{:>s}_{:>s}_concat_dof_{:>d}.csv".format(avu,pb,channel))
 
-        
-    #     #initialise X
-    #     if i1==0:
-    #         X2 = np.zeros((nX,nXchannels,Xsize),dtype=np.float32)
-    #     i2=0
-    #     for i3 in range(nX):
-    #         X2[i3,i1,0:ntm]=sdof[i2:(i2+ntm)]
-    #         i2=i2+ntm
+        sdof=np.genfromtxt(dataSrc).astype(np.float32)
+
+        i2=0
+
+        for i3 in range(nX//2):
+            X1[i3,i1,0:Xsize]=sdof[i2:(i2+Xsize)]
+            i2=i2+Xsize
+
+        i1 =i1+1
+
+    X2 = np.zeros((nX//2,nXchannels,Xsize),dtype=np.float32)
+    i1 = 0
+
+    for channel in idChannels:
+        #load the measurements recorded by each single channel
+        dataSrc = opj(dataroot_2,"damaged_{:>s}_{:>s}_concat_dof_{:>d}.csv".format(avu,pb,channel))
+
+        sdof=np.genfromtxt(dataSrc).astype(np.float32)
+
+        i2=0
+
+        for i3 in range(nX//2):
+            X2[i3,i1,0:Xsize]=sdof[i2:(i2+Xsize)]
+            i2=i2+Xsize
+        i1 = i1+1
+
+    max1 = np.max(np.absolute(X1))
+    max2 = np.max(np.absolute(X2))
+    pga = max(max1,max2)
+
+    X = np.vstack((X1,X2))
+
+    for i in range(nX):
+        for j in range(nXchannels):
+            for k in range(Xsize):
+                X[i,j,k] = X[i,j,k]/pga
 
     # scaler = MinMaxScaler(feature_range=(-1,1))
     # for i1 in range(nXchannels):
     #     X2[:,i1,:] = scaler.fit_transform(X2[:,i1,:])
 
 
-    # X2 = np.pad(X2,((0,0),(0,0),(0,nxtpow2(X2.shape[-1])-X2.shape[-1])))
-    # X2 = np.swapaxes(X2,1,2)
+    X = np.pad(X,((0,0),(0,0),(0,nxtpow2(X.shape[-1])-X.shape[-1])))
+    X = np.swapaxes(X,1,2)
+
+    
 
     # src_metadata = opj(dataroot_2,"damaged_{:>s}_labels.csv".format(pb))
 
@@ -132,33 +163,69 @@ def CreateData(**kwargs):
     # h5f.create_dataset('c2', data=c2)
     # h5f.close()
 
+    for j in range(2):
+        for i in range(X.shape[0]//2):
+            hfg = plt.figure(figsize=(12,6),tight_layout=True)
+            hax = hfg.add_subplot(111)
+            hax.plot(X[i,:,j], color='black')
+            plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/signals/undamaged_{:>d}_{:>d}.png'.format(j,i),bbox_inches = 'tight')
+            #plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/resampling.eps',bbox_inches = 'tight',dpi=200)
+            plt.close()
 
-
-
-
-    # Load data - Undamaged
-    X1 = []
+            hfg = plt.figure(figsize=(12,6),tight_layout=True)
+            hax = hfg.add_subplot(111)
+            hax.plot(X[(i+X.shape[0]//2),:,j], color='black')
+            plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/signals/damaged_{:>d}_{:>d}.png'.format(j,i),bbox_inches = 'tight')
+            #plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/resampling.eps',bbox_inches = 'tight',dpi=200)
+            plt.close()
+   
+    # # Load data - Undamaged
+    # X1 = []
     
-    for channel in idChannels:
-        dataSrc = opj(dataroot_1,"undamaged_{:>s}_{:>s}_concat_dof_{:>d}.csv".format(avu,pb,channel))
-        # if len(avu) == 0:
-        #     dataSrc = opj(dataroot_1,"{:>s}_damaged_concat_{:>s}_gdl_{:>d}.csv".format(pb,case,channel))
-        # else:
-        #     dataSrc = opj(dataroot_1,"{:>s}_{:>s}_damaged_concat_{:>s}_gdl_{:>d}.csv".format(pb,avu,case,channel))
+    # for channel in idChannels:
+    #     dataSrc = opj(dataroot_1,"undamaged_{:>s}_{:>s}_concat_dof_{:>d}.csv".format(avu,pb,channel))
+    #     # if len(avu) == 0:
+    #     #     dataSrc = opj(dataroot_1,"{:>s}_damaged_concat_{:>s}_gdl_{:>d}.csv".format(pb,case,channel))
+    #     # else:
+    #     #     dataSrc = opj(dataroot_1,"{:>s}_{:>s}_damaged_concat_{:>s}_gdl_{:>d}.csv".format(pb,avu,case,channel))
     
         
-        X1.append(np.genfromtxt(dataSrc).astype(np.float32).reshape(nX//2,1,-1))
+    #     X1.append(np.genfromtxt(dataSrc).astype(np.float32).reshape(nX//2,1,-1))
+
+    # X2 = []
+    
+    # for channel in idChannels:
+    #     dataSrc = opj(dataroot_2,"damaged_{:>s}_{:>s}_concat_dof_{:>d}.csv".format(avu,pb,channel))
+    #     X2.append(np.genfromtxt(dataSrc).astype(np.float32).reshape(nX//2,1,-1))
 
 
-    X1 = np.concatenate(X1,axis=1).reshape(-1,X1[0].shape[-1])
-    #scaler = MinMaxScaler(feature_range=(-1,1))
-    scaler = StandardScaler()
-    X1 = scaler.fit_transform(X1).reshape((nX//2,len(idChannels),-1))
-    # X1 = X1.reshape((nX,len(idChannels),-1))
+    # X1 = np.concatenate(X1,axis=1).reshape(-1,X1[0].shape[-1])
+    # X2 = np.concatenate(X2,axis=1).reshape(-1,X2[0].shape[-1])
+    # X = np.concatenate((X1,X2),axis=1)
+    # scaler = MaxAbsScaler()
+    # X = scaler.fit_transform(X).reshape((nX,len(idChannels),-1))
+    # X = np.pad(X,((0,0),(0,0),(0,nxtpow2(X.shape[-1])-X.shape[-1])))
+    # X = np.swapaxes(X,1,2)
+
+    # X1 = np.concatenate(X1,axis=1).reshape(-1,X1[0].shape[-1])
+    # #X1 = scaler.fit_transform(X1).reshape((nX//2,len(idChannels),-1))
+    # X1 = X1.reshape((nX//2,len(idChannels),-1))
     # for i1 in range(nXchannels):
+    #     scaler = MaxAbsScaler()
     #     X1[:,i1,:] = scaler.fit_transform(X1[:,i1,:])
-    X1 = np.pad(X1,((0,0),(0,0),(0,nxtpow2(X1.shape[-1])-X1.shape[-1])))
-    X1 = np.swapaxes(X1,1,2)
+    # X1 = np.pad(X1,((0,0),(0,0),(0,nxtpow2(X1.shape[-1])-X1.shape[-1])))
+    # X1 = np.swapaxes(X1,1,2)
+    
+
+
+    # for i in range (nXchannels):
+    #     for j in range (X1.shape[0]):
+    #         pga = np.abs(X1[j,i,:]).max()
+    #         X1[j,i,:] = X1[j,i,:]//pga
+
+    # X1 = np.pad(X1,((0,0),(0,0),(0,nxtpow2(X1.shape[-1])-X1.shape[-1])))
+    # X1 = np.swapaxes(X1,1,2)
+
 
     #src_metadata = opj(dataroot_1,"undamaged_{:>s}_labels.csv".format(pb))
     #src_metadata = opj(dataroot_1,"{:>s}_labels_{:>s}.csv".format(pb,case))
@@ -173,32 +240,41 @@ def CreateData(**kwargs):
     c1[:,0] = 1.0
 
     h5f = h5py.File("Undamaged.h5",'w')
-    h5f.create_dataset('X1', data=X1)
+    h5f.create_dataset('X1', data=X[0:X.shape[0]//2,:,:])
     h5f.create_dataset('c1', data=c1)
     h5f.close()
 
 
-    # Load data - Damaged
-    X2 = []
-    for channel in idChannels:
-        dataSrc = opj(dataroot_2,"damaged_{:>s}_{:>s}_concat_dof_{:>d}.csv".format(avu,pb,channel))
-        # if len(avu) == 0:
-        #     dataSrc = opj(dataroot_2,"{:>s}_damaged_concat_{:>s}_gdl_{:>d}.csv".format(pb,case,channel))
-        # else:
-        #     dataSrc = opj(dataroot_2,"{:>s}_{:>s}_damaged_concat_{:>s}_gdl_{:>d}.csv".format(pb,avu,case,channel))
+    # # Load data - Damaged
+    # X2 = []
+    # for channel in idChannels:
+    #     dataSrc = opj(dataroot_2,"damaged_{:>s}_{:>s}_concat_dof_{:>d}.csv".format(avu,pb,channel))
+    #     # if len(avu) == 0:
+    #     #     dataSrc = opj(dataroot_2,"{:>s}_damaged_concat_{:>s}_gdl_{:>d}.csv".format(pb,case,channel))
+    #     # else:
+    #     #     dataSrc = opj(dataroot_2,"{:>s}_{:>s}_damaged_concat_{:>s}_gdl_{:>d}.csv".format(pb,avu,case,channel))
     
         
-        X2.append(np.genfromtxt(dataSrc).astype(np.float32).reshape(nX//2,1,-1))
+    #     X2.append(np.genfromtxt(dataSrc).astype(np.float32).reshape(nX//2,1,-1))
 
-    X2 = np.concatenate(X2,axis=1).reshape(-1,X2[0].shape[-1])
-    #scaler = MinMaxScaler(feature_range=(-1,1))
-    scaler = StandardScaler()
-    X2 = scaler.fit_transform(X2).reshape((nX//2,len(idChannels),-1))
-    # X2 = X2.reshape((nX,len(idChannels),-1))
+    # X2 = np.concatenate(X2,axis=1).reshape(-1,X2[0].shape[-1])
+    # #X2 = scaler.fit_transform(X2).reshape((nX//2,len(idChannels),-1))
+    # X2 = X2.reshape((nX//2,len(idChannels),-1))
     # for i1 in range(nXchannels):
+    #     scaler = MaxAbsScaler()
     #     X2[:,i1,:] = scaler.fit_transform(X2[:,i1,:])
-    X2 = np.pad(X2,((0,0),(0,0),(0,nxtpow2(X2.shape[-1])-X2.shape[-1])))
-    X2 = np.swapaxes(X2,1,2)
+    # X2 = np.pad(X2,((0,0),(0,0),(0,nxtpow2(X2.shape[-1])-X2.shape[-1])))
+    # X2 = np.swapaxes(X2,1,2)
+
+
+    # for j in range(2):
+    #     for i in range(X2.shape[0]):
+    #         hfg = plt.figure(figsize=(12,6),tight_layout=True)
+    #         hax = hfg.add_subplot(111)
+    #         hax.plot(X2[i,:,j], color='black')
+    #         plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/signals/damaged_{:>d}_{:>d}.png'.format(j,i),bbox_inches = 'tight')
+    #         #plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/resampling.eps',bbox_inches = 'tight',dpi=200)
+    #         plt.close()
 
     #src_metadata = opj(dataroot_2,"damaged_{:>s}_labels.csv".format(pb))
     #src_metadata = opj(dataroot_2,"{:>s}_labels_{:>s}.csv".format(pb,case))
@@ -213,7 +289,7 @@ def CreateData(**kwargs):
     c2[:,1] = 1.0
 
     h5f = h5py.File("Damaged.h5",'w')
-    h5f.create_dataset('X2', data=X2)
+    h5f.create_dataset('X2', data=X[X.shape[0]//2:,:,:])
     h5f.create_dataset('c2', data=c2)
     h5f.close()
 
@@ -255,12 +331,10 @@ def CreateData(**kwargs):
     #     c[i,:] = c1[idx[i],:]
     #     c[(i+nX//2),:] = c2[idx[i],:]
 
-    X = np.vstack((X1,X2))
+    #X = np.vstack((X1,X2))
     c = np.vstack((c1,c2))
 
-    #X, c = shuffle(X, c, random_state=0)
-
-
+    X, c = shuffle(X, c, random_state=0)
 
     h5f = h5py.File("{:>s}_gdl.h5".format(dataSrc.split('_gdl_')[0]),'w')
     h5f.create_dataset('X', data=X)
