@@ -237,6 +237,14 @@ def GaussianNLLfromLogVariance(y,Fx):
 
     return tf.math.reduce_mean(-log_likelihood)
 
+def MutualInfoLoss(C,CgivenX):
+    ε = 1e-8
+    # SCgivenX = -tf.keras.backend.mean(tf.keras.backend.sum(tf.keras.backend.log(CgivenX+ε)*C,axis=1))
+    # SC = -tf.keras.backend.mean(tf.keras.backend.sum(tf.keras.backend.log(C+ε)*C,axis=1))
+    # return SCgivenX + SC
+    SC = -tf.math.reduce_mean(tf.math.reduce_sum(tf.math.multiply(tf.math.log(C+ε),C),axis=-1))
+    SCgivenX = -tf.math.reduce_mean(tf.math.reduce_sum(tf.math.multiply(tf.math.log(CgivenX+ε),C),axis=-1))
+    return SCgivenX + SC
 class RepGAN(Model):
 
     def __init__(self,options):
@@ -361,6 +369,7 @@ class RepGAN(Model):
             return tf.random.lognormal(mean=0.0,stddev=1.0,shape=[self.batchSize,self.latentSdim])
         elif distribution=='uniform':
             return tf.random.lognormal(mean=0.0,stddev=1.0,shape=[self.batchSize,self.latentSdim])
+    
     def train_step(self, realXC):
 
         # Upwrap data batch (X,C)
