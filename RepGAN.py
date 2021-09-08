@@ -354,6 +354,13 @@ class RepGAN(Model):
         gp = tf.reduce_mean((NormGradS - 1.0) ** 2)
         return gp
 
+    def SamplingS(self,mean=0.0,stddev=1.0,distribution='normal'):
+        if distribution=='normal':
+            return tf.random.normal(mean=0.0,stddev=1.0,shape=[self.batchSize,self.latentSdim])
+        elif distribution=='lognormal':
+            return tf.random.lognormal(mean=0.0,stddev=1.0,shape=[self.batchSize,self.latentSdim])
+        elif distribution=='uniform':
+            return tf.random.lognormal(mean=0.0,stddev=1.0,shape=[self.batchSize,self.latentSdim])
     def train_step(self, realXC):
 
         # Upwrap data batch (X,C)
