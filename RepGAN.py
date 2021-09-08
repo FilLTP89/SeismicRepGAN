@@ -237,6 +237,12 @@ def GaussianNLLfromLogVariance(y,Fx):
 
     return tf.math.reduce_mean(-log_likelihood)
 
+def KLDivergenceFromLogVariance(Fx):
+    μ_z, logσ_z2 = Fx
+    DKL = -0.5*(1.0+logσ_z2-tf.math.square(μ_z)-tf.math.exp(logσ_z2))
+    DKL = tf.math.reduce_sum(DKL,axis=-1)
+    return tf.math.reduce_mean(DKL)
+
 def MutualInfoLoss(C,CgivenX):
     ε = 1e-8
     # SCgivenX = -tf.keras.backend.mean(tf.keras.backend.sum(tf.keras.backend.log(CgivenX+ε)*C,axis=1))
@@ -245,6 +251,7 @@ def MutualInfoLoss(C,CgivenX):
     SC = -tf.math.reduce_mean(tf.math.reduce_sum(tf.math.multiply(tf.math.log(C+ε),C),axis=-1))
     SCgivenX = -tf.math.reduce_mean(tf.math.reduce_sum(tf.math.multiply(tf.math.log(CgivenX+ε),C),axis=-1))
     return SCgivenX + SC
+
 class RepGAN(Model):
 
     def __init__(self,options):
