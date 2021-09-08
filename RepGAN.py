@@ -356,15 +356,40 @@ class RepGAN(Model):
 
     def train_step(self, realXC):
 
+        # Upwrap data batch (X,C)
         realX, realC = realXC
-        # Adversarial ground truths
+        self.batchSize = tf.shape(realX)[0]
+
+        # # Generate S and N from Normal distributions
+        # realS = tf.random.normal(mean=0.0,stddev=1.0,shape=[self.batchSize,self.latentSdim])
+        # realN = tf.random.normal(mean=0.0,stddev=1.0,shape=[self.batchSize,self.latentNdim])
+
+        # Adversarial ground truths for X
         critic_X = self.Dx(realX)
         realBCE_X = tf.ones_like(critic_X)
         fakeBCE_X = tf.zeros_like(critic_X)
+
+        # Adversarial ground truths for C
         critic_C = self.Dc(realC)
         realBCE_C = tf.ones_like(critic_C)
         fakeBCE_C = tf.zeros_like(critic_C)
-        self.batchSize = tf.shape(realX)[0]
+
+        # # Adversarial ground truths for S
+        # critic_S = self.Ds(realS)
+        # realBCE_S = tf.ones_like(critic_S)
+        # fakeBCE_S = tf.zeros_like(critic_S)
+
+        # # Adversarial ground truths for N
+        # critic_N = self.Dn(realN)
+        # realBCE_N = tf.ones_like(critic_N)
+        # fakeBCE_N = tf.zeros_like(critic_N)
+
+
+
+
+        """
+            Train Discriminators
+        """
 
         # Freeze generators' layers while training critics
         self.Fx.trainable = False
@@ -376,28 +401,32 @@ class RepGAN(Model):
         self.Ds.trainable = True
         self.Dn.trainable = True
 
-        realS = tf.random.normal(mean=0.0,stddev=1.0,shape=[self.batchSize,self.latentSdim])
-        realN = tf.random.normal(mean=0.0,stddev=1.0,shape=[self.batchSize,self.latentNdim])
-        critic_S = self.Ds(realS)
-        realBCE_S = tf.ones_like(critic_S)
-        fakeBCE_S = tf.zeros_like(critic_S)
-        critic_N = self.Dn(realN)
-        realBCE_N = tf.ones_like(critic_N)
-        fakeBCE_N = tf.zeros_like(critic_N)
-
+        # Train discriminators nCritic times
         for _ in range(self.nCritic):
-            #realS = tf.exp(tf.random.normal(mean=0.0,stddev=1.0,shape=[self.batchSize,self.latentSdim]))
-            #realS = tf.random.normal(mean=0.0,stddev=0.5,shape=[self.batchSize,self.latentSdim])
-            #realN = tf.random.normal(mean=0.0,stddev=0.3,shape=[self.batchSize,self.latentNdim])
+
+            # Generate S and N from Normal distributions
+            
+            realN = tf.random.normal(mean=0.0,stddev=1.0,shape=[self.batchSize,self.latentNdim])
+
+            # # Adversarial ground truths for S
+            # critic_S = self.Ds(realS)
+            # realBCE_S = tf.ones_like(critic_S)
+            # fakeBCE_S = tf.zeros_like(critic_S)
+
+            # # Adversarial ground truths for N
+            # critic_N = self.Dn(realN)
+            # realBCE_N = tf.ones_like(critic_N)
+            # fakeBCE_N = tf.zeros_like(critic_N)
 
             with tf.GradientTape(persistent=True) as tape:
 
+                # Generate fake latent space (S,C,N) from real signals 
+                # encoded (s,c,n) = Fx(X)
+                [fakeS,fakeC,fakeN] = self.Fx(realX) 
 
-                # Generate fake latent code from real signals
-                [fakeS,fakeC,fakeN] = self.Fx(realX) # encoded z = Fx(X)
-
-                # Generate fake signals from real latent code
-                fakeX = self.Gz((realS,realC,realN)) # fake X = Gz(Fx(X))
+                # Generate fake signals X from real latent code
+                # X = Gz(s,c,n)
+                fakeX = self.Gz((realS,realC,realN)) 
 
                 # Discriminator determines validity of the real and fake X
                 fakeXcritic = self.Dx(fakeX,training=True)
@@ -435,14 +464,20 @@ class RepGAN(Model):
                 AdvDloss = AdvDlossX + AdvDlossC + AdvDlossS + AdvDlossN #+ AdvDlossPenGradS #+AdvDlossPenGradX
 
             # Get the gradients w.r.t the discriminator loss
-            gradDx, gradDc, gradDs, gradDn = tape.gradient(AdvDloss,
-                (self.Dx.trainable_variables, self.Dc.trainable_variables,
+            gradDx, gradDc, gradDs, gradDn = tape.gradient(AdvDloss,(self.Dx.trainable_variables, self.Dc.trainable_variables,
                 self.Ds.trainable_variables, self.Dn.trainable_variables))
+
             # Update the weights of the discriminator using the discriminator optimizer
             self.DxOpt.apply_gradients(zip(gradDx,self.Dx.trainable_variables))
             self.DcOpt.apply_gradients(zip(gradDc,self.Dc.trainable_variables))
             self.DsOpt.apply_gradients(zip(gradDs,self.Ds.trainable_variables))
             self.DnOpt.apply_gradients(zip(gradDn,self.Dn.trainable_variables))
+
+
+
+        """
+            Train Generators
+        """
 
         # Freeze critics' layers while training generators
         self.Fx.trainable = True
@@ -454,8 +489,8 @@ class RepGAN(Model):
         self.Ds.trainable = False
         self.Dn.trainable = False
 
-        #realS = tf.random.normal(mean=0.0,stddev=1.0,shape=[self.batchSize,self.latentSdim])
-        #realN = tf.random.normal(mean=0.0,stddev=1.0,shape=[self.batchSize,self.latentNdim])
+        realS = tf.random.normal(mean=0.0,stddev=1.0,shape=[self.batchSize,self.latentSdim])
+        realN = tf.random.normal(mean=0.0,stddev=1.0,shape=[self.batchSize,self.latentNdim])
 
         with tf.GradientTape(persistent=True) as tape:
             # Generate fake latent code from real signal
