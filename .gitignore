@@ -1,3 +1,6 @@
+ckpt/*
+*.png
+*.h5
 .allinea/*
 wandb/*
 ckpt/*

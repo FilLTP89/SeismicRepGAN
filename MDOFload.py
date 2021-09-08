@@ -168,14 +168,14 @@ def CreateData(**kwargs):
             hfg = plt.figure(figsize=(12,6),tight_layout=True)
             hax = hfg.add_subplot(111)
             hax.plot(X[i,:,j], color='black')
-            plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/signals/undamaged_{:>d}_{:>d}.png'.format(j,i),bbox_inches = 'tight')
+            plt.savefig('./signals/undamaged_{:>d}_{:>d}.png'.format(j,i),bbox_inches = 'tight')
             #plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/resampling.eps',bbox_inches = 'tight',dpi=200)
             plt.close()
 
             hfg = plt.figure(figsize=(12,6),tight_layout=True)
             hax = hfg.add_subplot(111)
             hax.plot(X[(i+X.shape[0]//2),:,j], color='black')
-            plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/signals/damaged_{:>d}_{:>d}.png'.format(j,i),bbox_inches = 'tight')
+            plt.savefig('./signals/damaged_{:>d}_{:>d}.png'.format(j,i),bbox_inches = 'tight')
             #plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/resampling.eps',bbox_inches = 'tight',dpi=200)
             plt.close()
    
