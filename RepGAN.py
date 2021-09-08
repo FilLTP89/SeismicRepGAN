@@ -50,6 +50,9 @@ from tensorflow.python.util.tf_export import tf_export
 from copy import deepcopy
 from plot_tools import *
 
+π = np.pi
+log2π = -0.5*n*np.log(2*π)
+
 AdvDLoss_tracker  = keras.metrics.Mean(name="loss")
 AdvDlossX_tracker = keras.metrics.Mean(name="loss")
 AdvDlossC_tracker = keras.metrics.Mean(name="loss")
@@ -103,6 +106,7 @@ def ParseOptions():
     parser.add_argument("--Sstride",type=int,default=4,help='CNN stride of S-branch branch')
     parser.add_argument("--Cstride",type=int,default=4,help='CNN stride of C-branch branch')
     parser.add_argument("--Nstride",type=int,default=4,help='CNN stride of N-branch branch')
+    parser.add_argument("--Ssampling",type=str,default='normal',help='Sampling distribution for s')
     parser.add_argument("--batchSize",type=int,default=25,help='input batch size')    
     parser.add_argument("--nCritic",type=int,default=5,help='number of discriminator training steps')
     parser.add_argument("--clipValue",type=float,default=0.01,help='clip weight for WGAN')
@@ -138,50 +142,48 @@ def ParseOptions():
 
     return options
 
-class SamplingFxNormSfromSigma(Layer):
+
+class SamplingFxNormSfromVariance(Layer):
     def call(self, inputs):
-        z_mean, z_std = inputs
-        # z_mean, z_log_var = inputs
-        batch = tf.shape(z_mean)[0]
-        dim = tf.shape(z_mean)[1]
-        # epsilon = tf.keras.backend.random_normal(shape=(batch, dim))
-        z = z_mean + tf.multiply(z_std,tf.random.normal([1]))
+        μ_z, σ_z2 = inputs
+        σ_z = tf.math.sqrt(σ_z2)
+        ε = tf.random.normal(shape=tf.shape(μ_z),mean=0.0,stddev=1.0)
+        z = μ_z + tf.math.multiply(σ_z,ε)
         return z
 
-class SamplingFxLogNormSfromSigma(Layer):
-    def call(self, inputs):
-        z_lambda, z_xi = inputs
-        batch = tf.shape(z_mean)[0]
-        dim = tf.shape(z_mean)[1]
-        # epsilon = tf.keras.backend.random_normal(shape=(batch, dim))
-        logz = z_lambda + tf.multiply(z_std,tf.random.normal([1]))
-        return tf.exp(logz)
+# batch = tf.shape(μ_z)[0]
+# dim = tf.shape(μ_z)[1]
+# ε = tf.keras.backend.random_normal(shape=(batch, dim))
 
+class SamplingFxLogNormSfromVariance(Layer):
+    def call(self, inputs):
+        λ_z, ζ_z2 = inputs
+        ζ_z = tf.math.sqrt(ζ_z2)
+        ε = tf.random.normal(shape=tf.shape(λ_z),mean=0.0,stddev=1.0)
+        logz = λ_z + tf.math.multiply(ζ_z,ε)
+        return tf.math.exp(logz)
 
 class SamplingFxNormSfromLogVariance(Layer):
     def call(self, inputs):
-        z_mean, z_lsd = inputs
-        # z_mean, z_log_var = inputs
-        batch = tf.shape(z_mean)[0]
-        dim = tf.shape(z_mean)[1]
-        # epsilon = tf.keras.backend.random_normal(shape=(batch, dim))
-        z = z_mean + tf.multiply(tf.exp(z_lsd*0.5),tf.random.normal([1]))
+        μ_z, logσ_z2 = inputs
+        ε = tf.random.normal(shape=tf.shape(μ_z),mean=0.0,stddev=1.0)
+        z = μ_z + tf.math.multiply(tf.math.exp(logσ_z2*0.5),ε)
         return z
 
 class SamplingFxLogNormSfromLogVariance(Layer):
     def call(self, inputs):
-        z_lambda, z_xi = inputs
-        batch = tf.shape(z_mean)[0]
-        dim = tf.shape(z_mean)[1]
-        # epsilon = tf.keras.backend.random_normal(shape=(batch, dim))
-        logz = z_lambda + tf.multiply(tf.exp(z_lsd*0.5),tf.random.normal([1]))
-        return tf.exp(logz)
+        λ_z, logζ_z2 = inputs
+        ε = tf.random.normal(shape=tf.shape(λ_z),mean=0.0,stddev=1.0)
+        logz = λ_z + tf.math.multiply(tf.math.exp(logσ_z2*0.5),ε)
+        return tf.math.exp(logz)
 
-# clip model weights to a given hypercube
+# Clip model weights to a given hypercube
 class ClipConstraint(Constraint):
+
     # set clip value when initialized
     def __init__(self, clip_value):
         self.clip_value = clip_value
+
     # clip model weights to hypercube
     def __call__(self, weights):
         return tf.keras.backend.clip(weights, -self.clip_value, self.clip_value)
@@ -189,48 +191,51 @@ class ClipConstraint(Constraint):
         return {'clip_value': self.clip_value}
 
 def WassersteinDiscriminatorLoss(y_true, y_fake):
+    """
+        Waisserstein Loss for Generator
+        Ls = D(G(X))-D(X)
+    """
     real_loss = tf.reduce_mean(y_true)
     fake_loss = tf.reduce_mean(y_fake)
     return fake_loss - real_loss
 
 def WassersteinGeneratorLoss(y_fake):
+    """
+        Waisserstein Loss for Generator
+        Ls = -D(G(X))
+    """
     return -tf.reduce_mean(y_fake)
 
-def GaussianNLLfromNorm(true,pred):
+def GaussianNLLfromNorm(y,Fx):
     """
-     Gaussian negative loglikelihood loss function
+        Gaussian negative loglikelihood loss function for pred~N(0,I)
     """
-    n_dims = int(int(pred.shape[1])/2)
-    mu = pred[:, 0:n_dims]
-    sigma = pred[:, n_dims:]
-    mse = -0.5*tf.keras.backend.sum(tf.keras.backend.square((true-mu)/sigma),axis=-1)
-    sigma_trace = -tf.keras.backend.sum(tf.keras.backend.log(sigma),axis=-1)
-    log2pi = -0.5*n_dims*np.log(2*np.pi)
-    log_likelihood = mse+sigma_trace+log2pi
+    n = int(int(Fx.shape[1])/2)
+    μ,σ2 = Fx[:,0:n],Fx[:,n:]
+    σ = tf.math.sqrt(σ2)
+    ε2 = -0.5*tf.math.reduce_sum(tf.math.square((y-μ)/σ),axis=-1)
+    Trσ = tf.math.reduce_sum(tf.math.log(σ),axis=-1)
+    # ε2 = -0.5*tf.keras.backend.sum(tf.keras.backend.square(,axis=-1)
+    # Trσ = -tf.keras.backend.sum(tf.keras.backend.log(σ),axis=-1)
+    log_likelihood = ε2+Trσ+log2pi
 
-    return tf.keras.backend.mean(-log_likelihood)
+    return tf.math.reduce_mean(-log_likelihood)
 
 
-def GaussianNLLfromLogVariance(true,pred):
+def GaussianNLLfromLogVariance(y,Fx):
     """
-     Gaussian negative loglikelihood loss function
+        Gaussian negative loglikelihood loss function for logpred~N(0,I)
     """
-    n_dims = int(int(pred.shape[1])/2)
-    mu = pred[:, 0:n_dims]
-    lv = pred[:, n_dims:]
-    sigma = tf.exp(0.5*lv)
-    mse = -0.5*tf.keras.backend.sum(tf.keras.backend.square((true-mu)/sigma),axis=-1)
-    sigma_trace = -tf.keras.backend.sum(tf.keras.backend.log(sigma),axis=-1)
-    log2pi = -0.5*n_dims*np.log(2*np.pi)
-    log_likelihood = mse+sigma_trace+log2pi
+    n = int(int(Fx.shape[1])/2)
+    μ,logσ2 = Fx[:, 0:n],Fx[:, n:]
+    σ = tf.math.exp(0.5*logσ2)
+    ε2 = -0.5*tf.math.reduce_sum(tf.math.square((y-μ)/σ),axis=-1)
+    Trσ = tf.math.reduce_sum(tf.math.log(σ),axis=-1)
+    # ε2 = -0.5*tf.keras.backend.sum(tf.keras.backend.square((true-μ)/σ),axis=-1)
+    # Trσ = -tf.keras.backend.sum(tf.keras.backend.log(σ),axis=-1)
+    log_likelihood = ε2+Trσ+log2pi
 
-    return tf.keras.backend.mean(-log_likelihood)
-
-def MutualInfoLoss(c,c_given_x):
-    eps = 1e-8
-    conditional_entropy = -tf.keras.backend.mean(tf.keras.backend.sum(tf.keras.backend.log(c_given_x+eps)*c,axis=1))
-    entropy = -tf.keras.backend.mean(tf.keras.backend.sum(tf.keras.backend.log(c+eps)*c,axis=1))
-    return conditional_entropy + entropy
+    return tf.math.reduce_mean(-log_likelihood)
 
 class RepGAN(Model):
 
@@ -589,8 +594,8 @@ class RepGAN(Model):
 
             # variable s
             # s-average
-            h = Dense(self.latentSdim,name="FxFWmuS")(zf)
-            Zmu = BatchNormalization(momentum=0.95)(h)
+            h = Dense(self.latentSdim,name="FxFWμS")(zf)
+            Zμ = BatchNormalization(momentum=0.95)(h)
 
             # s-log std
             h = Dense(self.latentSdim,name="FxFWlvS")(zf)
@@ -606,12 +611,12 @@ class RepGAN(Model):
         elif 'conv' in self.branching:
             # variable s
             # s-average
-            Zmu = Conv1D(self.nZchannels*self.Sstride**(layer+1),
+            Zμ = Conv1D(self.nZchannels*self.Sstride**(layer+1),
                 self.Skernel,self.Sstride,padding="same",
-                data_format="channels_last",name="FxCNNmuS{:>d}".format(layer+1))(z)
-            Zmu = LeakyReLU(alpha=0.1,name="FxAmuS{:>d}".format(layer+1))(Zmu)
-            Zmu = BatchNormalization(momentum=0.95,name="FxBNmuS{:>d}".format(layer+1))(Zmu)
-            Zmu = Dropout(0.2,name="FxDOmuS{:>d}".format(layer+1))(Zmu)
+                data_format="channels_last",name="FxCNNμS{:>d}".format(layer+1))(z)
+            Zμ = LeakyReLU(alpha=0.1,name="FxAμS{:>d}".format(layer+1))(Zμ)
+            Zμ = BatchNormalization(momentum=0.95,name="FxBNμS{:>d}".format(layer+1))(Zμ)
+            Zμ = Dropout(0.2,name="FxDOμS{:>d}".format(layer+1))(Zμ)
 
             # s-log std
             Zlv = Conv1D(self.nZchannels*self.Sstride**(layer+1),
@@ -640,12 +645,12 @@ class RepGAN(Model):
             # variable s
             for layer in range(1,self.nSlayers):
                 # s-average
-                Zmu = Conv1D(self.nZchannels*self.Sstride**(layer+1),
+                Zμ = Conv1D(self.nZchannels*self.Sstride**(layer+1),
                     self.Skernel,self.Sstride,padding="same",
-                    data_format="channels_last",name="FxCNNmuS{:>d}".format(layer+1))(Zmu)
-                Zmu = LeakyReLU(alpha=0.1,name="FxAmuS{:>d}".format(layer+1))(Zmu)
-                Zmu = BatchNormalization(momentum=0.95,name="FxBNmuS{:>d}".format(layer+1))(Zmu)
-                Zmu = Dropout(0.2,name="FxDOmuS{:>d}".format(layer+1))(Zmu)
+                    data_format="channels_last",name="FxCNNμS{:>d}".format(layer+1))(Zμ)
+                Zμ = LeakyReLU(alpha=0.1,name="FxAμS{:>d}".format(layer+1))(Zμ)
+                Zμ = BatchNormalization(momentum=0.95,name="FxBNμS{:>d}".format(layer+1))(Zμ)
+                Zμ = Dropout(0.2,name="FxDOμS{:>d}".format(layer+1))(Zμ)
 
                 # s-log std
                 Zlv = Conv1D(self.nZchannels*self.Sstride**(layer+1),
@@ -674,10 +679,10 @@ class RepGAN(Model):
                 Zn = Dropout(0.2,name="FxDON{:>d}".format(layer+1))(Zn)
 
             # s-average
-            Zmu = Flatten(name="FxFLmuS{:>d}".format(layer+1))(Zmu)
-            Zmu = Dense(self.latentSdim,name="FxFWmuS")(Zmu)
-            Zmu = LeakyReLU(alpha=0.1,name="FxAmuS{:>d}".format(layer+2))(Zmu)
-            Zmu = BatchNormalization(momentum=0.95,name="FxBNmuS")(Zmu)
+            Zμ = Flatten(name="FxFLμS{:>d}".format(layer+1))(Zμ)
+            Zμ = Dense(self.latentSdim,name="FxFWμS")(Zμ)
+            Zμ = LeakyReLU(alpha=0.1,name="FxAμS{:>d}".format(layer+2))(Zμ)
+            Zμ = BatchNormalization(momentum=0.95,name="FxBNμS")(Zμ)
 
             # s-log variance
             Zlv = Flatten(name="FxFLlvS{:>d}".format(layer+1))(Zlv)
@@ -699,8 +704,8 @@ class RepGAN(Model):
             Zn = LeakyReLU(alpha=0.1,name="FxAN{:>d}".format(layer+1))(Zn)
 
         # variable s
-        s = SamplingFxNormSfromLogVariance()([Zmu,Zlv])
-        QsX = Concatenate(axis=-1)([Zmu,Zlv])
+        s = SamplingFxNormSfromLogVariance()([Zμ,Zlv])
+        QsX = Concatenate(axis=-1)([Zμ,Zlv])
 
         # variable c
         c = Softmax(name="FxAC")(Zc)
