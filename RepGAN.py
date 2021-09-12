@@ -371,13 +371,13 @@ class RepGAN(Model):
         λNormgradDs = tf.reduce_mean((NormgradDs-1.0)**2)
         return λNormgradDs
 
-    def SamplingS(self,mean=0.0,stddev=1.0,distribution='normal'):
+    def SamplingNoise(self,mean=0.0,stddev=1.0,latentDim=128,distribution='normal'):
         if distribution=='normal':
-            return tf.random.normal(mean=0.0,stddev=1.0,shape=[self.batchSize,self.latentSdim])
+            return tf.random.normal(mean=0.0,stddev=1.0,shape=[self.batchSize,latentDim])
         elif distribution=='lognormal':
-            return tf.random.lognormal(mean=0.0,stddev=1.0,shape=[self.batchSize,self.latentSdim])
+            return tf.random.lognormal(mean=0.0,stddev=1.0,shape=[self.batchSize,latentDim])
         elif distribution=='uniform':
-            return tf.random.lognormal(mean=0.0,stddev=1.0,shape=[self.batchSize,self.latentSdim])
+            return tf.random.lognormal(mean=0.0,stddev=1.0,shape=[self.batchSize,latentDim])
     
     def train_step(self, realXC):
 
@@ -386,8 +386,10 @@ class RepGAN(Model):
         self.batchSize = tf.shape(realX)[0]
 
         # # Generate S and N from Normal distributions
-        # realS = tf.random.normal(mean=0.0,stddev=1.0,shape=[self.batchSize,self.latentSdim])
-        # realN = tf.random.normal(mean=0.0,stddev=1.0,shape=[self.batchSize,self.latentNdim])
+        realS = self.SamplingNoise(mean=0.0,stddev=1.0,
+                latentDim=self.latentSdim,distribution=self.Ssampling)
+        realN = self.SamplingNoise(mean=0.0,stddev=1.0,
+                latentDim=self.latentNdim,distribution=self.Nsampling)
 
         # Adversarial ground truths for X
         critic_X = self.Dx(realX)
@@ -400,14 +402,14 @@ class RepGAN(Model):
         fakeBCE_C = tf.zeros_like(critic_C)
 
         # # Adversarial ground truths for S
-        # critic_S = self.Ds(realS)
-        # realBCE_S = tf.ones_like(critic_S)
-        # fakeBCE_S = tf.zeros_like(critic_S)
+        critic_S = self.Ds(realS)
+        realBCE_S = tf.ones_like(critic_S)
+        fakeBCE_S = tf.zeros_like(critic_S)
 
         # # Adversarial ground truths for N
-        # critic_N = self.Dn(realN)
-        # realBCE_N = tf.ones_like(critic_N)
-        # fakeBCE_N = tf.zeros_like(critic_N)
+        critic_N = self.Dn(realN)
+        realBCE_N = tf.ones_like(critic_N)
+        fakeBCE_N = tf.zeros_like(critic_N)
 
 
 
@@ -431,7 +433,10 @@ class RepGAN(Model):
 
             # Generate S and N from Normal distributions
             
-            realN = tf.random.normal(mean=0.0,stddev=1.0,shape=[self.batchSize,self.latentNdim])
+            realS = self.SamplingNoise(mean=0.0,stddev=1.0,
+                latentDim=self.latentSdim,distribution=self.Ssampling)
+            realN = self.SamplingNoise(mean=0.0,stddev=1.0,
+                latentDim=self.latentNdim,distribution=self.Nsampling)
 
             # # Adversarial ground truths for S
             # critic_S = self.Ds(realS)
@@ -514,8 +519,10 @@ class RepGAN(Model):
         self.Ds.trainable = False
         self.Dn.trainable = False
 
-        realS = tf.random.normal(mean=0.0,stddev=1.0,shape=[self.batchSize,self.latentSdim])
-        realN = tf.random.normal(mean=0.0,stddev=1.0,shape=[self.batchSize,self.latentNdim])
+        realS = self.SamplingNoise(mean=0.0,stddev=1.0,
+                latentDim=self.latentSdim,distribution=self.Ssampling)
+        realN = self.SamplingNoise(mean=0.0,stddev=1.0,
+                latentDim=self.latentNdim,distribution=self.Nsampling)
 
         with tf.GradientTape(persistent=True) as tape:
             # Generate fake latent code from real signal
@@ -531,7 +538,7 @@ class RepGAN(Model):
 
             # Reconstruction
             recX = self.Gz((fakeS,fakeC,fakeN),training=True)
-            recS = self.Qs(fakeX,training=True) # Qs( Gz( Fx(s) ) )
+            recS = self.Qs(fakeX,training=True)
             recC = self.Qc(fakeX,training=True)
 
             # Adversarial ground truths
@@ -595,7 +602,8 @@ class RepGAN(Model):
     def call(self, X):
         [fakeS,fakeC,fakeN] = self.Fx(X)
         fakeX = self.Gz((fakeS,fakeC,fakeN))
-        fakeN_res = tf.random.normal(mean=0.0,stddev=1.0,shape=tf.shape(fakeN))
+        fakeN_res = self.SamplingNoise(mean=0.0,stddev=1.0,
+                latentDim=self.latentNdim,distribution=self.Nsampling)
         fakeX_res = self.Gz((fakeS,fakeC,fakeN_res))
         return fakeX, fakeC, fakeS, fakeN, fakeX_res
 
@@ -654,12 +662,12 @@ class RepGAN(Model):
 
             # variable s
             # s-average
-            h = Dense(self.latentSdim,name="FxFWμS")(zf)
-            Zμ = BatchNormalization(momentum=0.95)(h)
+            h = Dense(self.latentSdim,name="FxFWmuS")(zf)
+            μ_s = BatchNormalization(momentum=0.95)(h)
 
             # s-log std
             h = Dense(self.latentSdim,name="FxFWlvS")(zf)
-            Zlv = BatchNormalization(momentum=0.95)(h)
+            logσ_s2 = BatchNormalization(momentum=0.95)(h)
 
             # variable c
             h = Dense(self.latentCdim,name="FxFWC")(zf)
@@ -671,20 +679,20 @@ class RepGAN(Model):
         elif 'conv' in self.branching:
             # variable s
             # s-average
-            Zμ = Conv1D(self.nZchannels*self.Sstride**(layer+1),
+            μ_s = Conv1D(self.nZchannels*self.Sstride**(layer+1),
                 self.Skernel,self.Sstride,padding="same",
-                data_format="channels_last",name="FxCNNμS{:>d}".format(layer+1))(z)
-            Zμ = LeakyReLU(alpha=0.1,name="FxAμS{:>d}".format(layer+1))(Zμ)
-            Zμ = BatchNormalization(momentum=0.95,name="FxBNμS{:>d}".format(layer+1))(Zμ)
-            Zμ = Dropout(0.2,name="FxDOμS{:>d}".format(layer+1))(Zμ)
+                data_format="channels_last",name="FxCNNmuS{:>d}".format(layer+1))(z)
+            μ_s = LeakyReLU(alpha=0.1,name="FxAmuS{:>d}".format(layer+1))(μ_s)
+            μ_s = BatchNormalization(momentum=0.95,name="FxBNmuS{:>d}".format(layer+1))(μ_s)
+            μ_s = Dropout(0.2,name="FxDOmuS{:>d}".format(layer+1))(μ_s)
 
             # s-log std
-            Zlv = Conv1D(self.nZchannels*self.Sstride**(layer+1),
+            logσ_s2 = Conv1D(self.nZchannels*self.Sstride**(layer+1),
                 self.Skernel,self.Sstride,padding="same",
                 data_format="channels_last",name="FxCNNlvS{:>d}".format(layer+1))(z)
-            Zlv = LeakyReLU(alpha=0.1,name="FxAlvS{:>d}".format(layer+1))(Zlv)
-            Zlv = BatchNormalization(momentum=0.95,name="FxBNlvS{:>d}".format(layer+1))(Zlv)
-            Zlv = Dropout(0.2,name="FxDOlvS{:>d}".format(layer+1))(Zlv)
+            logσ_s2 = LeakyReLU(alpha=0.1,name="FxAlvS{:>d}".format(layer+1))(logσ_s2)
+            logσ_s2 = BatchNormalization(momentum=0.95,name="FxBNlvS{:>d}".format(layer+1))(logσ_s2)
+            logσ_s2 = Dropout(0.2,name="FxDOlvS{:>d}".format(layer+1))(logσ_s2)
 
             # variable c
             Zc = Conv1D(self.nZchannels*self.Cstride**(layer+1),
@@ -705,20 +713,20 @@ class RepGAN(Model):
             # variable s
             for layer in range(1,self.nSlayers):
                 # s-average
-                Zμ = Conv1D(self.nZchannels*self.Sstride**(layer+1),
+                μ_s = Conv1D(self.nZchannels*self.Sstride**(layer+1),
                     self.Skernel,self.Sstride,padding="same",
-                    data_format="channels_last",name="FxCNNμS{:>d}".format(layer+1))(Zμ)
-                Zμ = LeakyReLU(alpha=0.1,name="FxAμS{:>d}".format(layer+1))(Zμ)
-                Zμ = BatchNormalization(momentum=0.95,name="FxBNμS{:>d}".format(layer+1))(Zμ)
-                Zμ = Dropout(0.2,name="FxDOμS{:>d}".format(layer+1))(Zμ)
+                    data_format="channels_last",name="FxCNNmuS{:>d}".format(layer+1))(μ_s)
+                μ_s = LeakyReLU(alpha=0.1,name="FxAmuS{:>d}".format(layer+1))(μ_s)
+                μ_s = BatchNormalization(momentum=0.95,name="FxBNmuS{:>d}".format(layer+1))(μ_s)
+                μ_s = Dropout(0.2,name="FxDOmuS{:>d}".format(layer+1))(μ_s)
 
                 # s-log std
-                Zlv = Conv1D(self.nZchannels*self.Sstride**(layer+1),
+                logσ_s2 = Conv1D(self.nZchannels*self.Sstride**(layer+1),
                     self.Skernel,self.Sstride,padding="same",
-                    data_format="channels_last",name="FxCNNlvS{:>d}".format(layer+1))(Zlv)
-                Zlv = LeakyReLU(alpha=0.1,name="FxAlvS{:>d}".format(layer+1))(Zlv)
-                Zlv = BatchNormalization(momentum=0.95,name="FxBNlvS{:>d}".format(layer+1))(Zlv)
-                Zlv = Dropout(0.2,name="FxDOlvS{:>d}".format(layer+1))(Zlv)
+                    data_format="channels_last",name="FxCNNlvS{:>d}".format(layer+1))(logσ_s2)
+                logσ_s2 = LeakyReLU(alpha=0.1,name="FxAlvS{:>d}".format(layer+1))(logσ_s2)
+                logσ_s2 = BatchNormalization(momentum=0.95,name="FxBNlvS{:>d}".format(layer+1))(logσ_s2)
+                logσ_s2 = Dropout(0.2,name="FxDOlvS{:>d}".format(layer+1))(logσ_s2)
 
             # c
             for layer in range(1,self.nClayers):
@@ -739,16 +747,16 @@ class RepGAN(Model):
                 Zn = Dropout(0.2,name="FxDON{:>d}".format(layer+1))(Zn)
 
             # s-average
-            Zμ = Flatten(name="FxFLμS{:>d}".format(layer+1))(Zμ)
-            Zμ = Dense(self.latentSdim,name="FxFWμS")(Zμ)
-            Zμ = LeakyReLU(alpha=0.1,name="FxAμS{:>d}".format(layer+2))(Zμ)
-            Zμ = BatchNormalization(momentum=0.95,name="FxBNμS")(Zμ)
+            μ_s = Flatten(name="FxFLmuS{:>d}".format(layer+1))(μ_s)
+            μ_s = Dense(self.latentSdim,name="FxFWmuS")(μ_s)
+            μ_s = LeakyReLU(alpha=0.1,name="FxAmuS{:>d}".format(layer+2))(μ_s)
+            μ_s = BatchNormalization(momentum=0.95,name="FxBNmuS")(μ_s)
 
             # s-log variance
-            Zlv = Flatten(name="FxFLlvS{:>d}".format(layer+1))(Zlv)
-            Zlv = Dense(self.latentSdim,name="FxFWlvS")(Zlv)
-            Zlv = LeakyReLU(alpha=0.1,name="FxAlvS{:>d}".format(layer+2))(Zlv)
-            Zlv = BatchNormalization(momentum=0.95,name="FxBNlvS")(Zlv)
+            logσ_s2 = Flatten(name="FxFLlvS{:>d}".format(layer+1))(logσ_s2)
+            logσ_s2 = Dense(self.latentSdim,name="FxFWlvS")(logσ_s2)
+            logσ_s2 = LeakyReLU(alpha=0.1,name="FxAlvS{:>d}".format(layer+2))(logσ_s2)
+            logσ_s2 = BatchNormalization(momentum=0.95,name="FxBNlvS")(logσ_s2)
 
             # c
             layer = self.nClayers
@@ -764,8 +772,8 @@ class RepGAN(Model):
             Zn = LeakyReLU(alpha=0.1,name="FxAN{:>d}".format(layer+1))(Zn)
 
         # variable s
-        s = SamplingFxNormSfromLogVariance()([Zμ,Zlv])
-        QsX = Concatenate(axis=-1)([Zμ,Zlv])
+        s = SamplingFxNormSfromLogVariance()([μ_s,logσ_s2])
+        QsX = Concatenate(axis=-1)([μ_s,logσ_s2])
 
         # variable c
         c = Softmax(name="FxAC")(Zc)
