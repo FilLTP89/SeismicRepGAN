@@ -107,6 +107,7 @@ def ParseOptions():
     parser.add_argument("--Cstride",type=int,default=4,help='CNN stride of C-branch branch')
     parser.add_argument("--Nstride",type=int,default=4,help='CNN stride of N-branch branch')
     parser.add_argument("--Ssampling",type=str,default='normal',help='Sampling distribution for s')
+    parser.add_argument("--Nsampling",type=str,default='normal',help='Sampling distribution for n')
     parser.add_argument("--batchSize",type=int,default=25,help='input batch size')    
     parser.add_argument("--nCritic",type=int,default=5,help='number of discriminator training steps')
     parser.add_argument("--clipValue",type=float,default=0.01,help='clip weight for WGAN')
@@ -210,14 +211,15 @@ def GaussianNLLfromNorm(y,Fx):
     """
         Gaussian negative loglikelihood loss function for pred~N(0,I)
     """
-    n = int(int(Fx.shape[1])/2)
+    n = int(int(Fx.shape[-1])/2)
     μ,σ2 = Fx[:,0:n],Fx[:,n:]
     σ = tf.math.sqrt(σ2)
     ε2 = -0.5*tf.math.reduce_sum(tf.math.square((y-μ)/σ),axis=-1)
     Trσ = tf.math.reduce_sum(tf.math.log(σ),axis=-1)
     # ε2 = -0.5*tf.keras.backend.sum(tf.keras.backend.square(,axis=-1)
     # Trσ = -tf.keras.backend.sum(tf.keras.backend.log(σ),axis=-1)
-    log_likelihood = ε2+Trσ+log2π
+
+    log_likelihood = ε2+Trσ+log2π*n
 
     return tf.math.reduce_mean(-log_likelihood)
 
@@ -226,14 +228,15 @@ def GaussianNLLfromLogVariance(y,Fx):
     """
         Gaussian negative loglikelihood loss function for logpred~N(0,I)
     """
-    n = int(int(Fx.shape[1])/2)
+    n = int(int(Fx.shape[-1])/2)
     μ,logσ2 = Fx[:,0:n],Fx[:,n:]
     σ = tf.math.exp(0.5*logσ2)
     ε2 = -0.5*tf.math.reduce_sum(tf.math.square((y-μ)/σ),axis=-1)
     Trσ = tf.math.reduce_sum(tf.math.log(σ),axis=-1)
     # ε2 = -0.5*tf.keras.backend.sum(tf.keras.backend.square((true-μ)/σ),axis=-1)
     # Trσ = -tf.keras.backend.sum(tf.keras.backend.log(σ),axis=-1)
-    log_likelihood = ε2+Trσ+log2π
+
+    log_likelihood = ε2+Trσ+log2π*n
 
     return tf.math.reduce_mean(-log_likelihood)
 
@@ -242,9 +245,14 @@ def GaussianNLLfromLogVariance(y,Fx):
 #     conditional_entropy = -tf.keras.backend.mean(tf.keras.backend.sum(tf.keras.backend.log(c_given_x+eps)*c,axis=1))
 #     entropy = -tf.keras.backend.mean(tf.keras.backend.sum(tf.keras.backend.log(c+eps)*c,axis=1))
 #     return conditional_entropy + entropy
-    
+
 def KLDivergenceFromLogVariance(Fx):
-    n = int(int(Fx.shape[1])/2)
+    """
+        Kullback Leibler divergence for Gaussian distributions
+        
+        KL(Nx(μ_z,σ_z)||Nx(0,I))
+    """
+    n = int(int(Fx.shape[-1])/2)
     μ_z,logσ_z2 = Fx[:,0:n],Fx[:,n:]
     DKL = -0.5*(1.0+logσ_z2-tf.math.square(μ_z)-tf.math.exp(logσ_z2))
     DKL = tf.math.reduce_sum(DKL,axis=-1)
