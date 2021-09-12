@@ -386,11 +386,11 @@ class RepGAN(Model):
 
     def SamplingNoise(self,mean=0.0,stddev=1.0,latentDim=128,distribution='normal'):
         if distribution=='normal':
-            return tf.random.normal(mean=0.0,stddev=1.0,shape=[self.batchSize,latentDim])
+            return tf.random.normal(mean=0.0,stddev=1.0,shape=[self.batchSize,latentDim],dtype=tf.dtypes.float32)
         elif distribution=='lognormal':
-            return tf.random.lognormal(mean=0.0,stddev=1.0,shape=[self.batchSize,latentDim])
+            return tf.random.lognormal(mean=0.0,stddev=1.0,shape=[self.batchSize,latentDim],dtype=tf.dtypes.float32)
         elif distribution=='uniform':
-            return tf.random.lognormal(mean=0.0,stddev=1.0,shape=[self.batchSize,latentDim])
+            return tf.random.lognormal(mean=0.0,stddev=1.0,shape=[self.batchSize,latentDim],dtype=tf.dtypes.float32)
     
     def train_step(self, realXC):
 
@@ -572,7 +572,7 @@ class RepGAN(Model):
             RecGlossS = self.RecSloss(recS)*self.PenRecSloss
             #RecGlossS = -tf.reduce_mean(recS.log_prob(realS))
             RecGlossC = self.RecCloss(realC,recC)*self.PenRecCloss
-            
+
             AdvGloss = AdvGlossX + AdvGlossC + AdvGlossS + AdvGlossN + RecGlossX + RecGlossC + RecGlossS
 
         # Get the gradients w.r.t the generator loss
