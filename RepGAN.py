@@ -432,7 +432,6 @@ class RepGAN(Model):
         for _ in range(self.nCritic):
 
             # Generate S and N from Normal distributions
-            
             realS = self.SamplingNoise(mean=0.0,stddev=1.0,
                 latentDim=self.latentSdim,distribution=self.Ssampling)
             realN = self.SamplingNoise(mean=0.0,stddev=1.0,
@@ -552,7 +551,7 @@ class RepGAN(Model):
             AdvGlossS = self.AdvGlossGAN(realBCE_S,fakeScritic)*self.PenAdvSloss
             AdvGlossN = self.AdvGlossGAN(realBCE_N,fakeNcritic)*self.PenAdvNloss
             RecGlossX = self.RecXloss(realX,recX)*self.PenRecXloss
-            RecGlossS = self.RecSloss(realS,recS)*self.PenRecSloss
+            RecGlossS = self.RecSloss(recS)*self.PenRecSloss
             #RecGlossS = -tf.reduce_mean(recS.log_prob(realS))
             RecGlossC = self.RecCloss(realC,recC)*self.PenRecCloss
             
@@ -1010,7 +1009,7 @@ def Main(DeviceName):
         losses['AdvGlossWGAN'] = WassersteinGeneratorLoss
         losses['AdvDlossGAN'] = tf.keras.losses.BinaryCrossentropy()
         losses['AdvGlossGAN'] = tf.keras.losses.BinaryCrossentropy()
-        losses['RecSloss'] = GaussianNLLfromLogVariance
+        losses['RecSloss'] = KLDivergenceFromLogVariance
         losses['RecXloss'] = tf.keras.losses.MeanAbsoluteError()
         losses['RecCloss'] = MutualInfoLoss
         losses['PenAdvXloss'] = 1.
