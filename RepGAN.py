@@ -50,8 +50,8 @@ from tensorflow.python.util.tf_export import tf_export
 from copy import deepcopy
 from plot_tools import *
 
-π = np.pi
-log2π = -0.5*n*np.log(2*π)
+π = tf.constant(np.pi)
+log2π = tf.constant(-0.5*np.log(2*π))
 
 AdvDLoss_tracker  = keras.metrics.Mean(name="loss")
 AdvDlossX_tracker = keras.metrics.Mean(name="loss")
@@ -107,6 +107,7 @@ def ParseOptions():
     parser.add_argument("--Cstride",type=int,default=4,help='CNN stride of C-branch branch')
     parser.add_argument("--Nstride",type=int,default=4,help='CNN stride of N-branch branch')
     parser.add_argument("--Ssampling",type=str,default='normal',help='Sampling distribution for s')
+    parser.add_argument("--Nsampling",type=str,default='normal',help='Sampling distribution for n')
     parser.add_argument("--batchSize",type=int,default=25,help='input batch size')    
     parser.add_argument("--nCritic",type=int,default=5,help='number of discriminator training steps')
     parser.add_argument("--clipValue",type=float,default=0.01,help='clip weight for WGAN')
@@ -210,14 +211,14 @@ def GaussianNLLfromNorm(y,Fx):
     """
         Gaussian negative loglikelihood loss function for pred~N(0,I)
     """
-    n = int(int(Fx.shape[1])/2)
+    n = int(int(Fx.shape[-1])/2)
     μ,σ2 = Fx[:,0:n],Fx[:,n:]
     σ = tf.math.sqrt(σ2)
     ε2 = -0.5*tf.math.reduce_sum(tf.math.square((y-μ)/σ),axis=-1)
     Trσ = tf.math.reduce_sum(tf.math.log(σ),axis=-1)
     # ε2 = -0.5*tf.keras.backend.sum(tf.keras.backend.square(,axis=-1)
     # Trσ = -tf.keras.backend.sum(tf.keras.backend.log(σ),axis=-1)
-    log_likelihood = ε2+Trσ+log2pi
+    log_likelihood = ε2+Trσ+log2π*n
 
     return tf.math.reduce_mean(-log_likelihood)
 
@@ -226,19 +227,20 @@ def GaussianNLLfromLogVariance(y,Fx):
     """
         Gaussian negative loglikelihood loss function for logpred~N(0,I)
     """
-    n = int(int(Fx.shape[1])/2)
+    n = int(int(Fx.shape[-1])/2)
     μ,logσ2 = Fx[:, 0:n],Fx[:, n:]
     σ = tf.math.exp(0.5*logσ2)
     ε2 = -0.5*tf.math.reduce_sum(tf.math.square((y-μ)/σ),axis=-1)
     Trσ = tf.math.reduce_sum(tf.math.log(σ),axis=-1)
     # ε2 = -0.5*tf.keras.backend.sum(tf.keras.backend.square((true-μ)/σ),axis=-1)
     # Trσ = -tf.keras.backend.sum(tf.keras.backend.log(σ),axis=-1)
-    log_likelihood = ε2+Trσ+log2pi
+    log_likelihood = ε2+Trσ+log2π*n
 
     return tf.math.reduce_mean(-log_likelihood)
 
 def KLDivergenceFromLogVariance(Fx):
-    μ_z, logσ_z2 = Fx
+    n = int(int(Fx.shape[-1])/2)
+    μ_z, logσ_z2 = Fx[:,0:n],Fx[:,n:]
     DKL = -0.5*(1.0+logσ_z2-tf.math.square(μ_z)-tf.math.exp(logσ_z2))
     DKL = tf.math.reduce_sum(DKL,axis=-1)
     return tf.math.reduce_mean(DKL)
