@@ -289,7 +289,7 @@ class RepGAN(Model):
             Build Fx/Gz (generators)
         """
 
-        self.Fx, self.Qs, self.Qc  = self.BuildFx()
+        self.Fx, self.Qs, self.Qc = self.BuildFx()
         self.Gz = self.BuildGz()
 
         tf.keras.utils.plot_model(self.Fx,to_file="Fx.png",
@@ -338,15 +338,15 @@ class RepGAN(Model):
         self.__dict__.update(losses)
 
     def GradientPenaltyX(self,batchSize,realX,fakeX):
-        """ Calculates the gradient penalty.
+        """Compute the Discriminator gradient for penalty
 
         This loss is calculated on an interpolated image
         and added to the discriminator loss.
         """
         # Get the interpolated image
-        alpha = tf.random.normal([batchSize, 1, 1], 0.0, 1.0)
-        diffX = fakeX - realX
-        intX = realX + alpha * diffX
+        α = tf.random.normal([batchSize,1,1],0.0,1.0)
+        δX = fakeX - realX
+        intX = realX + α*δX
 
         with tf.GradientTape() as gp_tape:
             gp_tape.watch(intX)
@@ -354,11 +354,11 @@ class RepGAN(Model):
             predX = self.Dx(intX,training=True)
 
         # 2. Calculate the gradients w.r.t to this interpolated image.
-        GradDx = gp_tape.gradient(predX, [intX])[0]
+        gradDx = gp_tape.gradient(predX,[intX])[0]
         # 3. Calculate the norm of the gradients.
-        NormGradX = tf.sqrt(tf.reduce_sum(tf.square(GradDx), axis=[1]))
-        gp = tf.reduce_mean((NormGradX - 1.0) ** 2)
-        return gp
+        NormgradDx = tf.math.sqrt(tf.reduce_sum(tf.math.square(gradDx),axis=-1))
+        λNormgradDx = tf.reduce_mean((NormgradDx - 1.0) ** 2)
+        return λNormgradDx
 
 
     def GradientPenaltyS(self,batchSize,realS,fakeS):
@@ -368,9 +368,9 @@ class RepGAN(Model):
         and added to the discriminator loss.
         """
         # Get the interpolated image
-        alpha = tf.random.normal([batchSize,1],0.0,1.0)
-        diffS = fakeS - realS
-        intS = realS + alpha * diffS
+        α = tf.random.normal([batchSize,1],0.0,1.0)
+        δs = fakeS - realS
+        intS = realS + α*δs
 
         with tf.GradientTape() as gp_tape:
             gp_tape.watch(intS)
@@ -378,11 +378,11 @@ class RepGAN(Model):
             predS = self.Ds(intS,training=True)
 
         # 2. Calculate the gradients w.r.t to this interpolated image.
-        GradDs = gp_tape.gradient(predS, [intS])[0]
+        gradDs = gp_tape.gradient(predS,[intS])[0]
         # 3. Calculate the norm of the gradients.
-        NormGradS = tf.sqrt(tf.reduce_sum(tf.square(GradDs), axis=[1]))
-        gp = tf.reduce_mean((NormGradS - 1.0) ** 2)
-        return gp
+        NormgradDs = tf.math.sqrt(tf.reduce_sum(tf.math.square(GradDs),axis=-1))
+        λNormgradDs = tf.reduce_mean((NormgradDs-1.0)**2)
+        return λNormgradDs
 
     def train_step(self, realXC):
 
