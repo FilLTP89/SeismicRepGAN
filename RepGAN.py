@@ -256,7 +256,7 @@ def GaussianNLLfromLogVariance(y,Fx):
 def KLDivergenceFromLogVariance(Fx):
     """
         Kullback Leibler divergence for Gaussian distributions
-        
+
         KL(Nx(μ_z,σ_z)||Nx(0,I))
     """
     n = int(int(Fx.shape[-1])/2)
@@ -400,7 +400,7 @@ class RepGAN(Model):
             return tf.random.lognormal(mean=0.0,stddev=1.0,shape=[self.batchSize,latentDim],dtype=tf.dtypes.float32)
         elif distribution=='uniform':
             return tf.random.lognormal(mean=0.0,stddev=1.0,shape=[self.batchSize,latentDim],dtype=tf.dtypes.float32)
-    
+
     def train_step(self, realXC):
 
         # Upwrap data batch (X,C)
@@ -448,14 +448,23 @@ class RepGAN(Model):
         """
 
         # Freeze generators' layers while training critics
-        self.Fx.trainable = False
-        self.Gz.trainable = False
-        self.Qc.trainable = False
-        self.Qs.trainable = False
-        self.Dx.trainable = True
-        self.Dc.trainable = True
-        self.Ds.trainable = True
-        self.Dn.trainable = True
+        for layer in self.Fx.layers: layer.trainable = False
+        for layer in self.Gz.layers: layer.trainable = False
+        for layer in self.Qs.layers: layer.trainable = False
+        for layer in self.Qc.layers: layer.trainable = False
+        for layer in self.Dx.layers: layer.trainable = True
+        for layer in self.Dc.layers: layer.trainable = True
+        for layer in self.Ds.layers: layer.trainable = True
+        for layer in self.Dn.layers: layer.trainable = True
+
+        # self.Fx.trainable = False
+        # self.Gz.trainable = False
+        # self.Qc.trainable = False
+        # self.Qs.trainable = False
+        # self.Dx.trainable = True
+        # self.Dc.trainable = True
+        # self.Ds.trainable = True
+        # self.Dn.trainable = True
 
         # Train discriminators nCritic times
         for _ in range(self.nCritic):
@@ -534,14 +543,22 @@ class RepGAN(Model):
         """
 
         # Freeze critics' layers while training generators
-        self.Fx.trainable = True
-        self.Gz.trainable = True
-        self.Qc.trainable = True
-        self.Qs.trainable = True
-        self.Dx.trainable = False
-        self.Dc.trainable = False
-        self.Ds.trainable = False
-        self.Dn.trainable = False
+        for layer in self.Fx.layers: layer.trainable = True
+        for layer in self.Gz.layers: layer.trainable = True
+        for layer in self.Dx.layers: layer.trainable = True
+        for layer in self.Qs.layers: layer.trainable = True
+        for layer in self.Qc.layers: layer.trainable = True
+        for layer in self.Dc.layers: layer.trainable = False
+        for layer in self.Ds.layers: layer.trainable = False
+        for layer in self.Dn.layers: layer.trainable = False
+        # self.Fx.trainable = True
+        # self.Gz.trainable = True
+        # self.Qc.trainable = True
+        # self.Qs.trainable = True
+        # self.Dx.trainable = False
+        # self.Dc.trainable = False
+        # self.Ds.trainable = False
+        # self.Dn.trainable = False
 
         realS = tf.random.normal(mean=0.0,stddev=1.0,shape=[self.batchSize,self.latentSdim])
         realN = tf.random.normal(mean=0.0,stddev=1.0,shape=[self.batchSize,self.latentNdim])
