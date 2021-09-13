@@ -1040,14 +1040,34 @@ def Main(DeviceName):
 
     with tf.device(DeviceName):
         optimizers = {}
-        optimizers['DxOpt'] = Adam(learning_rate=0.0002, beta_1=0.5, beta_2=0.9999)
-        optimizers['DcOpt'] = Adam(learning_rate=0.0002, beta_1=0.5, beta_2=0.9999)#RMSprop(learning_rate=0.00005)
-        optimizers['DsOpt'] = Adam(learning_rate=0.0002, beta_1=0.5, beta_2=0.9999)#RMSprop(learning_rate=0.00005)
-        optimizers['DnOpt'] = Adam(learning_rate=0.0002, beta_1=0.5, beta_2=0.9999)#RMSprop(learning_rate=0.00005)
-        optimizers['FxOpt'] = Adam(learning_rate=0.0002, beta_1=0.5, beta_2=0.9999)
-        optimizers['GzOpt'] = Adam(learning_rate=0.0002, beta_1=0.5, beta_2=0.9999)
-        optimizers['QsOpt'] = Adam(learning_rate=0.0002, beta_1=0.5, beta_2=0.9999)
-        optimizers['QcOpt'] = Adam(learning_rate=0.0002, beta_1=0.5, beta_2=0.9999)
+
+        if options['xGANvsWGAN'] == "GAN" or "WGANGP":
+            optimizers['DxOpt'] = Adam(learning_rate=options['DxLR'],beta_1=0.5,beta_2=0.9999) # 0.0002 for GAN (as in keras)
+            optimizers['FxOpt'] = Adam(learning_rate=options['FxLR'],beta_1=0.5,beta_2=0.9999) # 0.0002 for GAN (as in keras)
+            optimizers['GzOpt'] = Adam(learning_rate=options['GzLR'],beta_1=0.5,beta_2=0.9999) # 0.0002 for GAN (as in keras)
+        elif options['xGANvsWGAN'] == "WGAN":
+            optimizers['DxOpt'] = RMSprop(learning_rate=options['DxLR']) # 0.001 for WGAN (as in RepGAN)
+            optimizers['FxOpt'] = RMSprop(learning_rate=options['FxLR']) # 0.0001 for WGAN (as in RepGAN)
+            optimizers['GzOpt'] = RMSprop(learning_rate=options['GzLR']) # 0.0001 for WGAN (as in RepGAN)
+
+        if options['cGANvsWGAN'] == "GAN" or "WGANGP":
+            optimizers['DcOpt'] = Adam(learning_rate=options['DcLR'],beta_1=0.5,beta_2=0.9999) # 0.0002 for GAN (as in keras)
+            optimizers['QcOpt'] = Adam(learning_rate=options['QcLR'],beta_1=0.5,beta_2=0.9999) # 0.0002 for GAN (as in keras)
+        elif options['cGANvsWGAN'] == "WGAN": 
+            optimizers['DcOpt'] = RMSprop(learning_rate=options['DcLR']) # 0.001 for WGAN (as in RepGAN)
+            optimizers['QcOpt'] = RMSprop(learning_rate=options['QcLR']) # 0.00002 for WGAN (as in RepGAN)
+
+        if options['sGANvsWGAN'] == "GAN" or "WGANGP":
+            optimizers['DsOpt'] = Adam(learning_rate=options['DsLR'],beta_1=0.5,beta_2=0.9999) # 0.0002 for GAN (as in keras)
+            optimizers['QsOpt'] = Adam(learning_rate=options['QsLR'],beta_1=0.5,beta_2=0.9999) # 0.0002 for GAN (as in keras)
+        elif options['sGANvsWGAN'] == "WGAN":
+            optimizers['DsOpt'] = RMSprop(learning_rate=options['DsLR']) # 0.001 for WGAN (as in RepGAN)
+            optimizers['QsOpt'] = RMSprop(learning_rate=options['QsLR']) # 0.00002 for WGAN (as in RepGAN)
+
+        if options['nGANvsWGAN'] == "GAN" or "WGANGP":
+            optimizers['DnOpt'] = Adam(learning_rate=options['DnLR'],beta_1=0.5,beta_2=0.9999) # 0.0002 for GAN (as in keras)
+        elif options['nGANvsWGAN'] == "WGAN":
+            optimizers['DnOpt'] = RMSprop(learning_rate=options['DnLR']) # 0.001 for WGAN (as in RepGAN)
 
         losses = {}
         losses['AdvDlossWGAN'] = WassersteinDiscriminatorLoss
