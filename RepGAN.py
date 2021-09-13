@@ -86,6 +86,7 @@ def ParseOptions():
     parser = argparse.ArgumentParser()
     parser.add_argument("--epochs",type=int,default=2000,help='Number of epochs')
     parser.add_argument("--Xsize",type=int,default=2048,help='Data space size')
+    parser.add_argument("--batchSize",type=int,default=25,help='input batch size') 
     parser.add_argument("--nX",type=int,default=200,help='Number of signals')
     parser.add_argument("--nXchannels",type=int,default=2,help="Number of data channels")
     parser.add_argument("--nAElayers",type=int,default=3,help='Number of AE CNN layers')
@@ -108,7 +109,18 @@ def ParseOptions():
     parser.add_argument("--Nstride",type=int,default=4,help='CNN stride of N-branch branch')
     parser.add_argument("--Ssampling",type=str,default='normal',help='Sampling distribution for s')
     parser.add_argument("--Nsampling",type=str,default='normal',help='Sampling distribution for n')
-    parser.add_argument("--batchSize",type=int,default=25,help='input batch size')    
+    parser.add_argument("--xGANvsWGAN",type=str,default='GAN',help='Train Dx with GAN or WGAN')
+    parser.add_argument("--sGANvsWGAN",type=str,default='GAN',help='Train Ds with GAN or WGAN')
+    parser.add_argument("--nGANvsWGAN",type=str,default='GAN',help='Train Dn with GAN or WGAN')
+    parser.add_argument("--cGANvsWGAN",type=str,default='GAN',help='Train Dc with GAN or WGAN')
+    parser.add_argument("--DxLR",type=float,default=0.0002,help='Learning rate for Dx [GAN=0.0002/WGAN=0.001]')
+    parser.add_argument("--DsLR",type=float,default=0.0002,help='Learning rate for Ds [GAN=0.0002/WGAN=0.001]')
+    parser.add_argument("--DnLR",type=float,default=0.0002,help='Learning rate for Dn [GAN=0.0002/WGAN=0.001]')
+    parser.add_argument("--DcLR",type=float,default=0.0002,help='Learning rate for Dc [GAN=0.0002/WGAN=0.001]')
+    parser.add_argument("--FxLR",type=float,default=0.0002,help='Learning rate for Fx [GAN=0.0002/WGAN=0.0001]')
+    parser.add_argument("--GzLR",type=float,default=0.0002,help='Learning rate for Gz [GAN=0.0002/WGAN=0.0001]')
+    parser.add_argument("--QsLR",type=float,default=0.0002,help='Learning rate for Qs [GAN=0.0002/WGAN=0.00002]')
+    parser.add_argument("--QcLR",type=float,default=0.0002,help='Learning rate for Qc [GAN=0.0002/WGAN=0.00002]')
     parser.add_argument("--nCritic",type=int,default=5,help='number of discriminator training steps')
     parser.add_argument("--clipValue",type=float,default=0.01,help='clip weight for WGAN')
     parser.add_argument("--dataroot_1",type=str,default="/gpfs/workdir/invsem07/stead_1_1U",help="Data root folder - Undamaged")
@@ -216,9 +228,6 @@ def GaussianNLLfromNorm(y,Fx):
     σ = tf.math.sqrt(σ2)
     ε2 = -0.5*tf.math.reduce_sum(tf.math.square((y-μ)/σ),axis=-1)
     Trσ = tf.math.reduce_sum(tf.math.log(σ),axis=-1)
-    # ε2 = -0.5*tf.keras.backend.sum(tf.keras.backend.square(,axis=-1)
-    # Trσ = -tf.keras.backend.sum(tf.keras.backend.log(σ),axis=-1)
-
     log_likelihood = ε2+Trσ+log2π*n
 
     return tf.math.reduce_mean(-log_likelihood)
@@ -233,8 +242,6 @@ def GaussianNLLfromLogVariance(y,Fx):
     σ = tf.math.exp(0.5*logσ2)
     ε2 = -0.5*tf.math.reduce_sum(tf.math.square((y-μ)/σ),axis=-1)
     Trσ = tf.math.reduce_sum(tf.math.log(σ),axis=-1)
-    # ε2 = -0.5*tf.keras.backend.sum(tf.keras.backend.square((true-μ)/σ),axis=-1)
-    # Trσ = -tf.keras.backend.sum(tf.keras.backend.log(σ),axis=-1)
 
     log_likelihood = ε2+Trσ+log2π*n
 
@@ -259,13 +266,15 @@ def KLDivergenceFromLogVariance(Fx):
     return tf.math.reduce_mean(DKL)
 
 def MutualInfoLoss(C,CgivenX):
+    """
+        InfoGAN loss penalty
+
+        S(C|X) + S(C)
+    """
     ε = 1e-8
-    # SCgivenX = -tf.keras.backend.mean(tf.keras.backend.sum(tf.keras.backend.log(CgivenX+ε)*C,axis=1))
-    # SC = -tf.keras.backend.mean(tf.keras.backend.sum(tf.keras.backend.log(C+ε)*C,axis=1))
-    # return SCgivenX + SC
-    SC = -tf.math.reduce_mean(tf.math.reduce_sum(tf.math.multiply(tf.math.log(C+ε),C),axis=-1))
-    SCgivenX = -tf.math.reduce_mean(tf.math.reduce_sum(tf.math.multiply(tf.math.log(CgivenX+ε),C),axis=-1))
-    return SCgivenX + SC
+    HC = -tf.math.reduce_mean(tf.math.reduce_sum(tf.math.multiply(tf.math.log(C+ε),C),axis=-1))
+    HCgivenX = -tf.math.reduce_mean(tf.math.reduce_sum(tf.math.multiply(tf.math.log(CgivenX+ε),C),axis=-1))
+    return HCgivenX + HC
 
 class RepGAN(Model):
 
