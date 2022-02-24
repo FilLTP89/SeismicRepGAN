@@ -1,3 +1,9 @@
+*.png
+*.h5
+prova*
+ckpt*
+signals/*
+stead*
 .allinea/*
 wandb/*
 ckpt/*
