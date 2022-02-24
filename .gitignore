@@ -6,7 +6,9 @@ prova*
 ckpt*
 signals/*
 stead*
+ckpt/*
+*.png
+*.h5
 .allinea/*
 wandb/*
-ckpt/*
 __pycache__/*
