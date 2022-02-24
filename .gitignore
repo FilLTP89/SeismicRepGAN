@@ -1,3 +1,5 @@
+typeguard*
+addons*
 *.png
 *.h5
 prova*
