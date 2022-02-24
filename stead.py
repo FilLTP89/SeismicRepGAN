@@ -18,6 +18,7 @@ from scipy.signal import detrend, windows
 import matplotlib
 from matplotlib import pyplot as plt
 import obspy
+import seaborn as sn
 from obspy import UTCDateTime
 from obspy.clients.fdsn.client import Client
 
@@ -30,7 +31,7 @@ def ParseOptions():
     parser.add_argument('--dtm',type=float,default=0.01,help='time-step [s]')
     parser.add_argument('--ntm',type=int,default=4096,help='Number of time steps')
     parser.add_argument('--imageSize', type=int, default=4096, help='the height / width of the input image to network')
-    parser.add_argument('--nsy',type=int,default=256,help='number of synthetics [1]')
+    parser.add_argument('--nsy',type=int,default=1,help='number of synthetics [1]')
     parser.add_argument('--cutoff', type=float, default=1., help='cutoff frequency')
     options = parser.parse_args().__dict__
 
@@ -42,9 +43,9 @@ options = ParseOptions()
 def nxtpow2(x):  
     return 1 if x == 0 else 2**(x - 1).bit_length()
 
-# md = {'dtm':0.01,'cutoff':options["cutoff"],'ntm':options["imageSize"]}
-# md['vTn'] = np.arange(0.0,3.05,0.05,dtype=np.float64)
-# md['nTn'] = md['vTn'].size
+md = {'dtm':0.01,'cutoff':options["cutoff"],'ntm':options["imageSize"]}
+md['vTn'] = np.arange(0.0,3.05,0.05,dtype=np.float64)
+md['nTn'] = md['vTn'].size
 
 # vtm = md['dtm']*np.arange(0,md['ntm'])
 # tar = np.zeros((options["nsy"],2))
@@ -134,7 +135,7 @@ def data_selector(csv_file,file_name):
     df = pd.read_csv(csv_file)
     #print(f'total events in csv file: {len(df)}')
     # filterering the dataframe
-    df = df[(df.trace_category == 'earthquake_local') & (df.network_code == 'TA') & (df.source_magnitude <= 5.0) & (3.5 <= df.source_magnitude)]
+    df = df[(df.trace_category == 'earthquake_local') & (7.0 <= df.source_magnitude)] #(7.0 <= df.source_magnitude) (df.network_code == 'TA')
     df = df.sample(frac=options["nsy"]/len(df)).reset_index(drop=True)
     #print(f'total events selected: {len(df)}')
 
@@ -159,39 +160,137 @@ def data_selector(csv_file,file_name):
         # converting into acceleration
         st = make_stream(dataset)
         st.remove_response(inventory=inventory, output="ACC", taper=True, taper_fraction=0.05, plot=False)
-        acc_for_loading_1 = st[2].data
+        
+        acc_for_loading_0 = st[0].data
+        acc_for_loading_0 = np.float32(acc_for_loading_0)
+
+        acc_for_loading_1 = st[1].data
         acc_for_loading_1 = np.float32(acc_for_loading_1)
 
+        acc_for_loading_2 = st[2].data
+        acc_for_loading_2 = np.float32(acc_for_loading_2)
+
+        acc_for_loading_0  = np.expand_dims(acc_for_loading_0, axis=1)
         acc_for_loading_1  = np.expand_dims(acc_for_loading_1, axis=1)
+        acc_for_loading_2  = np.expand_dims(acc_for_loading_2, axis=1)
 
         if c == 0:
-            acc_for_loading  = acc_for_loading_1
+            acc_0 = acc_for_loading_0
+            acc_1 = acc_for_loading_1
+            acc_2 = acc_for_loading_2
         else:
-            acc_for_loading  = np.concatenate((acc_for_loading, acc_for_loading_1), axis=1)
+            acc_0  = np.concatenate((acc_0, acc_for_loading_0), axis=1)
+            acc_1  = np.concatenate((acc_1, acc_for_loading_1), axis=1)
+            acc_2  = np.concatenate((acc_2, acc_for_loading_2), axis=1)
 
         # end convert waveforms part ##############################################################################################################
     
-    return acc_for_loading, df
+    return acc_0,acc_1,acc_2,df
 
-acc, df = data_selector(csv_file,file_name)
-acc = np.swapaxes(acc,0,1)
+time = np.zeros((options["ntm"]*2,1),dtype=np.float32)
+for i in range(1,options["ntm"]*2):
+    time[i,0]=i*options["dtm"]
+acc_0,acc_1,acc_2,df = data_selector(csv_file,file_name)
 
-signal = np.zeros((options["nsy"],options["ntm"]*2),dtype=np.float32)
-for i in range(acc.shape[1]):
-    signal[:,i] = acc[:,i]
+#acc_0 = np.swapaxes(acc_0,0,1)
 
-np.savetxt("/gpfs/workdir/invsem07/GiorgiaGAN/stead_256/signal_256.csv", signal, delimiter=",")
+# signal = np.zeros((options["nsy"],options["ntm"]*2),dtype=np.float32)
+# for i in range(options["nsy"]):
+#     for j in range(acc_0.shape[1]):
+#         signal[i,j] = acc_0[i,j]
 
-for i in range(options["nsy"]):
-    hfg = plt.figure(figsize=(12,6),tight_layout=True)
-    hax = hfg.add_subplot(111)
-    hax.plot(signal[i,:], color='black')
-    hax.set_title('Ground motion acceleration', fontsize=22,fontweight='bold')
-    hax.set_ylabel(r'$[m / s^{2}]$', fontsize=20,fontweight='bold')
-    hax.set_xlabel(r'$time \hspace{0.5} [s]$', fontsize=20,fontweight='bold')
-    hax.tick_params(axis='both', labelsize=14)
-    plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/stead_256/signal_{:>d}.png'.format(i),bbox_inches = 'tight')
-    plt.close()
+# signal = np.zeros((options["nsy"],options["ntm"]*2),dtype=np.float32)
+# for i in range(acc_0.shape[1]):
+#     signal[:,i] = acc_0[:,i]
+
+# signal = np.transpose(signal)
+# Dataset per Salome-Meca
+signal = np.zeros((options["ntm"]*2,options["nsy"]+1),dtype=np.float32)
+for j in range(options["nsy"]):
+    signal[:,0] = time[:,0]
+    for i in range(acc_0.shape[0]):
+        signal[i,j+1] = acc_0[i,j]
+
+
+np.savetxt("/gpfs/workdir/invsem07/GiorgiaGAN/acc_x.txt", signal, delimiter=",")
+
+signal = np.zeros((options["ntm"]*2,options["nsy"]+1),dtype=np.float32)
+for j in range(options["nsy"]):
+    signal[:,0] = time[:,0]
+    for i in range(acc_1.shape[0]):
+        signal[i,j+1] = acc_1[i,j]
+
+
+np.savetxt("/gpfs/workdir/invsem07/GiorgiaGAN/acc_y.txt", signal, delimiter=",")
+
+signal = np.zeros((options["ntm"]*2,options["nsy"]+1),dtype=np.float32)
+for j in range(options["nsy"]):
+    signal[:,0] = time[:,0]
+    for i in range(acc_2.shape[0]):
+        signal[i,j+1] = acc_2[i,j]
+
+
+np.savetxt("/gpfs/workdir/invsem07/GiorgiaGAN/acc_z.txt", signal, delimiter=",")
+
+# acc_1 = np.swapaxes(acc_1,0,1)
+
+# signal = np.zeros((options["nsy"],options["ntm"]*2),dtype=np.float32)
+# for i in range(acc_1.shape[1]):
+#     signal[:,i] = acc_1[:,i]
+
+
+# np.savetxt("/gpfs/workdir/invsem07/GiorgiaGAN/Salome_y.txt", signal, delimiter=",")
+
+# acc_2 = np.swapaxes(acc_2,0,1)
+
+# signal = np.zeros((options["nsy"],options["ntm"]*2),dtype=np.float32)
+# for i in range(acc_2.shape[1]):
+#     signal[:,i] = acc_2[:,i]
+
+# signal = np.transpose(signal)
+
+# np.savetxt("/gpfs/workdir/invsem07/GiorgiaGAN/Salome_z.txt", signal, delimiter=",")
+
+# vtm = md['dtm']*np.arange(0,md['ntm']*2)
+# np.savetxt("/gpfs/workdir/invsem07/GiorgiaGAN/stead_1000/vtm.csv", vtm, delimiter=",")
+
+
+# t = np.zeros(signal.shape[1])
+# for k in range(signal.shape[1]-1):
+#     t[k+1] = (k+1)*0.01
+
+# for i in range(signal.shape[0]):
+#     hfg = plt.figure(figsize=(12,6),tight_layout=True)
+#     hax = hfg.add_subplot(111)
+#     hax.plot(t,signal[i,:], color='black')
+#     hax.set_ylabel(r'$Acceleration \hspace{0.5} [m / s^{2}]$', fontsize=26,fontweight='bold')
+#     hax.set_xlabel(r'$t \hspace{0.5} [s]$', fontsize=26,fontweight='bold')
+#     hax.tick_params(axis='both', labelsize=20)
+#     hax.yaxis.offsetText.set_fontsize(20)
+#     plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/acceleration/signal_{:>d}.png'.format(i),bbox_inches = 'tight')
+#     plt.close()
+
+# pga = np.zeros(signal.shape[0])
+
+# for i in range(signal.shape[0]):
+#         pga[i] = np.max(np.absolute(signal[i,:]))
+
+# d = {r"$PGA$": pga}
+# df = pd.DataFrame(data=d)
+# sn.displot(data=d,kind="kde",legend=False)
+
+
+# plt.xticks(fontsize=16,rotation=-45)
+# plt.yticks(fontsize=16)
+# #plt.ticklabel_format(axis="x", style="sci", scilimits=(0,0))
+# plt.xlim(-0.02, 0.08)
+# #plt.ticklabel_format(axis="x", style="sci", scilimits=(0,0))
+# #plt.rc('font', size=16)
+# plt.xlabel(r"$Peak \hspace{0.5} Ground \hspace{0.5} Acceleration \hspace{0.5} [m / s^{2}]$", fontsize=16)
+# plt.ylabel(r"$Probability \hspace{0.5} Density \hspace{0.5} Function \hspace{0.5} [1]$", fontsize=16)
+# plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/acceleration/pga.png',bbox_inches = 'tight')
+# #plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/shear_building/pgd_undamaged.eps',bbox_inches = 'tight',dpi=200)
+# plt.close()
 
    
 
