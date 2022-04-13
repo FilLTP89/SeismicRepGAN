@@ -1,9 +1,10 @@
-# MDOFload
+ # MDOFload
 
 # load data function %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 import tensorflow as tf
 import numpy as np
 import pandas as pd
+import os
 from os.path import join as opj
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler,MinMaxScaler,MaxAbsScaler
@@ -14,6 +15,9 @@ import dask.array as da
 import h5py
 from matplotlib import pyplot as plt
 import seaborn as sn
+import sys
+import csv
+from random import randint
 
 def nxtpow2(x):  
     return 1 if x == 0 else 2**(x - 1).bit_length()
@@ -21,224 +25,128 @@ def nxtpow2(x):
 def CreateData(**kwargs):
     CreateData.__globals__.update(kwargs)
 
-    X1 = np.zeros((nX//3,nXchannels,Xsize),dtype=np.float32)
-    i1 = 0
+    data = np.zeros((nX,nXchannels,Xsize),dtype=np.float32)
 
-    for channel in idChannels:
-        #load the measurements recorded by each single channel
-        dataSrc = opj(dataroot_1,"undamaged_{:>s}_{:>s}_concat_dof_{:>d}.csv".format(avu,pb,channel))
+    # for i in range(latentCdim):
+    #     i1 = 0
+    #     for channel in idChannels:
+    #         #load the measurements recorded by each single channel
+    #         dataSrc = opj(dataroot[i],"damaged_{:>s}_{:>s}_concat_dof_{:>d}.csv".format(avu,pb,channel))
 
-        sdof=np.genfromtxt(dataSrc).astype(np.float32)
+    #         sdof=np.genfromtxt(dataSrc).astype(np.float32)
 
-        i2=0
+    #         i2=0
+    #         for i3 in range(i*nX//latentCdim,nX//latentCdim*(i+1)):
+    #             data[i3,i1,0:Xsize]=sdof[i2:(i2+Xsize)]
+    #             i2=i2+Xsize
 
-        for i3 in range(nX//3):
-            X1[i3,i1,0:Xsize]=sdof[i2:(i2+Xsize)]
-            i2=i2+Xsize
+    #         i1 =i1+1
+        
+    
+    
+    for i in range(latentCdim):
 
-        i1 =i1+1
+        for channel in idChannels:
+            #load the measurements recorded by each single channel
+            dataSrc = open(os.path.join(dataroot[i],"Acc_{:>d}.csv".format(channel)))
+            file = csv.reader(dataSrc)
 
-    X2 = np.zeros((nX//3,nXchannels,Xsize),dtype=np.float32)
-    i1 = 0
 
-    for channel in idChannels:
-        #load the measurements recorded by each single channel
-        dataSrc = opj(dataroot_2,"damaged_{:>s}_{:>s}_concat_dof_{:>d}.csv".format(avu,pb,channel))
-
-        sdof=np.genfromtxt(dataSrc).astype(np.float32)
-
-        i2=0
-
-        for i3 in range(nX//3):
-            X2[i3,i1,0:Xsize]=sdof[i2:(i2+Xsize)]
-            i2=i2+Xsize
-        i1 = i1+1
-
-    X3 = np.zeros((nX//3,nXchannels,Xsize),dtype=np.float32)
-    i1 = 0
-
-    for channel in idChannels:
-        #load the measurements recorded by each single channel
-        dataSrc = opj(dataroot_3,"damaged_{:>s}_{:>s}_concat_dof_{:>d}.csv".format(avu,pb,channel))
-
-        sdof=np.genfromtxt(dataSrc).astype(np.float32)
-
-        i2=0
-
-        for i3 in range(nX//3):
-            X3[i3,i1,0:Xsize]=sdof[i2:(i2+Xsize)]
-            i2=i2+Xsize
-        i1 = i1+1
-
-    c = np.zeros((nX,latentCdim),dtype=np.float32)
+            i1 = int(nX/latentCdim)*i
+            i2 = 0
+            for row in file:
+                data[i1,channel-1,i2] = np.array([row])
+                i2 = i2+1
+                if i2 == Xsize:
+                    i2 = 0
+                    i1 = i1+1
+    
+    
     X = np.zeros((nX,nXchannels,Xsize),dtype=np.float32)
 
-    y = 0
-    for i in range(nX//3):
-        pga_1 = np.max(np.absolute(X1[i,:,:]))
-        pga_2 = np.max(np.absolute(X2[i,:,:]))
-        pga_3 = np.max(np.absolute(X3[i,:,:]))
-        pga = max(pga_1,pga_2,pga_3)
-        for j in range(nXchannels):
-            for k in range(Xsize):
-                X[y,j,k] = X1[i,j,k]/pga
-                X[y+1,j,k] = X2[i,j,k]/pga
-                X[y+2,j,k] = X3[i,j,k]/pga
-                c[y,0] = 1.0
-                c[y+1,1] = 1.0
-                c[y+2,2] = 1.0
+    # for j in range(data.shape[1]):
+    #     for k in range(10):
+    #         i = randint(0, data.shape[0]-1)
+    #         hfg = plt.figure(figsize=(12,6),tight_layout=True)
+    #         hax = hfg.add_subplot(111)
+    #         hax.plot(data[i,j,:], color='black')
+    #         #hax.set_title(r'$X \hspace{0.5} reconstruction$', fontsize=22,fontweight='bold')
+    #         hax.set_ylabel(r'$X(t) \hspace{0.5} [1]$', fontsize=26,fontweight='bold')
+    #         hax.set_xlabel(r'$t \hspace{0.5} [s]$', fontsize=26,fontweight='bold')
+    #         hax.legend([r'$X$', r"$G_z(F_x(x))$"], loc='best',frameon=False,fontsize=20)
+    #         hax.tick_params(axis='both', labelsize=18)
+    #         plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/signal_{:>d}_{:>d}.png'.format(j,i),bbox_inches = 'tight')
+    #         #plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/reconstruction_{:>d}_{:>d}.eps'.format(j,i),bbox_inches = 'tight',dpi=200)
+    #         plt.close()
+    
+    j = 0
+    for i in range(data.shape[0]):
+        pga = np.zeros((nXchannels))
+        for n in range(nXchannels):
+            pga[n] = np.max(np.absolute(data[i,n,:]))
+        pga_value = np.max(pga)
+        if pga_value!=0:
+            X[j,:,:] = data[i,:,:]/pga_value
+            j = j+1
+    
+                
+    # for i in range(X.shape[0]):
+    #     pga = np.zeros((nXchannels))
+    #     for n in range(nXchannels):
+    #         pga[n] = np.max(np.absolute(X[i,n,:]))
+    #     pga_value = np.max(pga)
+    #     if pga_value==0:
+    #         print(pga,i)
+    
 
-                X1[i,j,k] = X1[i,j,k]/pga
-                X2[i,j,k] = X2[i,j,k]/pga
-                X3[i,j,k] = X3[i,j,k]/pga
-        y = y+3   
-
-            
     X = np.pad(X,((0,0),(0,0),(0,nxtpow2(X.shape[-1])-X.shape[-1])))
     X = np.swapaxes(X,1,2)
 
-    X1 = np.pad(X1,((0,0),(0,0),(0,nxtpow2(X1.shape[-1])-X1.shape[-1])))
-    X1 = np.swapaxes(X1,1,2)
+    # for j in range(X.shape[2]):
+    #     for k in range(10):
+    #         i = randint(0, X.shape[0]-1)
+    #         hfg = plt.figure(figsize=(12,6),tight_layout=True)
+    #         hax = hfg.add_subplot(111)
+    #         hax.plot(X[i,:,j], color='black')
+    #         #hax.set_title(r'$X \hspace{0.5} reconstruction$', fontsize=22,fontweight='bold')
+    #         hax.set_ylabel(r'$X(t) \hspace{0.5} [1]$', fontsize=26,fontweight='bold')
+    #         hax.set_xlabel(r'$t \hspace{0.5} [s]$', fontsize=26,fontweight='bold')
+    #         hax.legend([r'$X$', r"$G_z(F_x(x))$"], loc='best',frameon=False,fontsize=20)
+    #         hax.set_ylim([-1.0, 1.0])
+    #         hax.tick_params(axis='both', labelsize=18)
+    #         plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/signal_n_{:>d}_{:>d}.png'.format(j,i),bbox_inches = 'tight')
+    #         #plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/reconstruction_{:>d}_{:>d}.eps'.format(j,i),bbox_inches = 'tight',dpi=200)
+    #         plt.close()
     
 
-    # src_metadata = opj(dataroot_2,"damaged_{:>s}_labels.csv".format(pb))
-
-    # labels = np.genfromtxt(src_metadata)
-    # labels = labels.astype(int)
-
-    # c2 = np.zeros((nX,latentCdim),dtype=np.float32)
-
-    # for i1 in range(nX):
-    #     c2[i1,labels[i1]] = 1.0
-
-    # h5f = h5py.File("Damaged.h5",'w')
-    # h5f.create_dataset('X2', data=X2)
-    # h5f.create_dataset('c2', data=c2)
-    # h5f.close()
-
-   # for j in range(2):
-   #     for i in range(X.shape[0]//2):
-   #         hfg = plt.figure(figsize=(12,6),tight_layout=True)
-   #         hax = hfg.add_subplot(111)
-   #         hax.plot(X[i,:,j], color='black')
-   #         plt.savefig('./signals/undamaged_{:>d}_{:>d}.png'.format(j,i),bbox_inches = 'tight')
-   #         #plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/resampling.eps',bbox_inches = 'tight',dpi=200)
-   #         plt.close()
-
-   #         hfg = plt.figure(figsize=(12,6),tight_layout=True)
-   #         hax = hfg.add_subplot(111)
-   #         hax.plot(X[(i+X.shape[0]//2),:,j], color='black')
-   #         plt.savefig('./signals/damaged_{:>d}_{:>d}.png'.format(j,i),bbox_inches = 'tight')
-   #         #plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/resampling.eps',bbox_inches = 'tight',dpi=200)
-   #         plt.close()
-   #
-   # # # Load data - Undamaged
-   # # X1 = []
-   # 
-   # # for channel in idChannels:
-   # #     dataSrc = opj(dataroot_1,"undamaged_{:>s}_{:>s}_concat_dof_{:>d}.csv".format(avu,pb,channel))
-   # #     # if len(avu) == 0:
-   # #     #     dataSrc = opj(dataroot_1,"{:>s}_damaged_concat_{:>s}_gdl_{:>d}.csv".format(pb,case,channel))
-   # #     # else:
-   # #     #     dataSrc = opj(dataroot_1,"{:>s}_{:>s}_damaged_concat_{:>s}_gdl_{:>d}.csv".format(pb,avu,case,channel))
-   # 
-   #     
-   # #     X1.append(np.genfromtxt(dataSrc).astype(np.float32).reshape(nX//2,1,-1))
-
-   # # X2 = []
-   # 
-   # # for channel in idChannels:
-   # #     dataSrc = opj(dataroot_2,"damaged_{:>s}_{:>s}_concat_dof_{:>d}.csv".format(avu,pb,channel))
-   # #     X2.append(np.genfromtxt(dataSrc).astype(np.float32).reshape(nX//2,1,-1))
-
-
-   # # X1 = np.concatenate(X1,axis=1).reshape(-1,X1[0].shape[-1])
-   # # X2 = np.concatenate(X2,axis=1).reshape(-1,X2[0].shape[-1])
-   # # X = np.concatenate((X1,X2),axis=1)
-   # # scaler = MaxAbsScaler()
-   # # X = scaler.fit_transform(X).reshape((nX,len(idChannels),-1))
-   # # X = np.pad(X,((0,0),(0,0),(0,nxtpow2(X.shape[-1])-X.shape[-1])))
-   # # X = np.swapaxes(X,1,2)
-
-   # # X1 = np.concatenate(X1,axis=1).reshape(-1,X1[0].shape[-1])
-   # # #X1 = scaler.fit_transform(X1).reshape((nX//2,len(idChannels),-1))
-   # # X1 = X1.reshape((nX//2,len(idChannels),-1))
-   # # for i1 in range(nXchannels):
-   # #     scaler = MaxAbsScaler()
-   # #     X1[:,i1,:] = scaler.fit_transform(X1[:,i1,:])
-   # # X1 = np.pad(X1,((0,0),(0,0),(0,nxtpow2(X1.shape[-1])-X1.shape[-1])))
-   # # X1 = np.swapaxes(X1,1,2)
-    
-
-    X2 = np.pad(X2,((0,0),(0,0),(0,nxtpow2(X2.shape[-1])-X2.shape[-1])))
-    X2 = np.swapaxes(X2,1,2)
-
-    X3 = np.pad(X3,((0,0),(0,0),(0,nxtpow2(X3.shape[-1])-X3.shape[-1])))
-    X3 = np.swapaxes(X3,1,2)
-
-
-    c1 = np.zeros((nX//3,latentCdim),dtype=np.float32)
-    c1[:,0] = 1.0
-
-    d1 = np.zeros((nX//3,domain),dtype=np.float32)
-    d1[:,0] = 1.0
-
-    h5f = h5py.File("Undamaged.h5",'w')
-    h5f.create_dataset('X1', data=X1)
-    h5f.create_dataset('c1', data=c1)
-    h5f.create_dataset('d1', data=d1)
-    h5f.close()
-
-
-    c2 = np.zeros((nX//3,latentCdim),dtype=np.float32)
-    c2[:,1] = 1.0
-
-    d2 = np.zeros((nX//3,domain),dtype=np.float32)
-    d2[:,0] = 1.0
-
-    h5f = h5py.File("Damaged_1.h5",'w')
-    h5f.create_dataset('X2', data=X2)
-    h5f.create_dataset('c2', data=c2)
-    h5f.create_dataset('d2', data=d2)
-    h5f.close()
-
-    c3 = np.zeros((nX//3,latentCdim),dtype=np.float32) 
-    c3[:,2] = 1.0
-
-    d3 = np.zeros((nX//3,domain),dtype=np.float32)
-    d3[:,0] = 1.0
-
-    h5f = h5py.File("Damaged_2.h5",'w')
-    h5f.create_dataset('X3', data=X3)
-    h5f.create_dataset('c3', data=c3)
-    h5f.create_dataset('d3', data=d3)
-    h5f.close()
+    c = np.zeros((nX,latentCdim),dtype=np.float32)
+    for i in range(latentCdim):
+        c[nX//latentCdim*i:nX//latentCdim*(i+1),i] = 1.0
 
     
-    
-    c = np.vstack((c1,c2,c3))
+    X,c = shuffle(X,c, random_state=0)
 
-    X, c = shuffle(X, c, random_state=0)
-
-    d = np.zeros((nX,domain),dtype=np.float32)
-    d[:,0] = 1.0
-
-    #s = np.random.normal(loc=0.0,scale=scaleS,size=[nX,latentSdim]).astype('float32')
+    for i in range(latentCdim):
+        h5f = h5py.File("Damaged_{:>d}.h5".format(i),'w')
+        h5f.create_dataset('X{:>d}'.format(i), data=X[nX//latentCdim*i:nX//latentCdim*(i+1),:,:])
+        h5f.create_dataset('c{:>d}'.format(i), data=c[nX//latentCdim*i:nX//latentCdim*(i+1),:])
+        h5f.close()
 
     h5f = h5py.File("Data.h5",'w')
     h5f.create_dataset('X', data=X)
     h5f.create_dataset('c', data=c)
-    h5f.create_dataset('d', data=d)
     h5f.close()
+
 
     
     # Split between train and validation set (time series and parameters are splitted in the same way)
-    Xtrn, Xvld, Ctrn, Cvld, Dtrn, Dvld = train_test_split(X,c,d,random_state=0)
+    Xtrn, Xvld, Ctrn, Cvld = train_test_split(X,c,random_state=0)
+
 
     return (
-        tf.data.Dataset.from_tensor_slices((Xtrn,Ctrn,Dtrn)).batch(batchSize),
-        tf.data.Dataset.from_tensor_slices((Xvld,Cvld,Dvld)).batch(batchSize),
-        tf.data.Dataset.from_tensor_slices((Xvld,Cvld,Dvld)).batch(batchSize)
+        tf.data.Dataset.from_tensor_slices((Xtrn,Ctrn)).batch(batchSize),
+        tf.data.Dataset.from_tensor_slices((Xvld,Cvld)).batch(batchSize),
+        tf.data.Dataset.from_tensor_slices((Xvld,Cvld)).batch(batchSize)
         )
     
 
@@ -251,55 +159,31 @@ def LoadData(**kwargs):
     h5f = h5py.File(dataSrc,'r')
     X = h5f['X'][...]
     c = h5f['c'][...]
-    d = h5f['d'][...]
     h5f.close()
 
     # Split between train and validation set (time series and parameters are splitted in the same way)
-    Xtrn, Xvld, Ctrn, Cvld, Dtrn, Dvld = train_test_split(X,c,d,random_state=0,shuffle=True)
+    Xtrn, Xvld, Ctrn, Cvld = train_test_split(X,c,random_state=0)
 
     return (
-        tf.data.Dataset.from_tensor_slices((Xtrn,Ctrn,Dtrn)).batch(batchSize),
-        tf.data.Dataset.from_tensor_slices((Xvld,Cvld,Dvld)).batch(batchSize),
-        tf.data.Dataset.from_tensor_slices((Xvld,Cvld,Dvld)).batch(batchSize),
-    )
+        tf.data.Dataset.from_tensor_slices((Xtrn,Ctrn)).batch(batchSize),
+        tf.data.Dataset.from_tensor_slices((Xvld,Cvld)).batch(batchSize),
+        tf.data.Dataset.from_tensor_slices((Xvld,Cvld)).batch(batchSize)
+        )
 
 
-def Load_Un_Damaged(**kwargs):
+def Load_Un_Damaged(i,**kwargs):
     Load_Un_Damaged.__globals__.update(kwargs)
-    
-    dataSrc = opj("Undamaged.h5")
-    h5f = h5py.File(dataSrc,'r')
-    X1 = h5f['X1'][...]
-    c1 = h5f['c1'][...]
-    c1 = h5f['c1'][...]
-    h5f.close()
 
-    dataSrc = opj("Damaged_1.h5")
+    dataSrc = opj("Damaged_{:>d}.h5".format(i))
     h5f = h5py.File(dataSrc,'r')
-    X2 = h5f['X2'][...]
-    c2 = h5f['c2'][...]
-    c2 = h5f['c2'][...]
-    h5f.close()
-
-    dataSrc = opj("Damaged_2.h5")
-    h5f = h5py.File(dataSrc,'r')
-    X3 = h5f['X3'][...]
-    c3 = h5f['c3'][...]
-    c2 = h5f['c2'][...]
-    h5f.close()
+    X = h5f['X{:>d}'.format(i)][...]
+    c = h5f['c{:>d}'.format(i)][...]
 
     # Split between train and validation set (time series and parameters are splitted in the same way)
-    Xtrn1, Xvld1, Ctrn1, Cvld1, Dtrn1, Dvld1, Xtrn2, Xvld2, Ctrn2, Cvld2, Dtrn2, Dvld2,
-    Xtrn3, Xvld3, Ctrn3, Cvld3, Dtrn3, Dvld3 = train_test_split(X1,c1,d1,X2,c2,d2,X3,c3,d3,random_state=0,shuffle=True)
+    Xtrn, Xvld, Ctrn, Cvld = train_test_split(X,c,random_state=0,shuffle=False)
 
     return (
-        tf.data.Dataset.from_tensor_slices((Xtrn1,Ctrn1,Dtrn1)).batch(batchSize),
-        tf.data.Dataset.from_tensor_slices((Xvld1,Cvld1,Dvld1)).batch(batchSize),
-        tf.data.Dataset.from_tensor_slices((Xvld1,Cvld1,Dvld1)).batch(batchSize),
-        tf.data.Dataset.from_tensor_slices((Xtrn2,Ctrn2,Dtrn2)).batch(batchSize),
-        tf.data.Dataset.from_tensor_slices((Xvld2,Cvld2,Dvld2)).batch(batchSize),
-        tf.data.Dataset.from_tensor_slices((Xvld2,Cvld2,Dvld2)).batch(batchSize),
-        tf.data.Dataset.from_tensor_slices((Xtrn3,Ctrn3,Dtrn3)).batch(batchSize),
-        tf.data.Dataset.from_tensor_slices((Xvld3,Cvld3,Dvld3)).batch(batchSize),
-        tf.data.Dataset.from_tensor_slices((Xvld3,Cvld3,Dvld3)).batch(batchSize),
-    )
+        tf.data.Dataset.from_tensor_slices((Xtrn,Ctrn)).batch(batchSize),
+        tf.data.Dataset.from_tensor_slices((Xvld,Cvld)).batch(batchSize),
+        tf.data.Dataset.from_tensor_slices((Xvld,Cvld)).batch(batchSize)
+        )
