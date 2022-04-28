@@ -127,12 +127,12 @@ def CreateData(**kwargs):
     X,c = shuffle(X,c, random_state=0)
 
     for i in range(latentCdim):
-        h5f = h5py.File("Damaged_{:>d}.h5".format(i),'w')
+        h5f = h5py.File("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_ultimo/14_04/Damaged_{:>d}.h5".format(i),'w')
         h5f.create_dataset('X{:>d}'.format(i), data=X[nX//latentCdim*i:nX//latentCdim*(i+1),:,:])
         h5f.create_dataset('c{:>d}'.format(i), data=c[nX//latentCdim*i:nX//latentCdim*(i+1),:])
         h5f.close()
 
-    h5f = h5py.File("Data.h5",'w')
+    h5f = h5py.File("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_ultimo/14_04/Data.h5",'w')
     h5f.create_dataset('X', data=X)
     h5f.create_dataset('c', data=c)
     h5f.close()
@@ -154,7 +154,7 @@ def CreateData(**kwargs):
 def LoadData(**kwargs):
     LoadData.__globals__.update(kwargs)
 
-    dataSrc = opj("Data.h5")
+    dataSrc = opj("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_ultimo/14_04/Data.h5")
     
     h5f = h5py.File(dataSrc,'r')
     X = h5f['X'][...]
@@ -174,7 +174,7 @@ def LoadData(**kwargs):
 def Load_Un_Damaged(i,**kwargs):
     Load_Un_Damaged.__globals__.update(kwargs)
 
-    dataSrc = opj("Damaged_{:>d}.h5".format(i))
+    dataSrc = opj("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_ultimo/14_04/Damaged_{:>d}.h5".format(i))
     h5f = h5py.File(dataSrc,'r')
     X = h5f['X{:>d}'.format(i)][...]
     c = h5f['c{:>d}'.format(i)][...]
