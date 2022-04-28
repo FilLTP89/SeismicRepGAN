@@ -12,3 +12,5 @@ ckpt/*
 .allinea/*
 wandb/*
 __pycache__/*
+*.hdf5
+*.tar
