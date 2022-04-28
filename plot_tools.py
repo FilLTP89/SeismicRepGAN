@@ -13,6 +13,7 @@ from obspy.signal.tf_misfit import plot_tf_gofs, eg, pg
 import itertools
 import matplotlib
 from matplotlib import pyplot as plt
+from sklearn.utils import shuffle
 # plt.rcParams.update({
 #     "text.usetex": True,
 #     "font.family": "sans-serif",
@@ -48,9 +49,13 @@ import numpy as np
 from bokeh.layouts import layout
 from bokeh.plotting import figure
 from bokeh.models import CustomJS, Slider, ColumnDataSource
-from bokeh.io import curdoc
+from bokeh.resources import CDN
+from bokeh.embed import file_html
+from bokeh.io import curdoc,output_file, show
 import bokeh
 from bokeh.models import Text, Label
+import panel as pn
+pn.extension()
 
 
 from random import seed
@@ -208,527 +213,258 @@ def PlotLoss(history):
 
 
 
-def PlotReconstructedTHs(model,realXC,realXC_u,realXC_d1,realXC_d2):
+def PlotReconstructedTHs(model,realXC):
     # Plot reconstructed time-histories
-    #realX, realC = realXC
-    # realX = np.concatenate([x for x, c in realXC], axis=0)
-    # realC = np.concatenate([c for x, c in realXC], axis=0)
-    # recX,fakeC,fakeS,fakeN,fakeX = model.plot(realX,realC)
+    realX_s = np.concatenate([xs for xs, cs, ds, xt, dt in realXC], axis=0)
+    realC_s = np.concatenate([cs for xs, cs, ds, xt, dt in realXC], axis=0)
+    realD_s = np.concatenate([ds for xs, cs, ds, xt, dt in realXC], axis=0)
 
-    # t = np.zeros(realX.shape[1])
-    # for k in range(realX.shape[1]-1):
-    #     t[k+1] = (k+1)*0.04
+    realX_t = np.concatenate([xt for xs, cs, ds, xt, dt in realXC], axis=0)
+    realD_t = np.concatenate([dt for xs, cs, ds, xt, dt in realXC], axis=0)
 
-    # recX_fft = tf.make_ndarray(tf.make_tensor_proto(recX))
+    realX = np.concatenate((realX_s, realX_t))
 
-    # # Print real vs reconstructed signal
-    # for j in range(realX.shape[2]):
-    #     for k in range(10):
-    #         i = randint(0, realX.shape[0]-1)
-    #         hfg = plt.figure(figsize=(12,6),tight_layout=True)
-    #         hax = hfg.add_subplot(111)
-    #         hax.plot(t,realX[i,:,j], color='black')
-    #         hax.plot(t,recX[i,:,j], color='orange',linestyle="--")
-    #         #hax.set_title(r'$X \hspace{0.5} reconstruction$', fontsize=22,fontweight='bold')
-    #         hax.set_ylabel(r'$X(t) \hspace{0.5} [1]$', fontsize=26,fontweight='bold')
-    #         hax.set_xlabel(r'$t \hspace{0.5} [s]$', fontsize=26,fontweight='bold')
-    #         hax.legend([r'$X$', r"$G_z(F_x(x))$"], loc='best',frameon=False,fontsize=20)
-    #         hax.set_ylim([-1.0, 1.0])
-    #         hax.tick_params(axis='both', labelsize=18)
-    #         plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/reconstruction_{:>d}_{:>d}.png'.format(j,i),bbox_inches = 'tight')
-    #         #plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/reconstruction_{:>d}_{:>d}.eps'.format(j,i),bbox_inches = 'tight',dpi=200)
-    #         plt.close()
+    recX,fakeC,fakeS,fakeN,fakeX = model.plot(realX_s,realC_s,realX)
 
-
-    #         hfg = plt.figure(figsize=(12,6),tight_layout=True)
-    #         hax = hfg.add_subplot(111)
-    #         N = realX.shape[1]
-    #         SAMPLE_RATE = 25
-    #         yf_real = rfft(realX[i,:,j])
-    #         xf_real = rfftfreq(N, 1 / SAMPLE_RATE)
-    #         hax.plot(xf_real, np.abs(yf_real), color='black')
-    #         yf_rec = rfft(recX_fft[i,:,j])
-    #         xf_rec = rfftfreq(N, 1 / SAMPLE_RATE)
-    #         hax.plot(xf_rec, np.abs(yf_rec), color='orange',linestyle="--")
-    #         hax.set_ylabel(r'$Amplitude \hspace{0.5} [1]$', fontsize=26,fontweight='bold')
-    #         hax.set_xlabel(r'$Frequency \hspace{0.5} [Hz]$', fontsize=26,fontweight='bold')
-    #         hax.legend([r'$X$', r"$G_z(F_x(x))$"], loc='best',frameon=False,fontsize=20)
-    #         hax.tick_params(axis='both', labelsize=18)
-    #         plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/fft_{:>d}_{:>d}.png'.format(j,i),bbox_inches = 'tight')
-    #         #plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/fft_{:>d}_{:>d}.eps'.format(j,i),bbox_inches = 'tight',dpi=200)
-    #         plt.close()
-
-    
-
-    # hfg = plt.figure(figsize=(12,6),tight_layout=True)
-    # hax = hfg.add_subplot(111)
-    # hax.plot(t,realX[i,:,j], color='black')
-    # hax.plot(t,fakeX[i,:,j], color='orange')
-    # #hax.set_title(r'$X \hspace{0.5} reconstruction$', fontsize=22,fontweight='bold')
-    # hax.set_ylabel(r'$X(t) \hspace{0.5} [1]$', fontsize=26,fontweight='bold')
-    # hax.set_xlabel(r'$t \hspace{0.5} [s]$', fontsize=26,fontweight='bold')
-    # hax.legend([r'$X$', r"$G_z(s,c,n)$"], loc='best',frameon=False,fontsize=20)
-    # hax.set_ylim([-1.0, 1.0])
-    # hax.tick_params(axis='both', labelsize=18)
-    # plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/fakeX_{:>d}_{:>d}.png'.format(j,i),bbox_inches = 'tight')
-    # #plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/fakeX_{:>d}_{:>d}.eps'.format(j,i),bbox_inches = 'tight',dpi=200)
-
-    
-
-    realX_u = np.concatenate([x for x, c in realXC_u], axis=0)
-    realC_u = np.concatenate([c for x, c in realXC_u], axis=0)
-    #fakeC_new = np.ones_like(realC_u)
-    #fakeC_new[:,1] = 1.0
-    #fakeX_new = model.generate(realX_u,fakeC_new)
-
-    fakeX_u,_,_,_ = model.predict(realX_u)
-
-    # hfg = plt.figure(figsize=(12,6),tight_layout=True)
-    # hax = hfg.add_subplot(111)
-    # hax.plot(t,realX_u[0,:,0], color='black')
-    # hax.plot(t,fakeX_u[0,:,0], color='orange')
-    # hax.set_ylim([-1.0, 1.0])
-    # #hax.set_title(r'$X \hspace{0.5} reconstruction$', fontsize=22,fontweight='bold')
-    # hax.set_ylabel(r'$X(t) \hspace{0.5} [1]$', fontsize=26,fontweight='bold')
-    # hax.set_xlabel(r'$t \hspace{0.5} [s]$', fontsize=26,fontweight='bold')
-    # hax.legend([r'$X_u$', r"$G_z(F_x(x_u))$"], loc='best',frameon=False,fontsize=20)
-    # hax.tick_params(axis='both', labelsize=18)
-    # plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/reconstruction_undamaged.png',bbox_inches = 'tight')
-    # plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/reconstruction_undamaged.eps',bbox_inches = 'tight',dpi=200)
-    # plt.close()
-
-    realX_d1 = np.concatenate([x for x, c in realXC_d1], axis=0)
-    realC_d1 = np.concatenate([c for x, c in realXC_d1], axis=0)
-
-    fakeX_d1,_,_,_ = model.predict(realX_d1)
-
-    realX_d2 = np.concatenate([x for x, c in realXC_d2], axis=0)
-    realC_d2 = np.concatenate([c for x, c in realXC_d2], axis=0)
-
-    fakeX_d2,_,_,_ = model.predict(realX_d2)
-
-    
-
-    
-    # for k in range(10):
-    #     i = randint(0, realX_u.shape[0]-1)
-    #     fig, axs = plt.subplots(2, 3,figsize=(40,15))
-        
-    #     axs[0, 0].plot(t,realX_u[i,:,0], color='black')
-    #     axs[0, 0].plot(t,fakeX_u[i,:,0], color='green',linestyle="--")
-    #     axs[1, 0].plot(t,realX_u[i,:,1], color='black')
-    #     axs[1, 0].plot(t,fakeX_u[i,:,1], color='green',linestyle="--")
-    #     # axs[2, 0].plot(t,realX_u[i,:,2], color='black')
-    #     # axs[2, 0].plot(t,fakeX_u[i,:,2], color='green',linestyle="--")
-    #     # axs[3, 0].plot(t,realX_u[i,:,3], color='black')
-    #     # axs[3, 0].plot(t,fakeX_u[i,:,3], color='green',linestyle="--")
-    #     axs[0, 1].plot(t,realX_d1[i,:,0], color='black')
-    #     axs[0, 1].plot(t,fakeX_d1[i,:,0], color='red',linestyle="--")
-    #     axs[1, 1].plot(t,realX_d1[i,:,1], color='black')
-    #     axs[1, 1].plot(t,fakeX_d1[i,:,1], color='red',linestyle="--")
-    #     # axs[2, 1].plot(t,realX_d1[i,:,2], color='black')
-    #     # axs[2, 1].plot(t,fakeX_d1[i,:,2], color='red',linestyle="--")
-    #     # axs[3, 1].plot(t,realX_d1[i,:,3], color='black')
-    #     # axs[3, 1].plot(t,fakeX_d1[i,:,3], color='red',linestyle="--")
-    #     axs[0, 2].plot(t,realX_d2[i,:,0], color='black')
-    #     axs[0, 2].plot(t,fakeX_d2[i,:,0], color='orange',linestyle="--")
-    #     axs[1, 2].plot(t,realX_d2[i,:,1], color='black')
-    #     axs[1, 2].plot(t,fakeX_d2[i,:,1], color='orange',linestyle="--")
-    #     # axs[2, 2].plot(t,realX_d2[i,:,2], color='black')
-    #     # axs[2, 2].plot(t,fakeX_d2[i,:,2], color='orange',linestyle="--")
-    #     # axs[3, 2].plot(t,realX_d2[i,:,3], color='black')
-    #     # axs[3, 2].plot(t,fakeX_d2[i,:,3], color='orange',linestyle="--")
-    #     axs[0, 0].set_ylim([-1.0, 1.0])
-    #     axs[1, 0].set_ylim([-1.0, 1.0])
-    #     # axs[2, 0].set_ylim([-1.0, 1.0])
-    #     # axs[3, 0].set_ylim([-1.0, 1.0])
-    #     axs[0, 1].set_ylim([-1.0, 1.0])
-    #     axs[1, 1].set_ylim([-1.0, 1.0])
-    #     # axs[2, 1].set_ylim([-1.0, 1.0])
-    #     # axs[3, 1].set_ylim([-1.0, 1.0])
-    #     axs[0, 2].set_ylim([-1.0, 1.0])
-    #     axs[1, 2].set_ylim([-1.0, 1.0])
-    #     # axs[2, 2].set_ylim([-1.0, 1.0])
-    #     # axs[3, 2].set_ylim([-1.0, 1.0])
-    #     #hax.set_title(r'$X \hspace{0.5} reconstruction$', fontsize=22,fontweight='bold')
-    #     axs[0, 0].set_ylabel(r'$X(t) \hspace{0.5} [1]$', fontsize=26,fontweight='bold')
-    #     axs[0, 0].set_xlabel(r'$t \hspace{0.5} [s]$', fontsize=26,fontweight='bold')
-    #     axs[0, 0].legend([r'$X_{u1}$', r"$G_z(F_x(x))$"], loc='best',frameon=False,fontsize=20)
-    #     axs[0, 0].tick_params(axis='both', labelsize=18)
-    #     axs[1, 0].set_ylabel(r'$X(t) \hspace{0.5} [1]$', fontsize=26,fontweight='bold')
-    #     axs[1, 0].set_xlabel(r'$t \hspace{0.5} [s]$', fontsize=26,fontweight='bold')
-    #     axs[1, 0].legend([r'$X_{u2}$', r"$G_z(F_x(x))$"], loc='best',frameon=False,fontsize=20)
-    #     axs[1, 0].tick_params(axis='both', labelsize=18)
-    #     # axs[2, 0].set_ylabel(r'$X(t) \hspace{0.5} [1]$', fontsize=26,fontweight='bold')
-    #     # axs[2, 0].set_xlabel(r'$t \hspace{0.5} [s]$', fontsize=26,fontweight='bold')
-    #     # axs[2, 0].legend([r'$X_{u3}$', r"$G_z(F_x(x))$"], loc='best',frameon=False,fontsize=20)
-    #     # axs[2, 0].tick_params(axis='both', labelsize=18)
-    #     # axs[3, 0].set_ylabel(r'$X(t) \hspace{0.5} [1]$', fontsize=26,fontweight='bold')
-    #     # axs[3, 0].set_xlabel(r'$t \hspace{0.5} [s]$', fontsize=26,fontweight='bold')
-    #     # axs[3, 0].legend([r'$X_{u4}$', r"$G_z(F_x(x))$"], loc='best',frameon=False,fontsize=20)
-    #     # axs[3, 0].tick_params(axis='both', labelsize=18)
-
-    #     axs[0, 1].set_ylabel(r'$X(t) \hspace{0.5} [1]$', fontsize=26,fontweight='bold')
-    #     axs[0, 1].set_xlabel(r'$t \hspace{0.5} [s]$', fontsize=26,fontweight='bold')
-    #     axs[0, 1].legend([r'$X_{d1}$', r"$G_z(F_x(x))$"], loc='best',frameon=False,fontsize=20)
-    #     axs[0, 1].tick_params(axis='both', labelsize=18)
-    #     axs[1, 1].set_ylabel(r'$X(t) \hspace{0.5} [1]$', fontsize=26,fontweight='bold')
-    #     axs[1, 1].set_xlabel(r'$t \hspace{0.5} [s]$', fontsize=26,fontweight='bold')
-    #     axs[1, 1].legend([r'$X_{d2}$', r"$G_z(F_x(x))$"], loc='best',frameon=False,fontsize=20)
-    #     axs[1, 1].tick_params(axis='both', labelsize=18)
-    #     # axs[2, 1].set_ylabel(r'$X(t) \hspace{0.5} [1]$', fontsize=26,fontweight='bold')
-    #     # axs[2, 1].set_xlabel(r'$t \hspace{0.5} [s]$', fontsize=26,fontweight='bold')
-    #     # axs[2, 1].legend([r'$X_{d3}$', r"$G_z(F_x(x))$"], loc='best',frameon=False,fontsize=20)
-    #     # axs[2, 1].tick_params(axis='both', labelsize=18)
-    #     # axs[3, 1].set_ylabel(r'$X(t) \hspace{0.5} [1]$', fontsize=26,fontweight='bold')
-    #     # axs[3, 1].set_xlabel(r'$t \hspace{0.5} [s]$', fontsize=26,fontweight='bold')
-    #     # axs[3, 1].legend([r'$X_{d4}$', r"$G_z(F_x(x))$"], loc='best',frameon=False,fontsize=20)
-    #     # axs[3, 1].tick_params(axis='both', labelsize=18)
-
-    #     axs[0, 2].set_ylabel(r'$X(t) \hspace{0.5} [1]$', fontsize=26,fontweight='bold')
-    #     axs[0, 2].set_xlabel(r'$t \hspace{0.5} [s]$', fontsize=26,fontweight='bold')
-    #     axs[0, 2].legend([r'$X_{d1}$', r"$G_z(F_x(x))$"], loc='best',frameon=False,fontsize=20)
-    #     axs[0, 2].tick_params(axis='both', labelsize=18)
-    #     axs[1, 2].set_ylabel(r'$X(t) \hspace{0.5} [1]$', fontsize=26,fontweight='bold')
-    #     axs[1, 2].set_xlabel(r'$t \hspace{0.5} [s]$', fontsize=26,fontweight='bold')
-    #     axs[1, 2].legend([r'$X_{d2}$', r"$G_z(F_x(x))$"], loc='best',frameon=False,fontsize=20)
-    #     axs[1, 2].tick_params(axis='both', labelsize=18)
-    #     # axs[2, 2].set_ylabel(r'$X(t) \hspace{0.5} [1]$', fontsize=26,fontweight='bold')
-    #     # axs[2, 2].set_xlabel(r'$t \hspace{0.5} [s]$', fontsize=26,fontweight='bold')
-    #     # axs[2, 2].legend([r'$X_{d3}$', r"$G_z(F_x(x))$"], loc='best',frameon=False,fontsize=20)
-    #     # axs[2, 2].tick_params(axis='both', labelsize=18)
-    #     # axs[3, 2].set_ylabel(r'$X(t) \hspace{0.5} [1]$', fontsize=26,fontweight='bold')
-    #     # axs[3, 2].set_xlabel(r'$t \hspace{0.5} [s]$', fontsize=26,fontweight='bold')
-    #     # axs[3, 2].legend([r'$X_{d4}$', r"$G_z(F_x(x))$"], loc='best',frameon=False,fontsize=20)
-    #     # axs[3, 2].tick_params(axis='both', labelsize=18)
-
-    #     plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/signals_{:>d}.png'.format(i),bbox_inches = 'tight')
-    #     #plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/signals_{:>d}.eps'.format(i),bbox_inches = 'tight',dpi=200)
-    #     plt.close()
-
-    fakeC_new1 = np.zeros_like(realC_u)
-    fakeC_new1[:,1] = 1.0
-    fakeX_new1 = model.generate(realX_u,fakeC_new1)
-    fakeX_new_fft1 = tf.make_ndarray(tf.make_tensor_proto(fakeX_new1))
-
-    fakeC_new2 = np.zeros_like(realC_u)
-    fakeC_new2[:,2] = 1.0
-    fakeX_new2 = model.generate(realX_u,fakeC_new2)
-    fakeX_new_fft2 = tf.make_ndarray(tf.make_tensor_proto(fakeX_new2))
-
-    t = np.zeros(realX_u.shape[1])
-    for k in range(realX_u.shape[1]-1):
+    t = np.zeros(realX.shape[1])
+    for k in range(realX.shape[1]-1):
         t[k+1] = (k+1)*0.04
 
-    for j in range(realX_u.shape[2]):
-        for i in range(realX_u.shape[0]):
-            #i = randint(0, realX_u.shape[0]-1)
-            fig, (ax0, ax1, ax2) = plt.subplots(3, 1,figsize=(12,18))
-            ax0.plot(t,realX_u[i,:,j], color='green')
-            ax1.plot(t,realX_d1[i,:,j], color='black')
-            ax2.plot(t,fakeX_new1[i,:,j], color='orange')
-            #hfg = plt.subplots(3,1,figsize=(12,6),tight_layout=True)
-            #hax = hfg.add_subplot(111)
-            #hax.plot(t,realX_u[0,:,0],t,realX_d[0,:,0],t,fakeX_d[0,:,0])
-            #hax.plot(t,fakeX_u[0,:,0], color='orange')
-            ax0.set_ylim([-1.0, 1.0])
-            ax1.set_ylim([-1.0, 1.0])
-            ax2.set_ylim([-1.0, 1.0])
+    recX_fft = tf.make_ndarray(tf.make_tensor_proto(recX))
+
+    # Print real vs reconstructed signal
+    for j in range(realX.shape[2]):
+        for k in range(10):
+            i = randint(0, realX.shape[0]-1)
+            hfg = plt.figure(figsize=(12,6),tight_layout=True)
+            hax = hfg.add_subplot(111)
+            hax.plot(t,realX[i,:,j], color='black')
+            hax.plot(t,recX[i,:,j], color='orange',linestyle="--")
             #hax.set_title(r'$X \hspace{0.5} reconstruction$', fontsize=22,fontweight='bold')
-            ax0.set_ylabel(r'$X(t) \hspace{0.5} [1]$', fontsize=26,fontweight='bold')
-            ax0.set_xlabel(r'$t \hspace{0.5} [s]$', fontsize=26,fontweight='bold')
-            ax0.legend([r'$X_u$'], loc='best',frameon=False,fontsize=20)
-            ax0.tick_params(axis='both', labelsize=18)
-            ax1.set_ylabel(r'$X(t) \hspace{0.5} [1]$', fontsize=26,fontweight='bold')
-            ax1.set_xlabel(r'$t \hspace{0.5} [s]$', fontsize=26,fontweight='bold')
-            ax1.legend([r'$X_d$'], loc='best',frameon=False,fontsize=20)
-            ax1.tick_params(axis='both', labelsize=18)
-            ax2.set_ylabel(r'$X(t) \hspace{0.5} [1]$', fontsize=26,fontweight='bold')
-            ax2.set_xlabel(r'$t \hspace{0.5} [s]$', fontsize=26,fontweight='bold')
-            ax2.legend([r"$G_z(F_x(x_u))$"], loc='best',frameon=False,fontsize=20)
-            ax2.tick_params(axis='both', labelsize=18)
-            plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/reconstruction_switch1_{:>d}_{:>d}.png'.format(j,i),bbox_inches = 'tight')
-            plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/reconstruction_switch1_{:>d}_{:>d}.eps'.format(j,i),bbox_inches = 'tight',dpi=200)
+            hax.set_ylabel(r'$X(t) \hspace{0.5} [1]$', fontsize=26,fontweight='bold')
+            hax.set_xlabel(r'$t \hspace{0.5} [s]$', fontsize=26,fontweight='bold')
+            hax.legend([r'$X$', r"$G_z(F_x(x))$"], loc='best',frameon=False,fontsize=20)
+            hax.set_ylim([-1.0, 1.0])
+            hax.tick_params(axis='both', labelsize=18)
+            plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/reconstruction_{:>d}_{:>d}.png'.format(j,i),bbox_inches = 'tight')
+            #plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/reconstruction_{:>d}_{:>d}.eps'.format(j,i),bbox_inches = 'tight',dpi=200)
             plt.close()
+
 
             hfg = plt.figure(figsize=(12,6),tight_layout=True)
             hax = hfg.add_subplot(111)
-            N = realX_u.shape[1]
+            N = realX.shape[1]
             SAMPLE_RATE = 25
-            yf_real_d = rfft(realX_d1[i,:,j])
-            xf_real_d = rfftfreq(N, 1 / SAMPLE_RATE)
-            hax.plot(xf_real_d, np.abs(yf_real_d), color='black')
-            yf_switch = rfft(fakeX_new_fft1[i,:,j])
-            xf_switch = rfftfreq(N, 1 / SAMPLE_RATE)
-            hax.plot(xf_switch, np.abs(yf_switch), color='orange',linestyle="--")
+            yf_real = rfft(realX[i,:,j])
+            xf_real = rfftfreq(N, 1 / SAMPLE_RATE)
+            hax.plot(xf_real, np.abs(yf_real), color='black')
+            yf_rec = rfft(recX_fft[i,:,j])
+            xf_rec = rfftfreq(N, 1 / SAMPLE_RATE)
+            hax.plot(xf_rec, np.abs(yf_rec), color='orange',linestyle="--")
             hax.set_ylabel(r'$Amplitude \hspace{0.5} [1]$', fontsize=26,fontweight='bold')
             hax.set_xlabel(r'$Frequency \hspace{0.5} [Hz]$', fontsize=26,fontweight='bold')
-            hax.legend([r'$X_d$', r"$G_z(F_x(x_u))$"], loc='best',frameon=False,fontsize=20)
+            hax.legend([r'$X$', r"$G_z(F_x(x))$"], loc='best',frameon=False,fontsize=20)
             hax.tick_params(axis='both', labelsize=18)
-            plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/fft_switch1_{:>d}_{:>d}.png'.format(j,i),bbox_inches = 'tight')
-            plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/fft_switch1_{:>d}_{:>d}.eps'.format(j,i),bbox_inches = 'tight',dpi=200)
+            plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/fft_{:>d}_{:>d}.png'.format(j,i),bbox_inches = 'tight')
+            #plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/fft_{:>d}_{:>d}.eps'.format(j,i),bbox_inches = 'tight',dpi=200)
             plt.close()
 
+
+def PlotSwitchedTHs(model,real_u,real_d,d):
+    # Plot reconstructed time-histories
+    
+    realX_s_u = np.concatenate([xs for xs, cs, ds, xt, dt in real_u], axis=0)
+    realC_s_u = np.concatenate([cs for xs, cs, ds, xt, dt in real_u], axis=0)
+    realD_s_u = np.concatenate([ds for xs, cs, ds, xt, dt in real_u], axis=0)
+
+    realX_t_u = np.concatenate([xt for xs, cs, ds, xt, dt in real_u], axis=0)
+    realD_t_u = np.concatenate([dt for xs, cs, ds, xt, dt in real_u], axis=0)
+
+    realX_u = np.concatenate((realX_s_u,realX_t_u))
+
+    recX_u,_,_,_ = model.predict(realX_u)
+
+    realX_s_d = np.concatenate([xs for xs, cs, ds, xt, dt in real_d], axis=0)
+    realC_s_d = np.concatenate([cs for xs, cs, ds, xt, dt in real_d], axis=0)
+    realD_s_d = np.concatenate([ds for xs, cs, ds, xt, dt in real_d], axis=0)
+
+    realX_t_d = np.concatenate([xt for xs, cs, ds, xt, dt in real_d], axis=0)
+    realD_t_d = np.concatenate([dt for xs, cs, ds, xt, dt in real_d], axis=0)
+
+    realX_d = np.concatenate((realX_s_d,realX_t_d))
+
+    recX_d,_,_,_ = model.predict(realX_d)
+
+    t = np.zeros(realX_u.shape[1])
+    for m in range(realX_u.shape[1]-1):
+        t[m+1] = (m+1)*0.04
+
+    if d==1:
+
+        recX_fft = tf.make_ndarray(tf.make_tensor_proto(recX_u))
+
+        # Print real vs reconstructed signal
+        for j in range(realX_u.shape[2]):
+            for k in range(10):
+                i = randint(0, realX_u.shape[0]-1)
+                hfg = plt.figure(figsize=(12,6),tight_layout=True)
+                hax = hfg.add_subplot(111)
+                hax.plot(t,realX_u[i,:,j], color='black')
+                hax.plot(t,recX_u[i,:,j], color='orange',linestyle="--")
+                #hax.set_title(r'$X \hspace{0.5} reconstruction$', fontsize=22,fontweight='bold')
+                hax.set_ylabel(r'$X(t) \hspace{0.5} [1]$', fontsize=26,fontweight='bold')
+                hax.set_xlabel(r'$t \hspace{0.5} [s]$', fontsize=26,fontweight='bold')
+                hax.legend([r'$X$', r"$G_z(F_x(x))$"], loc='best',frameon=False,fontsize=20)
+                hax.set_ylim([-1.0, 1.0])
+                hax.tick_params(axis='both', labelsize=18)
+                plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/reconstruction0_{:>d}_{:>d}.png'.format(j,i),bbox_inches = 'tight')
+                #plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/reconstruction0_{:>d}_{:>d}.eps'.format(j,i),bbox_inches = 'tight',dpi=200)
+                plt.close()
+
+
+                hfg = plt.figure(figsize=(12,6),tight_layout=True)
+                hax = hfg.add_subplot(111)
+                N = realX_u.shape[1]
+                SAMPLE_RATE = 25
+                yf_real = rfft(realX_u[i,:,j])
+                xf_real = rfftfreq(N, 1 / SAMPLE_RATE)
+                hax.plot(xf_real, np.abs(yf_real), color='black')
+                yf_rec = rfft(recX_fft[i,:,j])
+                xf_rec = rfftfreq(N, 1 / SAMPLE_RATE)
+                hax.plot(xf_rec, np.abs(yf_rec), color='orange',linestyle="--")
+                hax.set_ylabel(r'$Amplitude \hspace{0.5} [1]$', fontsize=26,fontweight='bold')
+                hax.set_xlabel(r'$Frequency \hspace{0.5} [Hz]$', fontsize=26,fontweight='bold')
+                hax.legend([r'$X$', r"$G_z(F_x(x))$"], loc='best',frameon=False,fontsize=20)
+                hax.tick_params(axis='both', labelsize=18)
+                plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/fft0_{:>d}_{:>d}.png'.format(j,i),bbox_inches = 'tight')
+                #plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/fft0_{:>d}_{:>d}.eps'.format(j,i),bbox_inches = 'tight',dpi=200)
+                plt.close()
+
+    recX_fft = tf.make_ndarray(tf.make_tensor_proto(recX_d))
+
+    # Print real vs reconstructed signal
+    for j in range(realX_d.shape[2]):
+        for k in range(10):
+            i = randint(0, realX_d.shape[0]-1)
             hfg = plt.figure(figsize=(12,6),tight_layout=True)
             hax = hfg.add_subplot(111)
-            hax.plot(t,realX_d1[i,:,j], color='black')
-            hax.plot(t,fakeX_new1[i,:,j], color='orange',linestyle="--")
-            hax.set_ylabel(r'$X(t) \hspace{0.5} [1]$', fontsize=26,fontweight='bold')
-            hax.set_xlabel(r'$t \hspace{0.5} [s]$', fontsize=26,fontweight='bold')
-            hax.legend([r'$X_d$',r"$G_z(F_x(x_u))$"], loc='best',frameon=False,fontsize=20)
-            hax.tick_params(axis='both', labelsize=18)
-            hax.set_ylim([-1.0, 1.0])           
-
-            plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/switch_d1_{:>d}_{:>d}.png'.format(j,i),bbox_inches = 'tight')
-            plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/switch_d1_{:>d}_{:>d}.eps'.format(j,i),bbox_inches = 'tight',dpi=200)
-            plt.close()
-
-            hfg = plt.figure(figsize=(12,6),tight_layout=True)
-            hax = hfg.add_subplot(111)
-            hax.plot(t,realX_u[i,:,j], color='black')
-            hax.plot(t,fakeX_u[i,:,j], color='orange',linestyle="--")
-            hax.set_ylabel(r'$X(t) \hspace{0.5} [1]$', fontsize=26,fontweight='bold')
-            hax.set_xlabel(r'$t \hspace{0.5} [s]$', fontsize=26,fontweight='bold')
-            hax.legend([r'$X_u$',r"$G_z(F_x(x_u))$"], loc='best',frameon=False,fontsize=20)
-            hax.tick_params(axis='both', labelsize=18)
-            hax.set_ylim([-1.0, 1.0])           
-
-            plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/switch_u_{:>d}_{:>d}.png'.format(j,i),bbox_inches = 'tight')
-            plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/switch_u_{:>d}_{:>d}.eps'.format(j,i),bbox_inches = 'tight',dpi=200)
-            plt.close()
-
-            fig, (ax0, ax1, ax2) = plt.subplots(3, 1,figsize=(12,18))
-            ax0.plot(t,realX_u[i,:,j], color='green')
-            ax1.plot(t,realX_d2[i,:,j], color='black')
-            ax2.plot(t,fakeX_new2[i,:,j], color='orange')
-            #hfg = plt.subplots(3,1,figsize=(12,6),tight_layout=True)
-            #hax = hfg.add_subplot(111)
-            #hax.plot(t,realX_u[0,:,0],t,realX_d[0,:,0],t,fakeX_d[0,:,0])
-            #hax.plot(t,fakeX_u[0,:,0], color='orange')
-            ax0.set_ylim([-1.0, 1.0])
-            ax1.set_ylim([-1.0, 1.0])
-            ax2.set_ylim([-1.0, 1.0])
+            hax.plot(t,realX_d[i,:,j], color='black')
+            hax.plot(t,recX_d[i,:,j], color='orange',linestyle="--")
             #hax.set_title(r'$X \hspace{0.5} reconstruction$', fontsize=22,fontweight='bold')
-            ax0.set_ylabel(r'$X(t) \hspace{0.5} [1]$', fontsize=26,fontweight='bold')
-            ax0.set_xlabel(r'$t \hspace{0.5} [s]$', fontsize=26,fontweight='bold')
-            ax0.legend([r'$X_u$'], loc='best',frameon=False,fontsize=20)
-            ax0.tick_params(axis='both', labelsize=18)
-            ax1.set_ylabel(r'$X(t) \hspace{0.5} [1]$', fontsize=26,fontweight='bold')
-            ax1.set_xlabel(r'$t \hspace{0.5} [s]$', fontsize=26,fontweight='bold')
-            ax1.legend([r'$X_d$'], loc='best',frameon=False,fontsize=20)
-            ax1.tick_params(axis='both', labelsize=18)
-            ax2.set_ylabel(r'$X(t) \hspace{0.5} [1]$', fontsize=26,fontweight='bold')
-            ax2.set_xlabel(r'$t \hspace{0.5} [s]$', fontsize=26,fontweight='bold')
-            ax2.legend([r"$G_z(F_x(x_u))$"], loc='best',frameon=False,fontsize=20)
-            ax2.tick_params(axis='both', labelsize=18)
-            plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/reconstruction_switch2_{:>d}_{:>d}.png'.format(j,i),bbox_inches = 'tight')
-            plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/reconstruction_switch2_{:>d}_{:>d}.eps'.format(j,i),bbox_inches = 'tight',dpi=200)
+            hax.set_ylabel(r'$X(t) \hspace{0.5} [1]$', fontsize=26,fontweight='bold')
+            hax.set_xlabel(r'$t \hspace{0.5} [s]$', fontsize=26,fontweight='bold')
+            hax.legend([r'$X$', r"$G_z(F_x(x))$"], loc='best',frameon=False,fontsize=20)
+            hax.set_ylim([-1.0, 1.0])
+            hax.tick_params(axis='both', labelsize=18)
+            plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/reconstruction{:>d}_{:>d}_{:>d}.png'.format(d,j,i),bbox_inches = 'tight')
+            #plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/reconstruction{:>d}_{:>d}_{:>d}.eps'.format(d,j,i),bbox_inches = 'tight',dpi=200)
             plt.close()
+
 
             hfg = plt.figure(figsize=(12,6),tight_layout=True)
             hax = hfg.add_subplot(111)
-            N = realX_u.shape[1]
+            N = realX_d.shape[1]
             SAMPLE_RATE = 25
-            yf_real_d = rfft(realX_d2[i,:,j])
-            xf_real_d = rfftfreq(N, 1 / SAMPLE_RATE)
-            hax.plot(xf_real_d, np.abs(yf_real_d), color='black')
-            yf_switch = rfft(fakeX_new_fft2[i,:,j])
-            xf_switch = rfftfreq(N, 1 / SAMPLE_RATE)
-            hax.plot(xf_switch, np.abs(yf_switch), color='orange',linestyle="--")
+            yf_real = rfft(realX_d[i,:,j])
+            xf_real = rfftfreq(N, 1 / SAMPLE_RATE)
+            hax.plot(xf_real, np.abs(yf_real), color='black')
+            yf_rec = rfft(recX_fft[i,:,j])
+            xf_rec = rfftfreq(N, 1 / SAMPLE_RATE)
+            hax.plot(xf_rec, np.abs(yf_rec), color='orange',linestyle="--")
             hax.set_ylabel(r'$Amplitude \hspace{0.5} [1]$', fontsize=26,fontweight='bold')
             hax.set_xlabel(r'$Frequency \hspace{0.5} [Hz]$', fontsize=26,fontweight='bold')
-            hax.legend([r'$X_d$', r"$G_z(F_x(x_u))$"], loc='best',frameon=False,fontsize=20)
+            hax.legend([r'$X$', r"$G_z(F_x(x))$"], loc='best',frameon=False,fontsize=20)
             hax.tick_params(axis='both', labelsize=18)
-            plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/fft_switch2_{:>d}_{:>d}.png'.format(j,i),bbox_inches = 'tight')
-            plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/fft_switch2_{:>d}_{:>d}.eps'.format(j,i),bbox_inches = 'tight',dpi=200)
-            plt.close()
-
-            hfg = plt.figure(figsize=(12,6),tight_layout=True)
-            hax = hfg.add_subplot(111)
-            hax.plot(t,realX_d2[i,:,j], color='black')
-            hax.plot(t,fakeX_new2[i,:,j], color='orange',linestyle="--")
-            hax.set_ylabel(r'$X(t) \hspace{0.5} [1]$', fontsize=26,fontweight='bold')
-            hax.set_xlabel(r'$t \hspace{0.5} [s]$', fontsize=26,fontweight='bold')
-            hax.legend([r'$X_d$',r"$G_z(F_x(x_u))$"], loc='best',frameon=False,fontsize=20)
-            hax.tick_params(axis='both', labelsize=18)
-            hax.set_ylim([-1.0, 1.0])           
-
-            plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/switch_d2_{:>d}_{:>d}.png'.format(j,i),bbox_inches = 'tight')
-            plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/switch_d2_{:>d}_{:>d}.eps'.format(j,i),bbox_inches = 'tight',dpi=200)
+            plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/fft{:>d}_{:>d}_{:>d}.png'.format(d,j,i),bbox_inches = 'tight')
+            #plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/fft{:>d}_{:>d}_{:>d}.eps'.format(d,j,i),bbox_inches = 'tight',dpi=200)
             plt.close()
 
     
+    fakeC_new = np.zeros_like((realC_s_d))
+    fakeC_new[:,d] = 1.0
+    fakeX_new = model.generate(realX_s_u,fakeC_new)
+    fakeX_new_fft = tf.make_ndarray(tf.make_tensor_proto(fakeX_new))
 
+    t = np.zeros(realX_u.shape[1])
+    for m in range(realX_u.shape[1]-1):
+        t[m+1] = (m+1)*0.04
 
+    for j in range(realX_s_u.shape[2]):
+        for i in range(realX_s_u.shape[0]):
+            #i = randint(0, realX_u.shape[0]-1)
+            fig, (ax0, ax1, ax2) = plt.subplots(3, 1,figsize=(12,18))
+            ax0.plot(t,realX_s_u[i,:,j], color='green')
+            ax1.plot(t,realX_s_d[i,:,j], color='black')
+            ax2.plot(t,fakeX_new[i,:,j], color='orange')
+            #hfg = plt.subplots(3,1,figsize=(12,6),tight_layout=True)
+            #hax = hfg.add_subplot(111)
+            #hax.plot(t,realX_u[0,:,0],t,realX_d[0,:,0],t,fakeX_d[0,:,0])
+            #hax.plot(t,fakeX_u[0,:,0], color='orange')
+            ax0.set_ylim([-1.0, 1.0])
+            ax1.set_ylim([-1.0, 1.0])
+            ax2.set_ylim([-1.0, 1.0])
+            #hax.set_title(r'$X \hspace{0.5} reconstruction$', fontsize=22,fontweight='bold')
+            ax0.set_ylabel(r'$X(t) \hspace{0.5} [1]$', fontsize=26,fontweight='bold')
+            ax0.set_xlabel(r'$t \hspace{0.5} [s]$', fontsize=26,fontweight='bold')
+            ax0.legend([r'$X_u$'], loc='best',frameon=False,fontsize=20)
+            ax0.tick_params(axis='both', labelsize=18)
+            ax1.set_ylabel(r'$X(t) \hspace{0.5} [1]$', fontsize=26,fontweight='bold')
+            ax1.set_xlabel(r'$t \hspace{0.5} [s]$', fontsize=26,fontweight='bold')
+            ax1.legend([r'$X_d$'], loc='best',frameon=False,fontsize=20)
+            ax1.tick_params(axis='both', labelsize=18)
+            ax2.set_ylabel(r'$X(t) \hspace{0.5} [1]$', fontsize=26,fontweight='bold')
+            ax2.set_xlabel(r'$t \hspace{0.5} [s]$', fontsize=26,fontweight='bold')
+            ax2.legend([r"$G_z(F_x(x_u))$"], loc='best',frameon=False,fontsize=20)
+            ax2.tick_params(axis='both', labelsize=18)
+            plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/reconstruction_switch{:>d}_{:>d}_{:>d}.png'.format(d,j,i),bbox_inches = 'tight')
+            #plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/reconstruction_switch{:>d}_{:>d}_{:>d}.eps'.format(d,j,i),bbox_inches = 'tight',dpi=200)
+            plt.close()
 
+            hfg = plt.figure(figsize=(12,6),tight_layout=True)
+            hax = hfg.add_subplot(111)
+            N = realX_s_u.shape[1]
+            SAMPLE_RATE = 25
+            yf_real_d = rfft(realX_s_d[i,:,j])
+            xf_real_d = rfftfreq(N, 1 / SAMPLE_RATE)
+            hax.plot(xf_real_d, np.abs(yf_real_d), color='black')
+            yf_switch = rfft(fakeX_new_fft[i,:,j])
+            xf_switch = rfftfreq(N, 1 / SAMPLE_RATE)
+            hax.plot(xf_switch, np.abs(yf_switch), color='orange',linestyle="--")
+            hax.set_ylabel(r'$Amplitude \hspace{0.5} [1]$', fontsize=26,fontweight='bold')
+            hax.set_xlabel(r'$Frequency \hspace{0.5} [Hz]$', fontsize=26,fontweight='bold')
+            hax.legend([r'$X_d$', r"$G_z(F_x(x_u))$"], loc='best',frameon=False,fontsize=20)
+            hax.tick_params(axis='both', labelsize=18)
+            plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/fft_switch{:>d}_{:>d}_{:>d}.png'.format(d,j,i),bbox_inches = 'tight')
+            #plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/fft_switch{:>d}_{:>d}_{:>d}.eps'.format(d,j,i),bbox_inches = 'tight',dpi=200)
+            plt.close()
 
+            hfg = plt.figure(figsize=(12,6),tight_layout=True)
+            hax = hfg.add_subplot(111)
+            hax.plot(t,realX_s_d[i,:,j], color='black')
+            hax.plot(t,fakeX_new[i,:,j], color='orange',linestyle="--")
+            hax.set_ylabel(r'$X(t) \hspace{0.5} [1]$', fontsize=26,fontweight='bold')
+            hax.set_xlabel(r'$t \hspace{0.5} [s]$', fontsize=26,fontweight='bold')
+            hax.legend([r'$X_d$',r"$G_z(F_x(x_u))$"], loc='best',frameon=False,fontsize=20)
+            hax.tick_params(axis='both', labelsize=18)
+            hax.set_ylim([-1.0, 1.0])           
 
-def PlotCorrelationS(model,realXC):
-    # Plot s correlation
-    #realX, realC = realXC
-    realX = np.concatenate([x for x, c in realXC], axis=0)
-    realC = np.concatenate([c for x, c in realXC], axis=0)
-    fakeX,fakeC,fakeS,fakeN = model.predict(realX)
-
-    # Print fakeS autocorrelation
-    # S = np.reshape(fakeS, fakeS.size)
-    # hfg = plt.figure(figsize=(12,6),tight_layout=True)
-    # corr3 = hfg.add_subplot(111)
-    # corr3.set_title(r"$Continuous \hspace{0.5} variables \hspace{0.5} S - Autocorrelation \hspace{0.5} Plot$", fontsize=22,fontweight='bold')
-    # corr3.set_xlabel(r"$Lags \hspace{0.5} [1]$", fontsize=20,fontweight='bold')
-    # corr3.set_ylabel(r"$Autocorrelation \hspace{0.5} [1]$", fontsize=20,fontweight='bold')
-    # corr3.tick_params(axis='both', labelsize=14)
-    # plt.acorr(S, maxlags = 20)
-    # plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/autocorrelation_fakeS.png',bbox_inches = 'tight')
-    # #plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/autocorrelation_fakeS.eps',bbox_inches = 'tight',dpi=200)
-    # plt.close()
-
-    # Print fakeS correlation matrix
-    df = pd.DataFrame(fakeS)
-    corr = df.corr()
-    #corrMatrix = np.corrcoef(df)
-    ax = sn.heatmap(corr, vmin=-1, vmax=1, center=0,
-        cmap=sn.diverging_palette(20, 220, n=200), square=True)
-    ax.set_rasterized(True)
-    #ax.set_xticklabels(ax.get_xticklabels(), rotation=45)
-    ax.set_title(r"$Continuous \hspace{0.5} variables \hspace{0.5} S - Correlation \hspace{0.5} matrix$", fontsize=18,fontweight='bold')
-    ax.tick_params(axis='both', labelsize=12)
-    plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/correlation_matrix.png',bbox_inches = 'tight')
-    #plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/correlation_matrix.eps',rasterized=True,bbox_inches = 'tight',dpi=200)
-    plt.close()
-
-    # Print fakeS distribution
-    #fakeS_std = np.std(fakeS)
-    #fakeS_mean = np.mean(fakeS)
-
-    # hfg = plt.figure(figsize=(12,6))
-    # hax = hfg.add_subplot(111)
-    # hax.set_rasterized(True)
-    # x = np.linspace(0, 2.5, 1000) 
-    # y1 = lognorm.pdf(x,1.0,loc=0.0) 
-    # for i in range (fakeS.shape[0]):
-    #     mu = np.mean(fakeS[i,:])
-    #     sigma =np.std(fakeS[i,:])
-    #     y2 = lognorm.pdf(x,sigma,loc=mu,scale=sigma)
-    #     hfg = plt.figure(figsize=(12,6))
-    #     hax = hfg.add_subplot(111)
-    #     hax.set_rasterized(True)
-    #     hax.plot(x,y1, linewidth=2, color='r', label=r'$PDF \mathcal{N} = (0,1)$')
-    #     hax.plot(x,y2, linewidth=2, color='b', label=r'$PDF \hspace{0.5} Continuous \hspace{0.5} Variable \hspace{0.5} S$')
-    #     plt.ylabel(r"$PDF  \hspace{0.5} [1]$", fontsize=20,fontweight='bold')
-    #     plt.title(r"$Continuous \hspace{0.5} variables \hspace{0.5} S - Distribution$", fontsize=22,fontweight='bold')
-    #     plt.tick_params(axis='both', labelsize=16)
-    #     plt.legend(frameon=False)
-    #     plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/fakeS_{:>d}.png'.format(i),bbox_inches = 'tight')
-    #     #plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/fakeS_{:>d}.eps'.format(i),bbox_inches = 'tight',dpi=200)
-    #     plt.close()
-
-    # num_bins = 100
-    # n, bins, patches = plt.hist(fakeS, num_bins, density=True, facecolor='blue', alpha=0.5)
-    # # add a 'best fit' line
-    # #y = ((1 / (np.sqrt(2 * np.pi) * fakeS_std)) *np.exp(-0.5 * (1 / fakeS_std * (bins - fakeS_mean))**2))
-    # mean = 0
-    # std = 0.5
-    # variance = np.square(std)
-    # #x = np.arange(-5,5,.01)
-    # x = np.linspace(-5,5,101)
-    # f = np.exp(-np.square(x-mean)/2*variance)/(np.sqrt(2*np.pi*variance))
-    # #plt.set_rasterized(True)
-    # plt.plot(bins,f,'r--',linewidth=2)
-
-    # s_1 = np.random.lognormal(fakeS_mean, fakeS_std)
-    # countS, binsS, ignoredS = plt.hist(s_1, 1000, density=True, align='mid')
-    # xS = np.linspace(0.0, 2.5)
-    # pdfS = (np.exp(-(np.log(xS) - fakeS_mean)**2 / (2 * fakeS_std**2))/ (xS * fakeS_std * np.sqrt(2 * np.pi)))
-
-    # # Plot lognorm distribution
-    # mu, sigma = 0., 1. # mean and standard deviation
-    # s = np.random.lognormal(mu, sigma)
-    # count, bins, ignored = plt.hist(s, 1000, density=True, align='mid')
-    # x = np.linspace(0.0,2.5)
-    # pdf = (np.exp(-(np.log(x) - mu)**2 / (2 * sigma**2))/ (x * sigma * np.sqrt(2 * np.pi)))
-
-    # x = np.linspace(0, 2.5, 1000) 
-    # y2 = lognorm.pdf(x,fakeS_std,loc=fakeS_mean,scale=fakeS_std) 
-    # y1 = lognorm.pdf(x,1.0,loc=0.0) 
-    # #plt.plot(x, y1, "*", x, y2, "r--") 
-
-    # hfg = plt.figure(figsize=(12,6))
-    # hax = hfg.add_subplot(111)
-    # hax.set_rasterized(True)
-    # hax.plot(x,y1, linewidth=2, color='r', label=r'$PDF \mathcal{N} = (0,1)$')
-    # hax.plot(x,y2, linewidth=2, color='b', label=r'$PDF \hspace{0.5} Continuous \hspace{0.5} Variable \hspace{0.5} S$')
-    # plt.xlabel(r"$F(x)\vert_s \hspace{0.5} [1]$", fontsize=20,fontweight='bold')
-    # plt.ylabel(r"$p(s\vert x) \hspace{0.5} [1]$", fontsize=20,fontweight='bold')
-    # plt.title(r'$Continuous \hspace{0.5} variables \hspace{0.5} S - Distribution$', fontsize=22,fontweight='bold')
-    # plt.tick_params(axis='both', labelsize=16)
-    # plt.legend(frameon=False)
-    # plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/fakeS_distribution.png',bbox_inches = 'tight')
-    # plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/fakeS_distribution.eps',bbox_inches = 'tight',dpi=200)
-    # plt.close()
-
-def PlotDistributionN(model,realXC):
-    # Plot n distribution
-    #realX, realC = realXC
-    realX = np.concatenate([x for x, c in realXC], axis=0)
-    realC = np.concatenate([c for x, c in realXC], axis=0)
-    fakeX,fakeC,fakeS,fakeN = model.predict(realX)
-    # Print fakeN distribution
-    # fakeN_std = np.std(fakeN)
-    # fakeN_mean = np.mean(fakeN)
-    # num_bins = 100
-    # n, bins, patches = plt.hist(fakeN, num_bins, density=True, facecolor='blue', alpha=0.5)
-    # add a 'best fit' line
-    #y = ((1 / (np.sqrt(2 * np.pi) * fakeN_std)) *np.exp(-0.5 * (1 / fakeN_std * (bins - fakeN_mean))**2))
-    #y = norm.pdf(bins, fakeN_mean, fakeN_std)
-    # mean = 0
-    # std = 0.3
-    # variance = np.square(std)
-    # #x = np.arange(-5,5,.01)
-    # x = np.linspace(-5,5,101)
-    # f = np.exp(-np.square(x-mean)/2*variance)/(np.sqrt(2*np.pi*variance))
-
-    hfg = plt.figure(figsize=(12,6))
-    hax = hfg.add_subplot(111)
-    hax.set_rasterized(True)
-    for i in range (fakeN.shape[0]):
-        mu = np.mean(fakeN[i,:])
-        sigma =np.std(fakeN[i,:])
-        x = np.linspace(0, 2.5, 1000) 
-        y = lognorm.pdf(x,sigma,loc=mu)
-        hfg = plt.figure(figsize=(12,6))
-        hax = hfg.add_subplot(111)
-        hax.set_rasterized(True)
-        hax.plot(x,y, linewidth=2, color='r',label=r'$PDF \hspace{0.5} Noise \hspace{0.5} \hspace{0.5} N$')
-        plt.ylabel(r"$PDF  \hspace{0.5} [1]$", fontsize=20,fontweight='bold')
-        plt.title(r"$Noise \hspace{0.5} N - Distribution$", fontsize=22,fontweight='bold')
-        plt.tick_params(axis='both', labelsize=16)
-        plt.legend(frameon=False)
-        plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/fakeN_{:>d}.png'.format(i),bbox_inches = 'tight')
-        #plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/fakeN_{:>d}.eps'.format(i),bbox_inches = 'tight',dpi=200)
-        plt.close()
-
-    # plt.plot(bins,f,'r--',linewidth=2)
-    # plt.xlabel(r"$F(x)\vert_n \hspace{0.5} [1]$", fontsize=20,fontweight='bold')
-    # plt.ylabel(r"$p(n\vert x) \hspace{0.5} [1]$", fontsize=20,fontweight='bold')
-    # plt.title(r"$Noise \hspace{0.5} N - Distribution$", fontsize=22,fontweight='bold')
-    # plt.tick_params(axis='both', labelsize=16)
-    # plt.legend(frameon=False)
-    # plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/fakeN_distribution.png',bbox_inches = 'tight')
-    # #plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/fakeN_distribution.eps',bbox_inches = 'tight',dpi=200)
-    # plt.close()
+            plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/switch{:>d}_{:>d}_{:>d}.png'.format(d,j,i),bbox_inches = 'tight')
+            #plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/switch{:>d}_{:>d}_{:>d}.eps'.format(d,j,i),bbox_inches = 'tight',dpi=200)
+            plt.close()
 
 
 def PlotTHSGoFs(model,realXC):
     # Plot reconstructed time-histories
     #realX, realC = realXC
-    realX = np.concatenate([x for x, c in realXC], axis=0)
-    realC = np.concatenate([c for x, c in realXC], axis=0)
-    recX,fakeC,fakeS,fakeN = model.predict(realX)
+    realX_s = np.concatenate([xs for xs, cs, ds, xt, dt in realXC], axis=0)
+    realC_s = np.concatenate([cs for xs, cs, ds, xt, dt in realXC], axis=0)
+    realD_s = np.concatenate([ds for xs, cs, ds, xt, dt in realXC], axis=0)
 
-    
-    # a = np.zeros(realX.shape[1])
-    # b = np.zeros(fakeX.shape[1])
+    realX_t = np.concatenate([xt for xs, cs, ds, xt, dt in realXC], axis=0)
+    realD_t = np.concatenate([dt for xs, cs, ds, xt, dt in realXC], axis=0)
+
+    realX = np.concatenate((realX_s, realX_t))
+    recX,fakeC,fakeS,fakeN = model.predict(realX)
 
     ## Print signal GoF
     for j in range(realX.shape[2]):
@@ -741,22 +477,11 @@ def PlotTHSGoFs(model,realXC):
             plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/gof_{:>d}_{:>d}.eps'.format(j,i),bbox_inches = 'tight',dpi=200)
             plt.close()
 
-
-    
-    # i = randint(0, realX.shape[0]-1)
-    # j = randint(0,realX.shape[2]-1) 
-    # plot_tf_gofs(realX[i,:,j],fakeX[i,:,j],dt=0.04,fmin=0.1,fmax=30.0,t0=0.0,nf=100,w0=6,norm='global',st2_isref=True,
-    #     a=10.,k=1.,left=0.1,bottom=0.125, h_1=0.2,h_2=0.125,h_3=0.2,w_1=0.2,w_2=0.6,w_cb=0.01, d_cb=0.0,show=False,
-    #     plot_args=['k', 'r', 'b'],ylim=0., clim=0.)
-    # plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/gof_{:>d}_{:>d}.png'.format(j,i),bbox_inches = 'tight')
-    # plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/gof_{:>d}_{:>d}.eps'.format(j,i),bbox_inches = 'tight',dpi=200)
-    # plt.close()
-
 def colored_scatter(*args, **kwargs):
     plt.scatter(*args, **kwargs)
     return
 
-def PlotEGPGgrid(col_x,col_y,col_k,n,df,k_is_color=False, scatter_alpha=.7):
+def PlotEGPGgrid(col_x,col_y,col_k,i,df,k_is_color=False, scatter_alpha=.7):
     k=0
     for name, df_group in df.groupby(col_k):
         k+=1
@@ -797,142 +522,89 @@ def PlotEGPGgrid(col_x,col_y,col_k,n,df,k_is_color=False, scatter_alpha=.7):
     plt.xlabel('EG', fontsize=14)
     plt.ylabel('PG', fontsize=14)
     plt.legend(legends,frameon=False,fontsize=14)
-    plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/Gz(Fx(X))_gofs_{:>s}.png'.format(n),bbox_inches = 'tight')
-    #plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/Gz(Fx(X))_gofs_{:>s}.eps'.format(n),bbox_inches = 'tight',dpi=200)
+    plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/Gz(Fx(X))_gofs_{:>d}.png'.format(i),bbox_inches = 'tight')
+    #plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/Gz(Fx(X))_gofs_{:>d}.eps'.format(i),bbox_inches = 'tight',dpi=200)
     plt.close()
 
 
-def PlotBatchGoFs(model,Xtrn,Xvld,n):
+def PlotBatchGoFs(model,Xtrn,Xvld,i):
     # Plot GoFs on a batch
-    #realX, realC = realXC
-    realX_trn = np.concatenate([x for x, c in Xtrn], axis=0)
-    realC_trn = np.concatenate([c for x, c in Xtrn], axis=0)
+
+    realX_s_trn = np.concatenate([xs for xs, cs, ds, xt, dt in Xtrn], axis=0)
+    realC_s_trn = np.concatenate([cs for xs, cs, ds, xt, dt in Xtrn], axis=0)
+    realD_s_trn = np.concatenate([ds for xs, cs, ds, xt, dt in Xtrn], axis=0)
+
+    realX_t_trn = np.concatenate([xt for xs, cs, ds, xt, dt in Xtrn], axis=0)
+    realD_t_trn = np.concatenate([dt for xs, cs, ds, xt, dt in Xtrn], axis=0)
+
+    realX_trn = np.concatenate((realX_s_trn,realX_t_trn))
+
     fakeX_trn,_,_,_ = model.predict(realX_trn)
 
-    realX_vld = np.concatenate([x for x, c in Xvld], axis=0)
-    realC_vld = np.concatenate([c for x, c in Xvld], axis=0)
-    fakeX_vld,_,_,_ = model.predict(realX_vld) 
+    realX_s_vld = np.concatenate([xs for xs, cs, ds, xt, dt in Xvld], axis=0)
+    realC_s_vld = np.concatenate([cs for xs, cs, ds, xt, dt in Xvld], axis=0)
+    realD_s_vld = np.concatenate([ds for xs, cs, ds, xt, dt in Xvld], axis=0)
 
-    if n=='s':
-        fakeC_new = np.zeros_like(realC_trn)
-        fakeC_new[:,1] = 1.0
-        fakeX_trn = model.generate(realX_trn,fakeC_new)
+    realX_t_vld = np.concatenate([xt for xs, cs, ds, xt, dt in Xvld], axis=0)
+    realD_t_vld = np.concatenate([dt for xs, cs, ds, xt, dt in Xvld], axis=0)
 
-        fakeC_new = np.zeros_like(realC_vld)
-        fakeC_new[:,1] = 1.0
-        fakeX_vld = model.generate(realX_vld,fakeC_new)
+    realX_vld = np.concatenate((realX_s_vld,realX_t_vld))
 
-    if n=='t':
-        fakeC_new = np.zeros_like(realC_trn)
-        fakeC_new[:,2] = 1.0
-        fakeX_trn = model.generate(realX_trn,fakeC_new)
+    fakeX_vld,_,_,_ = model.predict(realX_vld)
 
-        fakeC_new = np.zeros_like(realC_vld)
-        fakeC_new[:,2] = 1.0
-        fakeX_vld = model.generate(realX_vld,fakeC_new)
+    egpg_trn = {}
+    for j in range(realX_trn.shape[2]):
+        egpg_trn['egpg_trn_%d' % j] = np.zeros((realX_trn.shape[0],2),dtype=np.float32)
+        st1 = np.zeros((realX_trn.shape[0],realX_trn.shape[1]))
+        st2 = np.zeros((realX_trn.shape[0],realX_trn.shape[1]))
+        for k in range(realX_trn.shape[0]):
+            st1 = realX_trn[k,:,j]
+            st2 = fakeX_trn[k,:,j]
+            egpg_trn['egpg_trn_%d' % j][k,0] = eg(st1,st2,dt=0.04,fmin=0.1,fmax=30.0,nf=100,w0=6,norm='global',st2_isref=True,a=10.,k=1.)
+            egpg_trn['egpg_trn_%d' % j][k,1] = pg(st1,st2,dt=0.04,fmin=0.1,fmax=30.0,nf=100,w0=6,norm='global',st2_isref=True,a=10.,k=1.)
 
-
-    egpg_trn_0 = np.zeros((realX_trn.shape[0],2),dtype=np.float32)
-    egpg_trn_1 = np.zeros((realX_trn.shape[0],2),dtype=np.float32)
-    egpg_trn_2 = np.zeros((realX_trn.shape[0],2),dtype=np.float32)
-    egpg_trn_3 = np.zeros((realX_trn.shape[0],2),dtype=np.float32)
-    st1 = np.zeros((realX_trn.shape[0],realX_trn.shape[1]))
-    st2 = np.zeros((realX_trn.shape[0],realX_trn.shape[1]))
-
-    for i in range(realX_trn.shape[0]):
-        st1 = realX_trn[i,:,0]
-        st2 = fakeX_trn[i,:,0]
-        egpg_trn_0[i,0] = eg(st1,st2,dt=0.04,fmin=0.1,fmax=30.0,nf=100,w0=6,norm='global',st2_isref=True,a=10.,k=1.)
-        egpg_trn_0[i,1] = pg(st1,st2,dt=0.04,fmin=0.1,fmax=30.0,nf=100,w0=6,norm='global',st2_isref=True,a=10.,k=1.)
-
-    for i in range(realX_trn.shape[0]):
-        st1 = realX_trn[i,:,1]
-        st2 = fakeX_trn[i,:,1]
-        egpg_trn_1[i,0] = eg(st1,st2,dt=0.04,fmin=0.1,fmax=30.0,nf=100,w0=6,norm='global',st2_isref=True,a=10.,k=1.)
-        egpg_trn_1[i,1] = pg(st1,st2,dt=0.04,fmin=0.1,fmax=30.0,nf=100,w0=6,norm='global',st2_isref=True,a=10.,k=1.)
-
-    for i in range(realX_trn.shape[0]):
-        st1 = realX_trn[i,:,2]
-        st2 = fakeX_trn[i,:,2]
-        egpg_trn_2[i,0] = eg(st1,st2,dt=0.04,fmin=0.1,fmax=30.0,nf=100,w0=6,norm='global',st2_isref=True,a=10.,k=1.)
-        egpg_trn_2[i,1] = pg(st1,st2,dt=0.04,fmin=0.1,fmax=30.0,nf=100,w0=6,norm='global',st2_isref=True,a=10.,k=1.)
-
-    for i in range(realX_trn.shape[0]):
-        st1 = realX_trn[i,:,3]
-        st2 = fakeX_trn[i,:,3]
-        egpg_trn_3[i,0] = eg(st1,st2,dt=0.04,fmin=0.1,fmax=30.0,nf=100,w0=6,norm='global',st2_isref=True,a=10.,k=1.)
-        egpg_trn_3[i,1] = pg(st1,st2,dt=0.04,fmin=0.1,fmax=30.0,nf=100,w0=6,norm='global',st2_isref=True,a=10.,k=1.)
-
-    egpg_vld_0 = np.zeros((realX_vld.shape[0],2),dtype=np.float32)
-    egpg_vld_1 = np.zeros((realX_vld.shape[0],2),dtype=np.float32)
-    egpg_vld_2 = np.zeros((realX_vld.shape[0],2),dtype=np.float32)
-    egpg_vld_3 = np.zeros((realX_vld.shape[0],2),dtype=np.float32)
-    st1 = np.zeros((realX_vld.shape[0],realX_vld.shape[1]))
-    st2 = np.zeros((realX_vld.shape[0],realX_vld.shape[1]))
-
-    for i in range(realX_vld.shape[0]):
-        st1 = realX_vld[i,:,0]
-        st2 = fakeX_vld[i,:,0]
-        egpg_vld_0[i,0] = eg(st1,st2,dt=0.04,fmin=0.1,fmax=30.0,nf=100,w0=6,norm='global',st2_isref=True,a=10.,k=1.)
-        egpg_vld_0[i,1] = pg(st1,st2,dt=0.04,fmin=0.1,fmax=30.0,nf=100,w0=6,norm='global',st2_isref=True,a=10.,k=1.)
-
-    for i in range(realX_vld.shape[0]):
-        st1 = realX_vld[i,:,1]
-        st2 = fakeX_vld[i,:,1]
-        egpg_vld_1[i,0] = eg(st1,st2,dt=0.04,fmin=0.1,fmax=30.0,nf=100,w0=6,norm='global',st2_isref=True,a=10.,k=1.)
-        egpg_vld_1[i,1] = pg(st1,st2,dt=0.04,fmin=0.1,fmax=30.0,nf=100,w0=6,norm='global',st2_isref=True,a=10.,k=1.)
-
-    for i in range(realX_vld.shape[0]):
-        st1 = realX_vld[i,:,2]
-        st2 = fakeX_vld[i,:,2]
-        egpg_vld_2[i,0] = eg(st1,st2,dt=0.04,fmin=0.1,fmax=30.0,nf=100,w0=6,norm='global',st2_isref=True,a=10.,k=1.)
-        egpg_vld_2[i,1] = pg(st1,st2,dt=0.04,fmin=0.1,fmax=30.0,nf=100,w0=6,norm='global',st2_isref=True,a=10.,k=1.)
-
-    for i in range(realX_vld.shape[0]):
-        st1 = realX_vld[i,:,3]
-        st2 = fakeX_vld[i,:,3]
-        egpg_vld_3[i,0] = eg(st1,st2,dt=0.04,fmin=0.1,fmax=30.0,nf=100,w0=6,norm='global',st2_isref=True,a=10.,k=1.)
-        egpg_vld_3[i,1] = pg(st1,st2,dt=0.04,fmin=0.1,fmax=30.0,nf=100,w0=6,norm='global',st2_isref=True,a=10.,k=1.)
-
-    egpg_df_trn_0 = pd.DataFrame(egpg_trn_0,columns=['EG','PG'])
-    egpg_df_trn_0['kind']=r"$G_z(F_x(x)) \hspace{0.5} train$"
-
-    egpg_df_trn_1 = pd.DataFrame(egpg_trn_1,columns=['EG','PG'])
-    egpg_df_trn_1['kind']=r"$G_z(F_x(x)) \hspace{0.5} train$"
-
-    egpg_df_trn_2 = pd.DataFrame(egpg_trn_2,columns=['EG','PG'])
-    egpg_df_trn_2['kind']=r"$G_z(F_x(x)) \hspace{0.5} train$"
-
-    egpg_df_trn_3 = pd.DataFrame(egpg_trn_3,columns=['EG','PG'])
-    egpg_df_trn_3['kind']=r"$G_z(F_x(x)) \hspace{0.5} train$"
-
-    egpg_df_vld_0 = pd.DataFrame(egpg_vld_0,columns=['EG','PG'])
-    egpg_df_vld_0['kind']=r"$G_z(F_x(x)) \hspace{0.5} validation$"
-
-    egpg_df_vld_1 = pd.DataFrame(egpg_vld_1,columns=['EG','PG'])
-    egpg_df_vld_1['kind']=r"$G_z(F_x(x)) \hspace{0.5} validation$"
-
-    egpg_df_vld_2 = pd.DataFrame(egpg_vld_2,columns=['EG','PG'])
-    egpg_df_vld_2['kind']=r"$G_z(F_x(x)) \hspace{0.5} validation$"
-
-    egpg_df_vld_3 = pd.DataFrame(egpg_vld_3,columns=['EG','PG'])
-    egpg_df_vld_3['kind']=r"$G_z(F_x(x)) \hspace{0.5} validation$"
-
-    egpg_df = pd.concat([egpg_df_trn_0,egpg_df_trn_1,egpg_df_trn_2,egpg_df_trn_3,
-        egpg_df_vld_0,egpg_df_vld_1,egpg_df_vld_2,egpg_df_vld_3])
-
-    egpg_df.to_csv('/gpfs/workdir/invsem07/GiorgiaGAN/results/EG_PG_{:>s}.csv'.format(n), index= True)
-    PlotEGPGgrid('EG','PG','kind',n,df=egpg_df)
+    egpg_vld = {}
+    for j in range(realX_vld.shape[2]):
+        egpg_vld['egpg_vld_%d' % j] = np.zeros((realX_vld.shape[0],2),dtype=np.float32)
+        st1 = np.zeros((realX_vld.shape[0],realX_vld.shape[1]))
+        st2 = np.zeros((realX_vld.shape[0],realX_vld.shape[1]))
+        for k in range(realX_vld.shape[0]):
+            st1 = realX_vld[k,:,j]
+            st2 = fakeX_vld[k,:,j]
+            egpg_vld['egpg_vld_%d' % j][k,0] = eg(st1,st2,dt=0.04,fmin=0.1,fmax=30.0,nf=100,w0=6,norm='global',st2_isref=True,a=10.,k=1.)
+            egpg_vld['egpg_vld_%d' % j][k,1] = pg(st1,st2,dt=0.04,fmin=0.1,fmax=30.0,nf=100,w0=6,norm='global',st2_isref=True,a=10.,k=1.)
 
 
+    egpg_df_trn = {}
+    for j in range(realX_trn.shape[2]):
+        egpg_df_trn['egpg_df_trn_%d' % j] = pd.DataFrame(egpg_trn['egpg_trn_%d' % j],columns=['EG','PG'])
+        egpg_df_trn['egpg_df_trn_%d' % j]['kind']=r"$G_z(F_x(x)) \hspace{0.5} train$"
+
+    egpg_df_vld = {}
+    for j in range(realX_vld.shape[2]):
+        egpg_df_vld['egpg_df_vld_%d' % j] = pd.DataFrame(egpg_vld['egpg_vld_%d' % j],columns=['EG','PG'])
+        egpg_df_vld['egpg_df_vld_%d' % j]['kind']=r"$G_z(F_x(x)) \hspace{0.5} validation$"
+
+    egpg_data = []
+    for j in range(realX_trn.shape[2]):
+        egpg_data.append(egpg_df_trn['egpg_df_trn_%d' % j])
+    for j in range(realX_vld.shape[2]):
+        egpg_data.append(egpg_df_vld['egpg_df_vld_%d' % j])
+    egpg_df = pd.concat(egpg_data)
+
+    egpg_df.to_csv('/gpfs/workdir/invsem07/GiorgiaGAN/results/EG_PG_{:>d}.csv'.format(i), index= True)
+    PlotEGPGgrid('EG','PG','kind',i,df=egpg_df)
 
 def PlotClassificationMetrics(model,realXC):
     # Plot classification metrics
-    #realX, realC = realXC
-    realX = np.concatenate([x for x, c in realXC], axis=0)
-    realC = np.concatenate([c for x, c in realXC], axis=0)
-    #fakeX,fakeC,fakeS,fakeN = model.predict(realX)
-    fakeC, recC = model.classifier(realX,realC)
+    realX_s = np.concatenate([xs for xs, cs, ds, xt, dt in realXC], axis=0)
+    realC_s = np.concatenate([cs for xs, cs, ds, xt, dt in realXC], axis=0)
+    realD_s = np.concatenate([ds for xs, cs, ds, xt, dt in realXC], axis=0)
+
+    realX_t = np.concatenate([xt for xs, cs, ds, xt, dt in realXC], axis=0)
+    realD_t = np.concatenate([dt for xs, cs, ds, xt, dt in realXC], axis=0)
+
+    fakeC, recC = model.label_predictor(realX_s,realC_s)
 
     labels_fake = np.zeros((fakeC.shape[0]))
     for i in range(fakeC.shape[0]):
@@ -942,52 +614,43 @@ def PlotClassificationMetrics(model,realXC):
     for i in range(recC.shape[0]):
         labels_rec[i] = np.argmax(recC[i,:])
     
-    labels_real = np.zeros((realC.shape[0]))
-    for i in range(realC.shape[0]):
-        labels_real[i] = np.argmax(realC[i,:])
+    labels_real = np.zeros((realC_s.shape[0]))
+    for i in range(realC_s.shape[0]):
+        labels_real[i] = np.argmax(realC_s[i,:])
 
     labels_fake = labels_fake.astype(int)
     labels_rec = labels_rec.astype(int)
     labels_real = labels_real.astype(int)
 
-    target_names = ['undamaged', 'damage class 1', 'damage class 2'] 
+    target_names = []
+    for i in range(realC_s.shape[1]):
+        target_names.append('damage class %d'.format(i)) 
+
     fig, ax = plt.subplots()
     report = classification_report(y_true = labels_real, y_pred = labels_fake,
             target_names=target_names,output_dict=True,zero_division=1)
     df = pd.DataFrame(report).transpose()
     df.to_csv('/gpfs/workdir/invsem07/GiorgiaGAN/results/Classification Report C.csv', index= True)
     cr = sn.heatmap(pd.DataFrame(report).iloc[:-1, :].T, annot=True, vmin=0, vmax=1, annot_kws={"size": 12})
-    #cr.set_title(r"$Categorical \hspace{0.5} variables \hspace{0.5} C - Classification \hspace{0.5} report$", fontsize=14,fontweight='bold')
-    #cr.set_rasterized(True)
     cr.tick_params(axis='both', labelsize=12)
     cr.set_yticklabels(cr.get_yticklabels(), rotation=0)
-    plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/classification_report.png',bbox_inches = 'tight')
+    plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/classification_report_fakeC.png',bbox_inches = 'tight')
     #plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/classification_report.eps',bbox_inches = 'tight',dpi=200)
     plt.close()
 
-    #conf_mat = confusion_matrix(realC.argmax(axis=1), fakeC.argmax(axis=1))
     conf_mat = confusion_matrix(labels_real, labels_fake)
     fig, ax = plt.subplots(figsize=(10,10),tight_layout=True)
-    sn.heatmap(conf_mat, annot=True, fmt='d', xticklabels=target_names,yticklabels=target_names, vmin=0, vmax=realC.shape[0],
+    sn.heatmap(conf_mat, annot=True, fmt='d', xticklabels=target_names,yticklabels=target_names, vmin=0, vmax=realC_s.shape[0],
         annot_kws={"size": 20})
     cbar = ax.collections[0].colorbar
     cbar.ax.tick_params(labelsize=18)
     plt.tick_params(axis='both', labelsize=20)
     plt.ylabel("True class",fontsize=22,labelpad=10)
     plt.xlabel("Predicted class",fontsize=22,labelpad=10)
-    #plt.title("Categorical variables C - Confusion matrix", fontsize=22,fontweight='bold')
-    plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/confusion_matrixC.png',bbox_inches = 'tight')
+    plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/confusion_matrix_fakeC.png',bbox_inches = 'tight')
     #plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/confusion_matrixC.eps',bbox_inches = 'tight',dpi=200)
     plt.close()
 
-    # multi = multilabel_confusion_matrix(labels_real, labels_fake)
-    # fig, ax = plt.subplots(figsize=(10,10))
-    # sn.heatmap(conf_mat, annot=True, fmt='d', xticklabels=target_names,yticklabels=target_names)
-    # plt.ylabel('Actual')
-    # plt.xlabel('Predicted')
-    #plt.title('Categorical variables C - Confusion matrix')
-    # plt.savefig('multilabel_confusion_matrixC.png',bbox_inches = 'tight')
-    # plt.close()
 
     fig, ax = plt.subplots()
     report = classification_report(y_true = labels_real, y_pred = labels_rec,
@@ -995,224 +658,184 @@ def PlotClassificationMetrics(model,realXC):
     df = pd.DataFrame(report).transpose()
     df.to_csv('/gpfs/workdir/invsem07/GiorgiaGAN/results/Classification Report recC.csv', index= True)
     cr = sn.heatmap(pd.DataFrame(report).iloc[:-1, :].T, annot=True, vmin=0, vmax=1, annot_kws={"size": 12})
-    #cr.set_title(r"$Categorical \hspace{0.5} variables \hspace{0.5} C - Classification \hspace{0.5} report$", fontsize=14,fontweight='bold')
-    #cr.set_rasterized(True)
     cr.tick_params(axis='both', labelsize=12)
     cr.set_yticklabels(cr.get_yticklabels(), rotation=0)
-    #plt.setp(ax.get_yticklabels(), rotation=90, ha="right",otation_mode="anchor")
-    plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/classification_reportrec.png',bbox_inches = 'tight')
+    plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/classification_report_recC.png',bbox_inches = 'tight')
     #plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/classification_reportrec.eps',bbox_inches = 'tight',dpi=200)
     plt.close()
 
-    #conf_mat = confusion_matrix(realC.argmax(axis=1), fakeC.argmax(axis=1))
+    
     conf_mat = confusion_matrix(labels_real, labels_rec)
     fig, ax = plt.subplots(figsize=(10,10),tight_layout=True)
-    sn.heatmap(conf_mat, annot=True, fmt='d', xticklabels=target_names,yticklabels=target_names, vmin=0, vmax=realC.shape[0],
+    sn.heatmap(conf_mat, annot=True, fmt='d', xticklabels=target_names,yticklabels=target_names, vmin=0, vmax=realC_s.shape[0],
         annot_kws={"size": 20})
     cbar = ax.collections[0].colorbar
     cbar.ax.tick_params(labelsize=18)
     plt.tick_params(axis='both', labelsize=20)
     plt.ylabel("True class",fontsize=22,labelpad=10)
     plt.xlabel("Predicted class",fontsize=22,labelpad=10)
-    #plt.title("Categorical variables C - Confusion matrix", fontsize=22,fontweight='bold')
-    plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/confusion_matrixrecC.png',bbox_inches = 'tight')
+    plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/confusion_matrix_recC.png',bbox_inches = 'tight')
     #plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/confusion_matrixrecC.eps',bbox_inches = 'tight',dpi=200)
     plt.close()
 
     return
 
-def ViolinPlot(model,realXC):
-    realX = np.concatenate([x for x, c in realXC], axis=0)
-    realC = np.concatenate([c for x, c in realXC], axis=0)
-    fakeX,fakeC,_,_ = model.predict(realX)
+def PlotPredictor(model,realXC):
+    realX_s = np.concatenate([xs for xs, cs, ds, xt, dt in realXC], axis=0)
+    realC_s = np.concatenate([cs for xs, cs, ds, xt, dt in realXC], axis=0)
+    realD_s = np.concatenate([ds for xs, cs, ds, xt, dt in realXC], axis=0)
 
-    labels_fake = np.zeros((fakeC.shape[0]))
-    for i in range(fakeC.shape[0]):
-        labels_fake[i] = np.argmax(fakeC[i,:])
+    realX_t = np.concatenate([xt for xs, cs, ds, xt, dt in realXC], axis=0)
+    realD_t = np.concatenate([dt for xs, cs, ds, xt, dt in realXC], axis=0)
 
-    labels_real = np.zeros((realC.shape[0]))
-    for i in range(realC.shape[0]):
-        labels_real[i] = np.argmax(realC[i,:])
+    realX = np.concatenate((realX_s,realX_t))
+    realD = np.concatenate((realD_s,realD_t))
+    predD = model.domain_classifier(realX)
 
-    d = {'realC': labels_real, 'fakeC': labels_fake}
-    df = pd.DataFrame(data=d)
-    df.to_csv('/gpfs/workdir/invsem07/GiorgiaGAN/results/Violin plot.csv', index= True)
+    labels_pred = np.zeros((predD.shape[0]))
+    for i in range(predD.shape[0]):
+        labels_pred[i] = np.argmax(predD[i,:])
 
-    fig = go.Figure()
+    labels_real = np.zeros((realD.shape[0]))
+    for i in range(realD.shape[0]):
+        labels_real[i] = np.argmax(realD[i,:])
 
-    categorical = ['realC', 'fakeC']
+    labels_pred = labels_pred.astype(int)
+    labels_real = labels_real.astype(int)
 
-    
-    fig.add_trace(go.Violin(y=df['realC'],line_color='blue',legendgroup=r'$C$',
-            name=r'$C$',box_visible=True,meanline_visible=True,points='all'))
-    fig.add_trace(go.Violin(y=df['fakeC'],line_color='orange',legendgroup=r'$F_x(x)$',
-            name=r'$F_x(x)$',box_visible=True,meanline_visible=True,points='all'))
-    fig.update_yaxes(title_text="Classes")
-    fig.update_layout(title_text="Categorical variables C - Violin plot")
-    fig.write_image('/gpfs/workdir/invsem07/GiorgiaGAN/results/violinC.png')
-    #fig.write_image("violinC",format='eps',width=700*200,height=500*200)
-    
+    target_names = ['source', 'target'] 
+
+    fig, ax = plt.subplots()
+    report = classification_report(y_true = labels_real, y_pred = labels_pred,
+            target_names=target_names,output_dict=True,zero_division=1)
+    df = pd.DataFrame(report).transpose()
+    df.to_csv('/gpfs/workdir/invsem07/GiorgiaGAN/results/Classification Report D.csv', index= True)
+    cr = sn.heatmap(pd.DataFrame(report).iloc[:-1, :].T, annot=True, vmin=0, vmax=1, annot_kws={"size": 12})
+    cr.tick_params(axis='both', labelsize=12)
+    cr.set_yticklabels(cr.get_yticklabels(), rotation=0)
+    plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/classification_report_domain.png',bbox_inches = 'tight')
+    #plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/classification_domain.eps',bbox_inches = 'tight',dpi=200)
+    plt.close()
+
+    conf_mat = confusion_matrix(labels_real, labels_pred)
+    fig, ax = plt.subplots(figsize=(10,10),tight_layout=True)
+    sn.heatmap(conf_mat, annot=True, fmt='d', xticklabels=target_names,yticklabels=target_names, vmin=0, vmax=realD.shape[0],
+        annot_kws={"size": 20})
+    cbar = ax.collections[0].colorbar
+    cbar.ax.tick_params(labelsize=18)
+    plt.tick_params(axis='both', labelsize=20)
+    plt.ylabel("True class",fontsize=22,labelpad=10)
+    plt.xlabel("Predicted class",fontsize=22,labelpad=10)
+    plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/confusion_matrix_domain.png',bbox_inches = 'tight')
+    #plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/confusion_matrix_domain.eps',bbox_inches = 'tight',dpi=200)
+    plt.close()
+
     return
 
-def PlotPSD(realXC_u,realXC_d):
-    realX_u = np.concatenate([x for x, c in realXC_u], axis=0)
-    realC_u = np.concatenate([c for x, c in realXC_u], axis=0)
-    realX_d = np.concatenate([x for x, c in realXC_d], axis=0)
-    realC_d = np.concatenate([c for x, c in realXC_d], axis=0)
-    freqs, psd = signal.welch(realX_u[0,:,0])
-    plt.figure(figsize=(12, 6),tight_layout=True)
-    plt.semilogx(freqs, psd)
-    plt.title(r"$Power \hspace{0.5} Spectral \hspace{0.5} Density - Undamaged \hspace{0.5} signals$", fontsize=22,fontweight='bold')
-    plt.xlabel(r"$Frequency \hspace{0.5} [Hz]$", fontsize=20,fontweight='bold')
-    plt.ylabel(r"$Power \hspace{0.5} [dB/Hz]$", fontsize=20,fontweight='bold')
-    plt.tick_params(axis='both', labelsize=14)
-    plt.legend(frameon=False)
-    plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/psd_undamaged.png',bbox_inches = 'tight')
-    #plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/psd_undamaged.eps',bbox_inches = 'tight',dpi=200)
-    plt.close()
+def PlotGeneration(model, realX, realC, nBatch, nSample, Cvalue, Svalue, Sdim, Nvalue, Ndim, s_change, n_change, c_change,
+                       cm_change,batchSize):
+        
+        
+        recX,fakeC,fakeS,fakeN = model.predict(realX)
 
-    freqs, psd = signal.welch(realX_d[0,:,0])
-    plt.figure(figsize=(12, 6),tight_layout=True)
-    plt.semilogx(freqs, psd)
-    plt.title(r"$Power \hspace{0.5} Spectral \hspace{0.5} Density - Damaged \hspace{0.5} signals$", fontsize=22,fontweight='bold')
-    plt.xlabel(r"$Frequency \hspace{0.5} [Hz]$", fontsize=20,fontweight='bold')
-    plt.ylabel(r"$Power \hspace{0.5} [dB/Hz]$", fontsize=20,fontweight='bold')
-    plt.tick_params(axis='both', labelsize=14)
-    plt.legend(frameon=False)
-    plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/psd_damaged.png',bbox_inches = 'tight')
-    #plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/psd_damaged.eps',bbox_inches = 'tight',dpi=200)
-    plt.close()
-
-def SwarmPlot(model,realXC):
-    realX = np.concatenate([x for x, c in realXC], axis=0)
-    realC = np.concatenate([c for x, c in realXC], axis=0)
-    fakeX,fakeC,_,_ = model.predict(realX)
-
-    labels_fake = np.zeros((fakeC.shape[0]))
-    for i in range(fakeC.shape[0]):
-        labels_fake[i] = np.argmax(fakeC[i,:])
-
-    labels_real = np.zeros((realC.shape[0]))
-    for i in range(realC.shape[0]):
-        labels_real[i] = np.argmax(realC[i,:])
-
-    d = {r'$C$': labels_real, r'$F_x(x)$': labels_fake}
-    df = pd.DataFrame(data=d)
-
-    plt.figure(figsize=(12,6))
-    ax = sn.swarmplot(data=df, dodge=True, palette='rocket')
-    ax.legend([r'$C$', r'$F_x(x)$'], loc='best',frameon=False,fontsize=14)
-    ax.set_ylabel(r'$Classes$', fontsize=20,fontweight='bold')
-    ax.set_yticks([0,1])
-    ax.set_yticklabels(['undamaged', 'damaged'],fontsize=20,rotation=45)
-    ax.set_xticklabels([r'$C$', r'$F_x(x)$'],fontsize=20)
-    #plt.title(r"$Categorical \hspace{0.5} variables \hspace{0.5} C - Swarm \hspace{0.5} Plot$",fontsize=16)
-    plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/swarm_plot_c.png',bbox_inches = 'tight')
-    plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/swarm_plot_c.eps',bbox_inches = 'tight',dpi=200)
-    plt.close()
-
-class RepGAN_fwd_plot():
-    def __init__(self, Xset, model):
-        super().__init__()
-        self.Xset_ref = Xset
-        self.Xset = Xset.shuffle(model.nX, reshuffle_each_iteration=False).batch(model.batchSize)
-        self.model = model
-
-    # def on_epoch_end(self, epoch, logs={}): 
-    # def on_batch_begin(self, epoch, logs={}): 
-
-    def PlotGeneration(self, nBatch, nSample, Cvalue, Svalue, Sdim, Nvalue, Ndim, s_change, n_change, c_change,
-                       cm_change):
-        Xset_np = list(self.Xset_ref)  # sorted dataset on np format (all samples)
-
-        iterator = iter(self.Xset)  # restart data iter
-        data = iterator.get_next()
-
-        for b in range(nBatch):
-            data = iterator.get_next()
-        realX, realC, idx = data
-
-        # Filter
-        # Fx output: Zmu, Zsigma, s, c, n
-        _, _, recS, recC, recN = self.model.Q(realX, training=False)
-        # import pdb
-        # pdb.set_trace()
-        # Z Tensor: s,n,c
         s_list = []
-        for s_i in range(self.model.latentSdim):
+        for s_i in range(latentSdim):
             if s_i == Sdim and s_change:
                 s_list.append(tf.fill(realX.shape[0], float(Svalue)))
                 print("hi")
             else:
                 s_list.append(tf.fill(realX.shape[0], 0.0))  # recS[nSample][s_i].numpy()))
-        # import pdb
-        # pdb.set_trace()
+        
+
         s_tensor = tf.stack(s_list, axis=1)
 
         if n_change:
             n_list = []
-            for n_i in range(self.model.latentNdim):
+            for n_i in range(latentNdim):
                 if n_i == Ndim:
                     n_list.append(tf.fill(realX.shape[0], float(Nvalue)))
                 else:
-                    n_list.append(tf.fill(realX.shape[0], recN[nSample][n_i].numpy()))
+                    n_list.append(tf.fill(realX.shape[0], fakeN[nSample][n_i].numpy()))
             n_tensor = tf.stack(n_list, axis=1)
         else:
-            n_tensor = recN
+            n_tensor = fakeN
 
         if c_change:
             classes = tf.fill(realX.shape[0], Cvalue)
-            c_tensor = tf.one_hot(classes, self.model.latentCdim)
+            c_tensor = tf.one_hot(classes, latentCdim)
         else:
             c_tensor = realC
 
-        recX = self.model.Gz((realX, s_tensor, c_tensor, n_tensor), training=False)
-
+        
         # Reference signal plot per batch
-        # recover genetation id
-        id_sample = idx[nSample].numpy()
+
         if c_change: #find reference siganl of requested class
             class_sample = Cvalue
         else: #used reference siganl of original class
             class_sample = tf.argmax(realC[nSample]).numpy()
-        # get reference signal by position on Xset_np
-        refX = Xset_np[id_sample + (len(Xset_np) // 2) * class_sample][0].numpy().squeeze()
 
-        genX_sample = recX[nSample, :, 0].numpy()
 
-        # fig, axs = plt.subplots()
-
-        # import pdb
-        # pdb.set_trace()
-
-        fig = plot_tf_gofs(refX, genX_sample, dt=0.0146e-6, t0=0.0, fmin=0.1, fmax=1e8, show=False)
+        fig = plot_tf_gofs(realX[nSample, :, 0],recX[nSample, :, 0],dt=0.04,fmin=0.1,fmax=30.0,t0=0.0,nf=100,w0=6,norm='global',st2_isref=True,
+            a=10.,k=1.,left=0.1,bottom=0.125, h_1=0.2,h_2=0.125,h_3=0.2,w_1=0.2,w_2=0.6,w_cb=0.01, d_cb=0.0,show=False,
+            plot_args=['k', 'r', 'b'],ylim=0., clim=0.)
         plt.text(0.2, 12, 'original class:' + str(tf.argmax(realC[nSample]).numpy()))
         plt.text(0.2, 1, 'generated class:' + str(Cvalue))
-        # plt.savefig('generated/c_{}-idx_{}-s_{}_{}-{}-ep_{}'.format(class_sample, id_sample,
-        #                                                             str(s_i).replace('.', ''),
-        #                                                             str(s_j).replace('.', ''),
-        #                                                             cnt, epoch))
-        # plt.close()
+        
 
-        # CONFUSION MATRIX PLOT Filter for batch
-        labelC = tf.argmax(realC, axis=1)
+        z = Label(text='s{} = {:.4f}; c = {}, n{} = {:.2f}'.format(Sdim, 0.0, class_sample, Ndim, fakeN[Ndim][Ndim]))
+        return fig, z.text
 
-        if not cm_change:
-            predictC = tf.argmax(recC, axis=1)
-            title = "Confusion matrix F(x)"
-            # predictC_ = tf.argmax(c_, axis=1)
-            # import pdb
-            # pdb.set_trace()
-            # cm_ = tf.math.confusion_matrix(labelC, predictC, num_classes=2)
-            # fig_cm, axs = plt.subplots()
-        else:
-            _, _, _, c_, _ = self.model.Fx(recX, training=False)
-            predictC = tf.argmax(c_, axis=1)
-            title = "Confusion matrix F(G(s,c,n))"
+# def PlotBokeh(model,realXC,**kwargs):
+#     PlotBokeh.__globals__.update(kwargs)
+
+#     realX_s = np.concatenate([xs for xs, cs, ds, xt, dt in realXC], axis=0)
+#     realC_s = np.concatenate([cs for xs, cs, ds, xt, dt in realXC], axis=0)
+#     realD_s = np.concatenate([ds for xs, cs, ds, xt, dt in realXC], axis=0)
+
+#     realX_t = np.concatenate([xt for xs, cs, ds, xt, dt in realXC], axis=0)
+#     realD_t = np.concatenate([dt for xs, cs, ds, xt, dt in realXC], axis=0)
+
+#     realX = np.concatenate((realX_s,realX_t))
+#     realD = np.concatenate((realD_s,realD_t))
+
+#     batch_select = pn.widgets.IntSlider(value=0, start=0, end=(len(realX_s)//batchSize - 1),
+#                                             name='Batch index')
+#     ex_select = pn.widgets.IntSlider(value=0, start=0, end=(batchSize - 1), name='Example index on batch')
+#     # select_plot = pn.widgets.Select(name='Select dataset', options=['Reconstruct', 'Generate'])
+#     s_dim_select = pn.widgets.IntSlider(value=0, start=0, end=latentSdim - 1, step=1, name='Sdim to modify')
+#     n_dim_select = pn.widgets.IntSlider(value=0, start=0, end=latentNdim - 1, step=1, name='Ndim to modify')
+#     c_select = pn.widgets.IntSlider(value=0, start=0, end=latentCdim - 1, step=1, name='Class to generate')
+#     s_val_select = pn.widgets.FloatSlider(value=0.0, start=-3.0, end=3.0, step=0.01, name='S value')
+#     n_val_select = pn.widgets.FloatSlider(value=0.0, start=-3.0, end=3.0, step=0.01, name='N value')
+#     s_change = pn.widgets.Checkbox(name='Change S')
+#     n_change = pn.widgets.Checkbox(name='Change N')
+#     c_change = pn.widgets.Checkbox(name='Change C')
+#     cm_change = pn.widgets.Checkbox(name=r"$F_x(G_z(z))$")
 
 
-        cm = tf.math.confusion_matrix(labelC, predictC, num_classes=self.model.latentCdim)
-        fig_cm = plot_confusion_matrix(cm.numpy(), class_names=['TT', 'ALL'], title=title)
 
-        z = Label(text='s{} = {:.4f}; c = {}, n{} = {:.2f}'.format(Sdim, 0.0, class_sample, Ndim, recN[Ndim][Ndim]))
-        return fig, fig_cm, z.text 
+#     @pn.depends(batch_select=batch_select, ex_select=ex_select,
+#                 s_dim_select=s_dim_select, n_dim_select=n_dim_select, c_select=c_select,
+#                 s_val_select=s_val_select, n_val_select=n_val_select,
+#                 s_change=s_change, n_change=n_change, c_change=c_change, cm_change_val=cm_change)
+#     def image(batch_select, ex_select,
+#               s_dim_select, n_dim_select, c_select,
+#               s_val_select, n_val_select, s_change, n_change, c_change, cm_change_val):
+#         print(s_val_select,s_dim_select,n_change)
+#         fig1, z = PlotGeneration(model,realX_s,realC_s,batch_select, ex_select, c_select,
+#                                                s_val_select, s_dim_select,
+#                                                n_val_select, n_dim_select, s_change,
+#                                                n_change, c_change, cm_change_val,batchSize)
+#         fig1.set_size_inches(8, 5)
+#         figArray = pn.Column(pn.Row(fig1, pn.Column(cm_change)), z)
+
+#         return figArray
+    
+#     pn.panel(pn.Column(pn.Row(pn.Column(batch_select,
+#                                         ex_select,
+#                                         s_dim_select,
+#                                         n_dim_select),
+#                               pn.Column(pn.Row(c_select, c_change),
+#                                         pn.Row(s_val_select, s_change),
+#                                         pn.Row(n_val_select, n_change))),
+#                        image)).servable(title='Plot RepGAN')
