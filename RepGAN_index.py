@@ -17,6 +17,7 @@ import argparse
 import math as mt
 
 import tensorflow as tf
+import tensorflow_addons as tfa
 gpu = tf.config.experimental.list_physical_devices('GPU')
 tf.config.experimental.set_memory_growth(gpu[0], True)
 
@@ -39,7 +40,7 @@ import kerastuner as kt
 from kerastuner.tuners import RandomSearch
 from kerastuner import HyperModel
 from numpy.linalg import norm
-import MDOFload as mdof
+import MDOFload_skip as mdof
 import matplotlib.pyplot as plt
 import h5py
 from sklearn.model_selection import GridSearchCV
@@ -49,7 +50,7 @@ tfd = tfp.distributions
 
 from tensorflow.python.util.tf_export import tf_export
 from copy import deepcopy
-from plot_tools_ultimo import *
+from plot_tools_skip import *
 import subprocess
 
 #from tensorflow.python.framework import ops
@@ -89,7 +90,7 @@ RecGlossS_tracker = keras.metrics.Mean(name="loss")
 #gpu_devices = tf.config.experimental.list_physical_devices('GPU')
 
 
-checkpoint_dir = "/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_ultimo/14_04"
+checkpoint_dir = "/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_skip/28_04"
 if not os.path.exists(checkpoint_dir):
     os.makedirs(checkpoint_dir)
 
@@ -119,7 +120,8 @@ def ParseOptions():
     parser.add_argument("--branching",type=str,default='conv',help='conv or dens')
     parser.add_argument("--latentSdim",type=int,default=2,help="Latent space s dimension")
     parser.add_argument("--latentCdim",type=int,default=2,help="Number of classes")
-    parser.add_argument("--latentNdim",type=int,default=2,help="Latent space n dimension")
+    parser.add_argument("--latentNdim",type=int,default=20,help="Latent space n dimension")
+    parser.add_argument("--signal",type=int,default=2,help="Types of signals")
     parser.add_argument("--nSlayers",type=int,default=3,help='Number of S-branch CNN layers')
     parser.add_argument("--nClayers",type=int,default=3,help='Number of C-branch CNN layers')
     parser.add_argument("--nNlayers",type=int,default=3,help='Number of N-branch CNN layers')
@@ -133,8 +135,10 @@ def ParseOptions():
     parser.add_argument("--nCritic",type=int,default=1,help='number of discriminator training steps')
     parser.add_argument("--nGenerator",type=int,default=5,help='number of generator training steps')
     parser.add_argument("--clipValue",type=float,default=0.01,help='clip weight for WGAN')
-    parser.add_argument("--dataroot", nargs="+", default=["/gpfs/workdir/invsem07/GiorgiaGAN/PortiqueElasPlas_N_2000",
-                        "/gpfs/workdir/invsem07/GiorgiaGAN/PortiqueElasPlas_E_2000"],help="Data root folder") 
+    parser.add_argument("--dataroot", nargs="+", default=["/gpfs/workdir/invsem07/GiorgiaGAN/PortiqueElasPlas_N_2000_index",
+                        "/gpfs/workdir/invsem07/GiorgiaGAN/PortiqueElasPlas_E_2000_index"],help="Data root folder") 
+    parser.add_argument("--dataroot_index", nargs="+", default=["/gpfs/workdir/invsem07/GiorgiaGAN/NDOF_code/PortiqueElasPlas_N_2000_index",
+                        "/gpfs/workdir/invsem07/GiorgiaGAN/NDOF_code/PortiqueElasPlas_E_2000_index"],help="Data root folder") 
     # parser.add_argument("--dataroot", nargs="+", default=["/gpfs/workdir/invsem07/stead_1_9U","/gpfs/workdir/invsem07/stead_1_9D",
     #                     "/gpfs/workdir/invsem07/stead_1_10D"],help="Data root folder") 
     parser.add_argument("--idChannels",type=int,nargs='+',default=[1,2,3,4],help="Channel 1")
@@ -196,8 +200,9 @@ class SamplingFxNormSfromSigma(Layer):
         # z_mean, z_log_var = inputs
         batch = tf.shape(z_mean)[0]
         dim = tf.shape(z_mean)[1]
-        # epsilon = tf.keras.backend.random_normal(shape=(batch, dim))
+        #epsilon = tf.keras.backend.random_normal(shape=(batch, dim))
         z = z_mean + tf.multiply(z_std,tf.random.normal([1]))
+        #z = z_mean + z_std * epsilon
         return z
 
 # clip model weights to a given hypercube
@@ -283,8 +288,8 @@ class RepGAN(Model):
             Build Fx/Gz (generators)
         """
 
-        self.Fx, self.h1, self.h0 = self.BuildFx() 
-        self.Q, self.h2, self.h3 = self.BuildQ() 
+        self.Fx = self.BuildFx()
+        self.Q = self.BuildQ()
         self.Gz = self.BuildGz()
         self.Gq = self.BuildGq()
 
@@ -408,7 +413,7 @@ class RepGAN(Model):
             with tf.GradientTape(persistent=True) as tape:
 
                 # Generate fake signals from real latent code
-                fakeX = self.Gq((realX,realS,realC,realN),training=True) # fake X = Gz(Fx(X))
+                fakeX = self.Gq((realS,realC,realN),training=True) # fake X = Gz(Fx(X))
                 [_,_,fakeS,fakeC,fakeN] = self.Fx(realX,training=True)
 
                 # Discriminator determines validity of the real and fake X
@@ -469,10 +474,10 @@ class RepGAN(Model):
 
                 # Generate fake latent code from real signal
                 [Fakemu,Fakesigma,fakeS,fakeC,fakeN] = self.Fx(realX,training=True)
-                fakeX = self.Gq((realX,realS,realC,realN),training=True) # fake X = Gz(Fx(X))
+                fakeX = self.Gq((realS,realC,realN),training=True) # fake X = Gz(Fx(X))
                 [Recmu,Recsigma,recS,recC,_] = self.Q(fakeX,training=True)
 
-                recX = self.Gz((realX,fakeS,fakeC,fakeN),training=True)
+                recX = self.Gz((fakeS,fakeC,fakeN),training=True)
 
                 fakeScritic = self.Ds(fakeS,training=True)
                 fakeCcritic = self.Dc(fakeC,training=True)
@@ -532,51 +537,37 @@ class RepGAN(Model):
 
     def call(self, X):
         [_,_,fakeS,fakeC,fakeN] = self.Fx(X)
-        recX = self.Gz((X,fakeS,fakeC,fakeN))
+        recX = self.Gz((fakeS,fakeC,fakeN))
         return recX, fakeC, fakeS, fakeN
 
     def plot(self,realX,realC):
         [_,_,fakeS,fakeC,fakeN] = self.Fx(realX,training=False)
         realS = tf.random.normal(mean=0.0,stddev=1.0,shape=[realX.shape[0],self.latentSdim])
         realN = tf.random.normal(mean=0.0,stddev=1.0,shape=[realX.shape[0],self.latentNdim])
-        fakeX = self.Gq((realX,realS,realC,realN),training=False)
-        recX = self.Gz((realX,fakeS,fakeC,fakeN),training=False)
+        fakeX = self.Gq((realS,realC,realN),training=False)
+        recX = self.Gz((fakeS,fakeC,fakeN),training=False)
         return recX, fakeC, fakeS, fakeN, fakeX
+    
+    def distribution(self,realX,realC):
+        [_,_,fakeS,fakeC,fakeN] = self.Fx(realX,training=False)
+        realS = tf.random.normal(mean=0.0,stddev=1.0,shape=[realX.shape[0],self.latentSdim])
+        realN = tf.random.normal(mean=0.0,stddev=1.0,shape=[realX.shape[0],self.latentNdim])
+        fakeX = self.Gq((realS,realC,realN),training=False)
+        [_,_,recS,recC,recN] = self.Q(fakeX,training=False)
+        return realS, realN, fakeS, fakeN, recS, recN
 
     def label_predictor(self, X, realC):
         [_,_,fakeS,fakeC,fakeN] = self.Fx(X)
 
         realS = tf.random.normal(mean=0.0,stddev=1.0,shape=[fakeS.shape[0],self.latentSdim])
         realN = tf.random.normal(mean=0.0,stddev=1.0,shape=[fakeN.shape[0],self.latentNdim])
-        fakeX = self.Gq((X,realS,realC,realN),training=False)
+        fakeX = self.Gq((realS,realC,realN),training=False)
         [_,_,_,recC,_] = self.Q(fakeX,training=False)
         return fakeC, recC
-    
-    def distribution(self,realX,realC):
-        [_,_,fakeS,fakeC,fakeN] = self.Fx(realX,training=False)
-        realS = tf.random.normal(mean=0.0,stddev=1.0,shape=[realX.shape[0],self.latentSdim])
-        realN = tf.random.normal(mean=0.0,stddev=1.0,shape=[realX.shape[0],self.latentNdim])
-        fakeX = self.Gq((realX,realS,realC,realN),training=False)
-        [_,_,recS,recC,recN] = self.Q(fakeX,training=False)
-        return realS, realN, fakeS, fakeN, recS, recN
-
-    def cycling(self,realX,realC):
-        realS = tf.random.normal(mean=0.0,stddev=1.0,shape=[realX.shape[0],self.latentSdim])
-        realN = tf.random.normal(mean=0.0,stddev=1.0,shape=[realX.shape[0],self.latentNdim])
-        fakeX = self.Gq((realX,realS,realC,realN),training=False)
-        [_,_,recS,recC,recN] = self.Q(fakeX,training=True)
-
-        return realS,realN,recS,recC,recN
 
     def generate(self, X, fakeC_new):
         [_,_,fakeS,fakeC,fakeN] = self.Fx(X)
-        recX_new = self.Gz((X,fakeS,fakeC_new,fakeN),training=False)
-        return recX_new
-
-    def switchN(self, realX_u, realX_d):
-        [_,_,fakeS_u,fakeC_u,fakeN_u] = self.Fx(realX_u)
-        [_,_,fakeS_d,fakeC_d,fakeN_d] = self.Fx(realX_d)
-        recX_new = self.Gz((realX_d,fakeS_u,fakeC_d,fakeN_u),training=False)
+        recX_new = self.Gz((fakeS,fakeC_new,fakeN),training=False)
         return recX_new
 
     def BuildFx(self):
@@ -593,7 +584,6 @@ class RepGAN(Model):
         h = Conv1D(self.nZfirst, 
                 self.kernel,1,padding="same",
                 data_format="channels_last",name="FxCNN0")(X)
-        h0 = keras.Model(X,h)
         h = LeakyReLU(alpha=0.1,name="FxA0")(h)
         h = BatchNormalization(momentum=0.95)(h)
         h = Dropout(0.2,name="FxDO0")(h)
@@ -612,7 +602,6 @@ class RepGAN(Model):
         h = Conv1D(self.nZchannels,
             self.kernel,1,padding="same",
             data_format="channels_last",name="FxCNN{:>d}".format(layer+1))(h)
-        h1 = keras.Model(X,h)
         h = LeakyReLU(alpha=0.1,name="FxA{:>d}".format(layer+1))(h)
         h = BatchNormalization(momentum=0.95,name="FxBN{:>d}".format(layer+1))(h)
         z = Dropout(0.2,name="FxDO{:>d}".format(layer+1))(h)
@@ -740,14 +729,14 @@ class RepGAN(Model):
         s = SamplingFxNormSfromSigma()([Zmu,Zsigma])
 
         # variable c
-        c = Dense(self.latentCdim,activation=tf.keras.activations.softmax)(Zc)
+        c = Dense(self.latentCdim,activation=tf.keras.activations.relu)(Zc)
 
         # variable n
         n = BatchNormalization(momentum=0.95)(Zn)
 
         Fx = keras.Model(X,[Zmu,Zsigma,s,c,n],name="Fx")
 
-        return Fx,h1,h0
+        return Fx
 
     def BuildQ(self):
         """
@@ -763,7 +752,6 @@ class RepGAN(Model):
         h = Conv1D(self.nZfirst, 
                 self.kernel,1,padding="same",
                 data_format="channels_last",name="FxCNN0")(X)
-        h2 = keras.Model(X,h)
         h = LeakyReLU(alpha=0.1,name="FxA0")(h)
         h = BatchNormalization(momentum=0.95)(h)
         h = Dropout(0.2,name="FxDO0")(h)
@@ -782,7 +770,6 @@ class RepGAN(Model):
         h = Conv1D(self.nZchannels,
             self.kernel,1,padding="same",
             data_format="channels_last",name="FxCNN{:>d}".format(layer+1))(h)
-        h3 = keras.Model(X,h)
         h = LeakyReLU(alpha=0.1,name="FxA{:>d}".format(layer+1))(h)
         h = BatchNormalization(momentum=0.95,name="FxBN{:>d}".format(layer+1))(h)
         z = Dropout(0.2,name="FxDO{:>d}".format(layer+1))(h)
@@ -910,14 +897,14 @@ class RepGAN(Model):
         s = SamplingFxNormSfromSigma()([Zmu,Zsigma])
 
         # variable c
-        c = Dense(self.latentCdim,activation=tf.keras.activations.softmax)(Zc)
+        c = Dense(self.latentCdim,activation=tf.keras.activations.relu)(Zc)
 
         # variable n
         n = BatchNormalization(momentum=0.95)(Zn)
 
         Q = keras.Model(X,[Zmu,Zsigma,s,c,n],name="Q")
 
-        return Q,h2,h3
+        return Q
 
     def BuildGz(self):
         """
@@ -925,7 +912,7 @@ class RepGAN(Model):
             https://www.pyimagesearch.com/2019/02/04/keras-multiple-inputs-and-mixed-data/
 
         """
-        Xin = Input(shape=self.Xshape,name="Xin")
+        
         s = Input(shape=(self.latentSdim,),name="s")
         c = Input(shape=(self.latentCdim,),name="c")
         n = Input(shape=(self.latentNdim,),name="n")
@@ -960,12 +947,14 @@ class RepGAN(Model):
             Zs = Reshape((self.Ssize,self.nSchannels))(Zs)
 
             for layer in range(1,self.nSlayers):
+                Zs = Concatenate()([Zs,s])
                 Zs = Conv1DTranspose(int(self.nSchannels*self.Sstride**(-layer)),
                     self.Skernel,self.Sstride,padding="same",
                     data_format="channels_last")(Zs)
                 Zs = LeakyReLU(alpha=0.1)(Zs)
                 Zs = BatchNormalization(momentum=0.95)(Zs)
                 Zs = Dropout(0.2,name="GzDOS{:>d}".format(layer))(Zs)
+            Zs = Concatenate()([Zs,s])
             Zs = Conv1DTranspose(int(self.nSchannels*self.Sstride**(-self.nSlayers)),
                 self.Skernel,self.Sstride,padding="same",
                 data_format="channels_last")(Zs)
@@ -981,12 +970,14 @@ class RepGAN(Model):
             Zc = BatchNormalization(momentum=0.95)(Zc)
             Zc = Reshape((self.Csize,self.nCchannels))(Zc)
             for layer in range(1,self.nClayers):
+                Zc = Concatenate()([Zc,c])
                 Zc = Conv1DTranspose(int(self.nCchannels*self.Cstride**(-layer)),
                     self.Ckernel,self.Cstride,padding="same",
                     data_format="channels_last")(Zc)
                 Zc = LeakyReLU(alpha=0.1)(Zc)
                 Zc = BatchNormalization(momentum=0.95)(Zc)
                 Zc = Dropout(0.2)(Zc)
+            Zc = Concatenate()([Zc,c])
             Zc = Conv1DTranspose(int(self.nCchannels*self.Cstride**(-self.nClayers)),
                 self.Ckernel,self.Cstride,padding="same",
                 data_format="channels_last")(Zc)
@@ -1001,12 +992,14 @@ class RepGAN(Model):
             Zn = BatchNormalization(momentum=0.95)(Zn)
             Zn = Reshape((self.Nsize,self.nNchannels))(Zn)
             for layer in range(1,self.nNlayers):
+                Zn = Concatenate()([Zn,n])
                 Zn = Conv1DTranspose(int(self.nNchannels*self.Nstride**(-layer)),
                     self.Nkernel,self.Nstride,padding="same",
                     data_format="channels_last")(Zn)
                 Zn = LeakyReLU(alpha=0.1)(Zn)
                 Zn = BatchNormalization(momentum=0.95)(Zn)
                 Zn = Dropout(0.2)(Zn)
+            Zn = Concatenate()([Zn,n])
             Zn = Conv1DTranspose(int(self.nNchannels*self.Nstride**(-self.nNlayers)),
                 self.Nkernel,self.Nstride,padding="same",
                 data_format="channels_last")(Zn)
@@ -1015,34 +1008,33 @@ class RepGAN(Model):
             Zn = Dropout(0.2)(Zn)
             GzN = keras.Model(n,Zn)
 
-            Gz = concatenate([GzS.output,GzC.output,GzN.output])
+            Gz = concatenate([GzS.output,GzC.output,GzN.output,s,c,n])
             Gz = Conv1DTranspose(self.nZchannels,
                     self.kernel,1,padding="same",
                     data_format="channels_last")(Gz)
-            Gz1 = self.h1(Xin)
-            Gz = Add()([Gz1, Gz])
             Gz = LeakyReLU(alpha=0.1)(Gz)
             Gz = BatchNormalization(axis=-1,momentum=0.95)(Gz)
 
         for layer in range(self.nAElayers-1):
+            Gz = Concatenate()([Gz,s,c,n])
             Gz = Conv1DTranspose(self.nZchannels//self.stride**(layer+1),
                 self.kernel,self.stride,padding="same",use_bias=False)(Gz)
             Gz = LeakyReLU(alpha=0.1)(Gz)
             Gz = BatchNormalization(axis=-1,momentum=0.95)(Gz)
 
         layer = self.nAElayers-1
+        Gz = Concatenate()([Gz,s,c,n])
         Gz = Conv1DTranspose(self.nZchannels//self.stride**(layer+1),
                 self.kernel,self.stride,padding="same",use_bias=False)(Gz)
-        Gz0 = self.h0(Xin)
-        Gz = Add()([Gz0, Gz])
         Gz = LeakyReLU(alpha=0.1,name="GzA{:>d}".format(layer+1))(Gz)
         Gz = BatchNormalization(axis=-1,momentum=0.95)(Gz)
 
         layer = self.nAElayers
+        Gz = Concatenate()([Gz,s,c,n])
         X = Conv1DTranspose(self.nXchannels,self.kernel,1,
             padding="same",activation='tanh',use_bias=False)(Gz)
 
-        Gz = keras.Model(inputs=[Xin,GzS.input,GzC.input,GzN.input],outputs=X,name="Gz")
+        Gz = keras.Model(inputs=[GzS.input,GzC.input,GzN.input,s,c,n],outputs=X,name="Gz")
         return Gz
 
     def BuildGq(self):
@@ -1051,7 +1043,7 @@ class RepGAN(Model):
             https://www.pyimagesearch.com/2019/02/04/keras-multiple-inputs-and-mixed-data/
 
         """
-        Xin = Input(shape=self.Xshape,name="Xin")
+        
         s = Input(shape=(self.latentSdim,),name="s")
         c = Input(shape=(self.latentCdim,),name="c")
         n = Input(shape=(self.latentNdim,),name="n")
@@ -1086,12 +1078,14 @@ class RepGAN(Model):
             Zs = Reshape((self.Ssize,self.nSchannels))(Zs)
 
             for layer in range(1,self.nSlayers):
+                Zs = Concatenate()([Zs,s])
                 Zs = Conv1DTranspose(int(self.nSchannels*self.Sstride**(-layer)),
                     self.Skernel,self.Sstride,padding="same",
                     data_format="channels_last")(Zs)
                 Zs = LeakyReLU(alpha=0.1)(Zs)
                 Zs = BatchNormalization(momentum=0.95)(Zs)
                 Zs = Dropout(0.2,name="GzDOS{:>d}".format(layer))(Zs)
+            Zs = Concatenate()([Zs,s])
             Zs = Conv1DTranspose(int(self.nSchannels*self.Sstride**(-self.nSlayers)),
                 self.Skernel,self.Sstride,padding="same",
                 data_format="channels_last")(Zs)
@@ -1107,12 +1101,14 @@ class RepGAN(Model):
             Zc = BatchNormalization(momentum=0.95)(Zc)
             Zc = Reshape((self.Csize,self.nCchannels))(Zc)
             for layer in range(1,self.nClayers):
+                Zc = Concatenate()([Zc,c])
                 Zc = Conv1DTranspose(int(self.nCchannels*self.Cstride**(-layer)),
                     self.Ckernel,self.Cstride,padding="same",
                     data_format="channels_last")(Zc)
                 Zc = LeakyReLU(alpha=0.1)(Zc)
                 Zc = BatchNormalization(momentum=0.95)(Zc)
                 Zc = Dropout(0.2)(Zc)
+            Zc = Concatenate()([Zc,c])
             Zc = Conv1DTranspose(int(self.nCchannels*self.Cstride**(-self.nClayers)),
                 self.Ckernel,self.Cstride,padding="same",
                 data_format="channels_last")(Zc)
@@ -1127,12 +1123,14 @@ class RepGAN(Model):
             Zn = BatchNormalization(momentum=0.95)(Zn)
             Zn = Reshape((self.Nsize,self.nNchannels))(Zn)
             for layer in range(1,self.nNlayers):
+                Zn = Concatenate()([Zn,n])
                 Zn = Conv1DTranspose(int(self.nNchannels*self.Nstride**(-layer)),
                     self.Nkernel,self.Nstride,padding="same",
                     data_format="channels_last")(Zn)
                 Zn = LeakyReLU(alpha=0.1)(Zn)
                 Zn = BatchNormalization(momentum=0.95)(Zn)
                 Zn = Dropout(0.2)(Zn)
+            Zn = Concatenate()([Zn,n])
             Zn = Conv1DTranspose(int(self.nNchannels*self.Nstride**(-self.nNlayers)),
                 self.Nkernel,self.Nstride,padding="same",
                 data_format="channels_last")(Zn)
@@ -1141,34 +1139,33 @@ class RepGAN(Model):
             Zn = Dropout(0.2)(Zn)
             GzN = keras.Model(n,Zn)
 
-            Gz = concatenate([GzS.output,GzC.output,GzN.output])
+            Gz = concatenate([GzS.output,GzC.output,GzN.output,s,c,n])
             Gz = Conv1DTranspose(self.nZchannels,
                     self.kernel,1,padding="same",
                     data_format="channels_last")(Gz)
-            Gz1 = self.h3(Xin)
-            Gz = Add()([Gz1, Gz])
             Gz = LeakyReLU(alpha=0.1)(Gz)
             Gz = BatchNormalization(axis=-1,momentum=0.95)(Gz)
 
         for layer in range(self.nAElayers-1):
+            Gz = Concatenate()([Gz,s,c,n])
             Gz = Conv1DTranspose(self.nZchannels//self.stride**(layer+1),
                 self.kernel,self.stride,padding="same",use_bias=False)(Gz)
             Gz = LeakyReLU(alpha=0.1)(Gz)
             Gz = BatchNormalization(axis=-1,momentum=0.95)(Gz)
 
         layer = self.nAElayers-1
+        Gz = Concatenate()([Gz,s,c,n])
         Gz = Conv1DTranspose(self.nZchannels//self.stride**(layer+1),
                 self.kernel,self.stride,padding="same",use_bias=False)(Gz)
-        Gz0 = self.h2(Xin)
-        Gz = Add()([Gz0, Gz])
         Gz = LeakyReLU(alpha=0.1,name="GzA{:>d}".format(layer+1))(Gz)
         Gz = BatchNormalization(axis=-1,momentum=0.95)(Gz)
 
         layer = self.nAElayers
+        Gz = Concatenate()([Gz,s,c,n])
         X = Conv1DTranspose(self.nXchannels,self.kernel,1,
             padding="same",activation='tanh',use_bias=False)(Gz)
 
-        Gq = keras.Model(inputs=[Xin,GzS.input,GzC.input,GzN.input],outputs=X,name="Gq")
+        Gq = keras.Model(inputs=[GzS.input,GzC.input,GzN.input,s,c,n],outputs=X,name="Gq")
         return Gq
 
     def BuildDx(self):
@@ -1250,18 +1247,14 @@ class RepGAN(Model):
 
     
     def DumpModels(self):
-        self.Fx.save("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_ultimo/14_04/Fx",save_format="tf")
-        self.Gz.save("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_ultimo/14_04/Gz",save_format="tf")
-        self.Dx.save("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_ultimo/14_04/Dx",save_format="tf")
-        self.Ds.save("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_ultimo/14_04/Ds",save_format="tf")
-        self.Dn.save("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_ultimo/14_04/Dn",save_format="tf")
-        self.Dc.save("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_ultimo/14_04/Dc",save_format="tf")
-        self.Q.save("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_ultimo/14_04/Q",save_format="tf")
-        self.Gq.save("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_ultimo/14_04/Gq",save_format="tf")
-        self.h0.save("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_ultimo/14_04/h0",save_format="tf")
-        self.h1.save("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_ultimo/14_04/h1",save_format="tf")
-        self.h2.save("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_ultimo/14_04/h2",save_format="tf")
-        self.h3.save("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_ultimo/14_04/h3",save_format="tf")
+        self.Fx.save("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_skip/28_04/Fx",save_format="tf")
+        self.Gz.save("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_skip/28_04/Gz",save_format="tf")
+        self.Dx.save("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_skip/28_04/Dx",save_format="tf")
+        self.Ds.save("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_skip/28_04/Ds",save_format="tf")
+        self.Dn.save("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_skip/28_04/Dn",save_format="tf")
+        self.Dc.save("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_skip/28_04/Dc",save_format="tf")
+        self.Q.save("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_skip/28_04/Q",save_format="tf")
+        self.Gq.save("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_skip/28_04/Gq",save_format="tf")
         return
 
 def Main(DeviceName):
@@ -1289,7 +1282,7 @@ def Main(DeviceName):
         losses['AdvGlossGAN'] = tf.keras.losses.BinaryCrossentropy()
         losses['RecSloss'] = GaussianNLL
         losses['RecXloss'] = tf.keras.losses.MeanAbsoluteError()
-        losses['RecCloss'] = tf.keras.losses.CategoricalCrossentropy()
+        losses['RecCloss'] = tfa.losses.SigmoidFocalCrossEntropy()
 
 
         losses['PenAdvXloss'] = 1.
@@ -1316,36 +1309,11 @@ def Main(DeviceName):
 
         #validation_data=Xvld
         history = GiorgiaGAN.fit(Xtrn,epochs=options["epochs"],
-            callbacks=[tf.keras.callbacks.ModelCheckpoint(filepath=checkpoint_dir + "/ckpt-{epoch}.ckpt", save_freq='epoch',period=500)]) #CustomLearningRateScheduler(schedule), NewCallback(p,epochs)
+            callbacks=[tf.keras.callbacks.ModelCheckpoint(filepath=checkpoint_dir + "/ckpt_index-{epoch}", save_freq='epoch',period=500)]) #CustomLearningRateScheduler(schedule), NewCallback(p,epochs)
 
         GiorgiaGAN.DumpModels()
 
-        #GiorgiaGAN.build(input_shape=(options['batchSize'], options['Xsize'], options['nXchannels']))
-
-        # GiorgiaGAN.save("GiorgiaGAN_ultimo")
-
-        #GiorgiaGAN.save_weights("ckpt")
-
         PlotLoss(history) # Plot loss
-
-        # PlotReconstructedTHs(GiorgiaGAN,Xvld) # Plot reconstructed time-histories
-
-        # PlotTHSGoFs(GiorgiaGAN,Xvld) # Plot reconstructed time-histories
-
-        # PlotClassificationMetrics(GiorgiaGAN,Xvld) # Plot classification metrics
-
-        # Xtrn = {}
-        # Xvld = {}
-        # for i in range(options['latentCdim']):
-        #     Xtrn['Xtrn_%d' % i], Xvld['Xvld_%d' % i], _  = mdof.Load_Un_Damaged(i,**options)
-
-        # for i in range(options['latentCdim']):
-        #     PlotBatchGoFs(GiorgiaGAN,Xtrn['Xtrn_%d' % i],Xvld['Xvld_%d' % i],i)
-
-        # for i in range(1,options['latentCdim']):
-        #     PlotSwitchedTHs(GiorgiaGAN,Xvld['Xvld_%d' % 0],Xvld['Xvld_%d' % i],i) # Plot switched time-histories
-        #subprocess.run("panel serve plot_panel.py --show", shell=True)
-        #PlotBokeh(GiorgiaGAN,Xvld,**options)
         
         
 

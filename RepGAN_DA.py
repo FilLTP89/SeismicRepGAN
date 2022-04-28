@@ -39,7 +39,7 @@ import kerastuner as kt
 from kerastuner.tuners import RandomSearch
 from kerastuner import HyperModel
 from numpy.linalg import norm
-import MDOFload as mdof
+import MDOFload_source as mdof
 import matplotlib.pyplot as plt
 import h5py
 from sklearn.model_selection import GridSearchCV
@@ -49,7 +49,8 @@ tfd = tfp.distributions
 
 from tensorflow.python.util.tf_export import tf_export
 from copy import deepcopy
-from plot_tools_ultimo import *
+from plot_tools import *
+from plot_panel import *
 import subprocess
 
 #from tensorflow.python.framework import ops
@@ -84,12 +85,14 @@ AdvGlossN_tracker = keras.metrics.Mean(name="loss")
 RecGlossX_tracker = keras.metrics.Mean(name="loss")
 RecGlossC_tracker = keras.metrics.Mean(name="loss")
 RecGlossS_tracker = keras.metrics.Mean(name="loss")
+Domainloss_tracker = keras.metrics.Mean(name="loss")
+
 
 
 #gpu_devices = tf.config.experimental.list_physical_devices('GPU')
 
 
-checkpoint_dir = "/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_ultimo/14_04"
+checkpoint_dir = "./ckpt"
 if not os.path.exists(checkpoint_dir):
     os.makedirs(checkpoint_dir)
 
@@ -109,7 +112,7 @@ def ParseOptions():
     parser = argparse.ArgumentParser()
     parser.add_argument("--epochs",type=int,default=2000,help='Number of epochs')
     parser.add_argument("--Xsize",type=int,default=2048,help='Data space size')
-    parser.add_argument("--nX",type=int,default=4000,help='Number of signals')
+    parser.add_argument("--nX",type=int,default=1500,help='Number of signals')
     parser.add_argument("--nXchannels",type=int,default=4,help="Number of data channels")
     parser.add_argument("--nAElayers",type=int,default=3,help='Number of AE CNN layers')
     parser.add_argument("--nDlayers",type=int,default=10,help='Number of D CNN layers')
@@ -118,8 +121,9 @@ def ParseOptions():
     parser.add_argument("--nZfirst",type=int,default=8,help="Initial number of channels")
     parser.add_argument("--branching",type=str,default='conv',help='conv or dens')
     parser.add_argument("--latentSdim",type=int,default=2,help="Latent space s dimension")
-    parser.add_argument("--latentCdim",type=int,default=2,help="Number of classes")
+    parser.add_argument("--latentCdim",type=int,default=3,help="Number of classes")
     parser.add_argument("--latentNdim",type=int,default=2,help="Latent space n dimension")
+    parser.add_argument("--domain",type=int,default=2,help="Domain label")
     parser.add_argument("--nSlayers",type=int,default=3,help='Number of S-branch CNN layers')
     parser.add_argument("--nClayers",type=int,default=3,help='Number of C-branch CNN layers')
     parser.add_argument("--nNlayers",type=int,default=3,help='Number of N-branch CNN layers')
@@ -129,20 +133,21 @@ def ParseOptions():
     parser.add_argument("--Sstride",type=int,default=2,help='CNN stride of S-branch branch')
     parser.add_argument("--Cstride",type=int,default=2,help='CNN stride of C-branch branch')
     parser.add_argument("--Nstride",type=int,default=2,help='CNN stride of N-branch branch')
+    parser.add_argument("--lambda_reversal",type=float,default=0.31,help='Constant controlling the ratio of the domain classifier loss to action classifier loss ')
     parser.add_argument("--batchSize",type=int,default=50,help='input batch size')    
     parser.add_argument("--nCritic",type=int,default=1,help='number of discriminator training steps')
     parser.add_argument("--nGenerator",type=int,default=5,help='number of generator training steps')
     parser.add_argument("--clipValue",type=float,default=0.01,help='clip weight for WGAN')
-    parser.add_argument("--dataroot", nargs="+", default=["/gpfs/workdir/invsem07/GiorgiaGAN/PortiqueElasPlas_N_2000",
-                        "/gpfs/workdir/invsem07/GiorgiaGAN/PortiqueElasPlas_E_2000"],help="Data root folder") 
-    # parser.add_argument("--dataroot", nargs="+", default=["/gpfs/workdir/invsem07/stead_1_9U","/gpfs/workdir/invsem07/stead_1_9D",
-    #                     "/gpfs/workdir/invsem07/stead_1_10D"],help="Data root folder") 
+    parser.add_argument("--dataroot_source", nargs="+", default=["/gpfs/workdir/invsem07/stead_1_9U", 
+                        "/gpfs/workdir/invsem07/stead_1_9D","/gpfs/workdir/invsem07/stead_1_10D"],help="Data root folder - Source domain") 
+    parser.add_argument("--dataroot_target", nargs="+", default=["/gpfs/workdir/invsem07/stead_1_9U", 
+                        "/gpfs/workdir/invsem07/stead_1_9D","/gpfs/workdir/invsem07/stead_1_10D"],help="Data root folder - Target domain") 
     parser.add_argument("--idChannels",type=int,nargs='+',default=[1,2,3,4],help="Channel 1")
     parser.add_argument("--nParams",type=str,default=2,help="Number of parameters")
     parser.add_argument("--case",type=str,default="train_model",help="case")
     parser.add_argument("--avu",type=str,nargs='+',default="U",help="case avu")
     parser.add_argument("--pb",type=str,default="DC",help="case pb")#DC
-    parser.add_argument("--CreateData",action='store_true',default=False,help='Create data flag')
+    parser.add_argument("--CreateData",action='store_true',default=True,help='Create data flag')
     parser.add_argument("--cuda",action='store_true',default=False,help='Use cuda powered GPU')
     parser.add_argument('--dtm',type=float,default=0.04,help='time-step [s]')
     options = parser.parse_args().__dict__
@@ -169,6 +174,82 @@ def ParseOptions():
     # assert options['Ssize'] >= options['Zsize']//(options['stride']**options['nSlayers'])
 
     return options
+
+class CustomCallback(keras.callbacks.Callback):
+
+    def on_epoch_begin(self, epoch, logs=None):
+        keys = list(logs.keys())
+        print("Start epoch {} of training; got log keys: {}".format(epoch, keys))
+
+# class CustomLearningRateScheduler(keras.callbacks.Callback):
+#     """Learning rate scheduler which sets the learning rate according to schedule.
+
+#   Arguments:
+#       schedule: a function that takes an epoch index
+#           (integer, indexed from 0) and current learning rate
+#           as inputs and returns a new learning rate as output (float).
+#   """
+
+#     def __init__(self, schedule):
+#         super(CustomLearningRateScheduler, self).__init__()
+#         self.schedule = schedule
+
+
+#     def on_epoch_begin(self, epoch, logs=None):
+#         if not hasattr(self.GiorgiaGAN.optimizers, "lr"):
+#             raise ValueError('Optimizer must have a "lr" attribute.')
+#         # Get the current learning rate from model's optimizer.
+
+#         lr_DxOpt = float(tf.keras.backend.get_value(self.GiorgiaGAN.DxOpt.learning_rate))
+#         lr_DcOpt = float(tf.keras.backend.get_value(self.GiorgiaGAN.DcOpt.learning_rate))
+#         lr_DsOpt = float(tf.keras.backend.get_value(self.GiorgiaGAN.DsOpt.learning_rate))
+#         lr_DnOpt = float(tf.keras.backend.get_value(self.GiorgiaGAN.DnOpt.learning_rate))
+#         lr_FxOpt = float(tf.keras.backend.get_value(self.GiorgiaGAN.FxOpt.learning_rate))
+#         lr_QOpt = float(tf.keras.backend.get_value(self.GiorgiaGAN.QOpt.learning_rate))
+#         lr_GzOpt = float(tf.keras.backend.get_value(self.GiorgiaGAN.GzOpt.learning_rate))
+#         lr_GqOpt = float(tf.keras.backend.get_value(self.GiorgiaGAN.GqOpt.learning_rate))
+#         lr_DomaiOpt = float(tf.keras.backend.get_value(self.GiorgiaGAN.DomainOpt.learning_rate))
+
+#         # Call schedule function to get the scheduled learning rate.
+#         scheduled_lr_DxOpt = self.schedule(epoch, lr_DxOpt)
+#         scheduled_lr_DcOpt = self.schedule(epoch, lr_DcOpt)
+#         scheduled_lr_DsOpt = self.schedule(epoch, lr_DsOpt)
+#         scheduled_lr_DnOpt = self.schedule(epoch, lr_DnOpt)
+#         scheduled_lr_FxOpt = self.schedule(epoch, lr_FxOpt)
+#         scheduled_lr_QOpt = self.schedule(epoch, lr_QOpt)
+#         scheduled_lr_GzOpt = self.schedule(epoch, lr_GzOpt)
+#         scheduled_lr_GqOpt = self.schedule(epoch, lr_GqOpt)
+#         scheduled_lr_DomainOpt = self.schedule(epoch, lr_DomainOpt)
+
+#         # Set the value back to the optimizer before this epoch starts
+#         tf.keras.backend.set_value(self.GiorgiaGAN.DxOpt.lr, scheduled_lr_DxOpt)
+#         tf.keras.backend.set_value(self.GiorgiaGAN.DcOpt.lr, scheduled_lr_DcOpt)
+#         tf.keras.backend.set_value(self.GiorgiaGAN.DsOpt.lr, scheduled_lr_DsOpt)
+#         tf.keras.backend.set_value(self.GiorgiaGAN.DnOpt.lr, scheduled_lr_DnOpt)
+#         tf.keras.backend.set_value(self.GiorgiaGAN.FxOpt.lr, scheduled_lr_FxOpt)
+#         tf.keras.backend.set_value(self.GiorgiaGAN.QOpt.lr, scheduled_lr_QOpt)
+#         tf.keras.backend.set_value(self.GiorgiaGAN.GzOpt.lr, scheduled_lr_GzOpt)
+#         tf.keras.backend.set_value(self.GiorgiaGAN.GqOpt.lr, scheduled_lr_GqOpt)
+#         tf.keras.backend.set_value(self.GiorgiaGAN.DomainOpt.lr, scheduled_lr_DomainOpt)
+
+
+class NewCallback(keras.callbacks.Callback):
+    def __init__(self, p, epochs):
+        super(NewCallback, self).__init__()
+        self.p = p  
+        self.epochs = epochs     
+    def on_epoch_begin(self, epoch, logs={}):
+        tf.keras.backend.set_value(self.p, tf.keras.backend.get_value(float(epoch) / self.epochs))  
+
+
+class MyCallback(keras.callbacks.Callback):
+    def __init__(self, PenDomainloss, epochs):
+        self.PenDomainloss = PenDomainloss
+        self.epochs = epochs
+    # customize your behavior
+    def on_epoch_begin(self, epoch, logs={}):
+        p = float(epoch) / self.epochs
+        self.PenDomainloss = 2. / (1. + np.exp(-10. * p)) - 1
 
 
 class RandomWeightedAverage(Layer):
@@ -261,6 +342,64 @@ def generate_real_samples(dataset, n_samples):
     return X
 
 
+
+# def reverse_gradient(X, hp_lambda):
+#     """Flips the sign of the incoming gradient during training."""
+#     try:
+#         reverse_gradient.num_calls += 1
+#     except AttributeError:
+#         reverse_gradient.num_calls = 1
+
+#     grad_name = "GradientReversal%d" % reverse_gradient.num_calls
+
+#     @ops.RegisterGradient(grad_name)
+#     def _flip_gradients(grad):
+#         return [tf.negative(grad) * hp_lambda]
+
+#     g = K.get_session().graph
+#     with g.gradient_override_map({'Identity': grad_name}):
+#         y = tf.identity(X)
+
+#     return y
+
+
+# class GradientReversal(Layer):
+#     """Layer that flips the sign of gradient during training."""
+
+#     def __init__(self, lambda_reversal, **kwargs):
+#         super(GradientReversal, self).__init__(**kwargs)
+#         self.supports_masking = True
+#         self.lambda_reversal = lambda_reversal
+
+#     @staticmethod
+#     def get_output_shape_for(input_shape):
+#         return input_shape
+
+#     def build(self, input_shape):
+#         self.trainable_weights_rev = []
+
+#     def call(self, x, mask=None):
+#         return reverse_gradient(x, self.lambda_reversal)
+
+#     def get_config(self):
+#         config = {}
+#         base_config = super(GradientReversal, self).get_config()
+#         return dict(list(base_config.items()) + list(config.items()))
+@tf.custom_gradient
+def grad_reverse(x):
+    y = tf.identity(x)
+    def custom_grad(dy):
+        return -dy
+    return y, custom_grad
+
+class GradReverse(tf.keras.layers.Layer):
+    def __init__(self):
+        super().__init__()
+
+    def call(self, x):
+        return grad_reverse(x)
+
+
 class RepGAN(Model):
 
     def __init__(self,options):
@@ -283,10 +422,14 @@ class RepGAN(Model):
             Build Fx/Gz (generators)
         """
 
-        self.Fx, self.h1, self.h0 = self.BuildFx() 
-        self.Q, self.h2, self.h3 = self.BuildQ() 
+        self.Fx, self.h1, self.h0 = self.BuildFx()
+        self.Q, self.h2, self.h3 = self.BuildQ()
         self.Gz = self.BuildGz()
         self.Gq = self.BuildGq()
+        """
+            Build the domain predictor
+        """
+        self.Domain = self.BuildDomain()
 
     def get_config(self):
         config = super().get_config().copy()
@@ -299,9 +442,9 @@ class RepGAN(Model):
     def metrics(self):
         return [AdvDLoss_tracker,AdvGLoss_tracker,AdvDlossX_tracker,AdvDlossC_tracker,AdvDlossS_tracker,
             AdvDlossN_tracker,AdvGlossX_tracker,AdvGlossC_tracker,AdvGlossS_tracker,AdvGlossN_tracker,
-            RecGlossX_tracker,RecGlossC_tracker,RecGlossS_tracker]
+            RecGlossX_tracker,RecGlossC_tracker,RecGlossS_tracker,Domainloss_tracker]
 
-    def compile(self,optimizers,losses): #run_eagerly
+    def compile(self,optimizers,losses,loss_weights): #run_eagerly
         super(RepGAN, self).compile()
         """
             Optimizers
@@ -311,6 +454,10 @@ class RepGAN(Model):
             Losses
         """
         self.__dict__.update(losses)
+        """
+            Losses weights
+        """
+        self.__dict__.update(loss_weights)
 
     def GradientPenaltyX(self,batchSize,realX,fakeX):
         """ Calculates the gradient penalty.
@@ -359,21 +506,18 @@ class RepGAN(Model):
         return gp
 
 
-    def train_step(self, realXC):
+    def train_step(self, realXCD):
 
-        realX, realC = realXC
-
-        self.batchSize = tf.shape(realX)[0]
-
-                
+        realX_s, realC_s, realD_s, realX_t, realD_t = realXCD
         # Adversarial ground truths
-        critic_X = self.Dx(realX)
+        critic_X = self.Dx(realX_s)
         realBCE_X = tf.ones_like(critic_X)
         fakeBCE_X = tf.zeros_like(critic_X)
-        critic_C = self.Dc(realC)
+        critic_C = self.Dc(realC_s)
         realBCE_C = tf.ones_like(critic_C)
         fakeBCE_C = tf.zeros_like(critic_C)
-        
+        #n = self.batchSize
+        self.batchSize = tf.shape(realX_s)[0]
 
         #idx_damaged = tf.math.argmax(realC, axis=1)
 
@@ -391,15 +535,16 @@ class RepGAN(Model):
         self.Dc.trainable = True
         self.Ds.trainable = True
         self.Dn.trainable = True
+        self.Domain.trainable = False
 
-        realS = tf.random.normal(mean=0.0,stddev=1.0,shape=[self.batchSize,self.latentSdim])
-        realN = tf.random.normal(mean=0.0,stddev=1.0,shape=[self.batchSize,self.latentNdim])
+        realS_s = tf.random.normal(mean=0.0,stddev=1.0,shape=[self.batchSize,self.latentSdim])
+        realN_s = tf.random.normal(mean=0.0,stddev=1.0,shape=[self.batchSize,self.latentNdim])
 
 
-        critic_S = self.Ds(realS)
+        critic_S = self.Ds(realS_s)
         realBCE_S = tf.ones_like(critic_S)
         fakeBCE_S = tf.zeros_like(critic_S)
-        critic_N = self.Dn(realN)
+        critic_N = self.Dn(realN_s)
         realBCE_N = tf.ones_like(critic_N)
         fakeBCE_N = tf.zeros_like(critic_N)
 
@@ -408,24 +553,24 @@ class RepGAN(Model):
             with tf.GradientTape(persistent=True) as tape:
 
                 # Generate fake signals from real latent code
-                fakeX = self.Gq((realX,realS,realC,realN),training=True) # fake X = Gz(Fx(X))
-                [_,_,fakeS,fakeC,fakeN] = self.Fx(realX,training=True)
+                fakeX = self.Gq((realX_s,realS_s,realC_s,realN_s),training=True) # fake X = Gz(Fx(X))
+                [_,_,fakeS,fakeC,fakeN] = self.Fx(realX_s,training=True)
 
                 # Discriminator determines validity of the real and fake X
                 fakeXcritic = self.Dx(fakeX,training=True)
-                realXcritic = self.Dx(realX,training=True)
+                realXcritic = self.Dx(realX_s,training=True)
 
                 # Discriminator determines validity of the real and fake C
                 fakeCcritic = self.Dc(fakeC,training=True)
-                realCcritic = self.Dc(realC,training=True)
+                realCcritic = self.Dc(realC_s,training=True)
 
                 # Discriminator determines validity of the real and fake N
                 fakeNcritic = self.Dn(fakeN,training=True)
-                realNcritic = self.Dn(realN,training=True)
+                realNcritic = self.Dn(realN_s,training=True)
 
                 # Discriminator determines validity of the real and fake S
                 fakeScritic = self.Ds(fakeS,training=True)
-                realScritic = self.Ds(realS,training=True)
+                realScritic = self.Ds(realS_s,training=True)
 
                 # Calculate the discriminator loss using the fake and real logits
                 AdvDlossX = -tf.reduce_mean(tf.keras.backend.log(realXcritic+1e-8) + tf.keras.backend.log(1 - fakeXcritic+1e-8))*self.PenAdvXloss
@@ -462,17 +607,18 @@ class RepGAN(Model):
         self.Dc.trainable = False
         self.Ds.trainable = False
         self.Dn.trainable = False
+        self.Domain.trainable = True
 
         for _ in range(self.nGenerator):
 
             with tf.GradientTape(persistent=True) as tape:
 
                 # Generate fake latent code from real signal
-                [Fakemu,Fakesigma,fakeS,fakeC,fakeN] = self.Fx(realX,training=True)
-                fakeX = self.Gq((realX,realS,realC,realN),training=True) # fake X = Gz(Fx(X))
+                [Fakemu,Fakesigma,fakeS,fakeC,fakeN] = self.Fx(realX_s,training=True)
+                fakeX = self.Gq((realX_s,realS_s,realC_s,realN_s),training=True) # fake X = Gz(Fx(X))
                 [Recmu,Recsigma,recS,recC,_] = self.Q(fakeX,training=True)
 
-                recX = self.Gz((realX,fakeS,fakeC,fakeN),training=True)
+                recX = self.Gz((realX_s,fakeS,fakeC,fakeN),training=True)
 
                 fakeScritic = self.Ds(fakeS,training=True)
                 fakeCcritic = self.Dc(fakeC,training=True)
@@ -482,27 +628,63 @@ class RepGAN(Model):
                 AdvGlossS = self.AdvGlossGAN(realBCE_S,fakeScritic)*self.PenAdvSloss
                 AdvGlossN = self.AdvGlossGAN(realBCE_N,fakeNcritic)*self.PenAdvNloss
 
-                RecGlossX = self.RecXloss(realX,recX)*self.PenRecXloss
+                RecGlossX = self.RecXloss(realX_s,recX)*self.PenRecXloss
 
-                RecGlossS = self.RecSloss(realS,Recmu,Recsigma)*self.PenRecSloss
-                RecGlossC = self.RecCloss(realC,recC)*self.PenRecCloss + self.RecCloss(realC,fakeC)*self.PenRecCloss
+                RecGlossS = self.RecSloss(realS_s,Recmu,Recsigma)*self.PenRecSloss
+                RecGlossC = self.RecCloss(realC_s,recC)*self.PenRecCloss + self.RecCloss(realC_s,fakeC)*self.PenRecCloss
+
+                realX = tf.concat([realX_s, realX_t], axis=0)
+                realD = tf.concat([realD_s, realD_t], axis=0)
+
+                [_,_,fakeS,fakeC,fakeN] = self.Fx(realX,training=True)
+
+                fakeZ = concatenate([fakeS,fakeC,fakeN])
+                DomainPred = self.Domain(fakeZ,training=True)
+                Domainloss = tf.nn.softmax_cross_entropy_with_logits(labels=realD,logits=DomainPred)*self.PenDomainloss
 
                 
-                AdvGloss = RecGlossS + RecGlossC + RecGlossX + AdvGlossC + AdvGlossS + AdvGlossN 
-
+                AdvGloss = RecGlossS + RecGlossC + RecGlossX + AdvGlossC + AdvGlossS + AdvGlossN + Domainloss
 
             # Get the gradients w.r.t the generator loss
-            gradQ, gradGq, gradFx, gradGz = tape.gradient(AdvGloss,
+            gradQ, gradGq, gradFx, gradGz, gradDomain = tape.gradient(AdvGloss,
                 (self.Q.trainable_variables,self.Gq.trainable_variables,
-                self.Fx.trainable_variables,self.Gz.trainable_variables))
+                self.Fx.trainable_variables,self.Gz.trainable_variables,self.Domain.trainable_variables))
 
             # Update the weights of the generator using the generator optimizer
             self.QOpt.apply_gradients(zip(gradQ,self.Q.trainable_variables))
             self.GqOpt.apply_gradients(zip(gradGq,self.Gq.trainable_variables))
             self.FxOpt.apply_gradients(zip(gradFx,self.Fx.trainable_variables))
             self.GzOpt.apply_gradients(zip(gradGz,self.Gz.trainable_variables))
+            self.DomainOpt.apply_gradients(zip(gradDomain,self.Domain.trainable_variables))
             
-      
+
+        # self.Fx.trainable = True
+        # self.Gz.trainable = False
+        # self.Gq.trainable = False
+        # self.Q.trainable = False
+        # self.Dx.trainable = False
+        # self.Dc.trainable = False
+        # self.Ds.trainable = False
+        # self.Dn.trainable = False
+        # self.Domain.trainable = True
+
+        # realX = tf.concat([realX_s, realX_t], axis=0)
+        # realD = tf.concat([realD_s, realD_t], axis=0)
+
+        # [_,_,fakeS,fakeC,fakeN] = self.Fx(realX,training=True)
+
+        # fakeZ = concatenate([fakeS,fakeC,fakeN])
+        # DomainPred = self.Domain(fakeZ,training=True)
+        # Domainloss = tf.nn.softmax_cross_entropy_with_logits(labels=realD,logits=DomainPred)*self.PenDomainloss
+
+        # # Get the gradients w.r.t the generator loss
+        # gradFx, gradDomain = tape.gradient(Domainloss,
+        #     (self.Fx.trainable_variables,self.Domain.trainable_variables))
+
+        # self.FxOpt.apply_gradients(zip(gradFx,self.Fx.trainable_variables))
+        # self.DomainOpt.apply_gradients(zip(gradDomain,self.Domain.trainable_variables))
+
+        
 
         # Compute our own metrics
         AdvDLoss_tracker.update_state(AdvDloss)
@@ -521,25 +703,27 @@ class RepGAN(Model):
         RecGlossC_tracker.update_state(RecGlossC)
         RecGlossS_tracker.update_state(RecGlossS)
 
+        Domainloss_tracker.update_state(Domainloss)
+
         return {"AdvDlossX": AdvDlossX_tracker.result(),"AdvDlossC": AdvDlossC_tracker.result(), "AdvDlossS": AdvDlossS_tracker.result(),
             "AdvDlossN": AdvDlossN_tracker.result(),"AdvGlossX": AdvGlossX_tracker.result(),"AdvGlossC": AdvGlossC_tracker.result(),
             "AdvGlossS": AdvGlossS_tracker.result(),"AdvGlossN": AdvGlossN_tracker.result(),"RecGlossX": RecGlossX_tracker.result(), 
-            "RecGlossC": RecGlossC_tracker.result(), "RecGlossS": RecGlossS_tracker.result(),
+            "RecGlossC": RecGlossC_tracker.result(), "RecGlossS": RecGlossS_tracker.result(), "Domainloss": Domainloss_tracker.result(),
             "fakeX":tf.math.reduce_mean(fakeXcritic),"realX":tf.math.reduce_mean(realXcritic),
             "fakeC":tf.math.reduce_mean(fakeCcritic),"realC":tf.math.reduce_mean(realCcritic),"fakeN":tf.math.reduce_mean(fakeNcritic),
             "realN":tf.math.reduce_mean(realNcritic),"fakeS":tf.math.reduce_mean(fakeScritic),"realS":tf.math.reduce_mean(realScritic)}
 
 
     def call(self, X):
-        [_,_,fakeS,fakeC,fakeN] = self.Fx(X)
-        recX = self.Gz((X,fakeS,fakeC,fakeN))
+        [_,_,fakeS,fakeC,fakeN] = self.Fx(X,training=False)
+        recX = self.Gz((X,fakeS,fakeC,fakeN),training=False)
         return recX, fakeC, fakeS, fakeN
 
-    def plot(self,realX,realC):
+    def plot(self,realX_s,realC_s,realX):
         [_,_,fakeS,fakeC,fakeN] = self.Fx(realX,training=False)
-        realS = tf.random.normal(mean=0.0,stddev=1.0,shape=[realX.shape[0],self.latentSdim])
-        realN = tf.random.normal(mean=0.0,stddev=1.0,shape=[realX.shape[0],self.latentNdim])
-        fakeX = self.Gq((realX,realS,realC,realN),training=False)
+        realS = tf.random.normal(mean=0.0,stddev=1.0,shape=[realX_s.shape[0],self.latentSdim])
+        realN = tf.random.normal(mean=0.0,stddev=1.0,shape=[realX_s.shape[0],self.latentNdim])
+        fakeX = self.Gq((realX_s,realS,realC_s,realN),training=False)
         recX = self.Gz((realX,fakeS,fakeC,fakeN),training=False)
         return recX, fakeC, fakeS, fakeN, fakeX
 
@@ -551,33 +735,17 @@ class RepGAN(Model):
         fakeX = self.Gq((X,realS,realC,realN),training=False)
         [_,_,_,recC,_] = self.Q(fakeX,training=False)
         return fakeC, recC
-    
-    def distribution(self,realX,realC):
-        [_,_,fakeS,fakeC,fakeN] = self.Fx(realX,training=False)
-        realS = tf.random.normal(mean=0.0,stddev=1.0,shape=[realX.shape[0],self.latentSdim])
-        realN = tf.random.normal(mean=0.0,stddev=1.0,shape=[realX.shape[0],self.latentNdim])
-        fakeX = self.Gq((realX,realS,realC,realN),training=False)
-        [_,_,recS,recC,recN] = self.Q(fakeX,training=False)
-        return realS, realN, fakeS, fakeN, recS, recN
-
-    def cycling(self,realX,realC):
-        realS = tf.random.normal(mean=0.0,stddev=1.0,shape=[realX.shape[0],self.latentSdim])
-        realN = tf.random.normal(mean=0.0,stddev=1.0,shape=[realX.shape[0],self.latentNdim])
-        fakeX = self.Gq((realX,realS,realC,realN),training=False)
-        [_,_,recS,recC,recN] = self.Q(fakeX,training=True)
-
-        return realS,realN,recS,recC,recN
 
     def generate(self, X, fakeC_new):
         [_,_,fakeS,fakeC,fakeN] = self.Fx(X)
         recX_new = self.Gz((X,fakeS,fakeC_new,fakeN),training=False)
         return recX_new
 
-    def switchN(self, realX_u, realX_d):
-        [_,_,fakeS_u,fakeC_u,fakeN_u] = self.Fx(realX_u)
-        [_,_,fakeS_d,fakeC_d,fakeN_d] = self.Fx(realX_d)
-        recX_new = self.Gz((realX_d,fakeS_u,fakeC_d,fakeN_u),training=False)
-        return recX_new
+    def domain_classifier(self, X):
+        [_,_,fakeS,fakeC,fakeN] = self.Fx(X,training=False)
+        fakeZ = concatenate([fakeS,fakeC,fakeN])
+        predD = self.Domain(fakeZ,training=False)
+        return predD
 
     def BuildFx(self):
         """
@@ -1248,20 +1416,35 @@ class RepGAN(Model):
         Ds = keras.Model(s,Ps,name="Ds")
         return Ds
 
-    
+    def BuildDomain(self):
+        """
+            Domain predictor structure
+        """
+        # d = Input(shape=(self.latentZdim,)) # see https://github.com/michetonu/DA-RNN_manoeuver_anticipation/blob/master/da_rnn/DA_RNN_anticipation.py
+        # flip_layer = GradientReversal(self.lambda_reversal)
+        # h = flip_layer(d)
+        # Pd = Dense(units=2, activation='softmax')(h)
+
+        d = Input(shape=(self.latentZdim,)) # see "Unsupervised Domain Adaptation by Backpropagation"
+        # flip_layer = GradientReversal(self.lambda_reversal)
+        # h = flip_layer(d)
+        h = grad_reverse(d)
+        h = Dense(1024, activation='relu')(h)
+        h = Dense(1024, activation='relu')(h)
+        Pd = Dense(self.domain,activation=tf.keras.activations.softmax)(h)
+        Domain = keras.Model(d,Pd,name="Domain")
+        return Domain
+
     def DumpModels(self):
-        self.Fx.save("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_ultimo/14_04/Fx",save_format="tf")
-        self.Gz.save("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_ultimo/14_04/Gz",save_format="tf")
-        self.Dx.save("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_ultimo/14_04/Dx",save_format="tf")
-        self.Ds.save("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_ultimo/14_04/Ds",save_format="tf")
-        self.Dn.save("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_ultimo/14_04/Dn",save_format="tf")
-        self.Dc.save("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_ultimo/14_04/Dc",save_format="tf")
-        self.Q.save("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_ultimo/14_04/Q",save_format="tf")
-        self.Gq.save("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_ultimo/14_04/Gq",save_format="tf")
-        self.h0.save("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_ultimo/14_04/h0",save_format="tf")
-        self.h1.save("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_ultimo/14_04/h1",save_format="tf")
-        self.h2.save("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_ultimo/14_04/h2",save_format="tf")
-        self.h3.save("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_ultimo/14_04/h3",save_format="tf")
+        self.Fx.save("Fx.h5")
+        self.Gz.save("Gz.h5")
+        self.Dx.save("Dx.h5")
+        self.Ds.save("Ds.h5")
+        self.Dn.save("Dn.h5")
+        self.Dc.save("Dc.h5")
+        self.Q.save("Q.h5")
+        self.Gq.save("Gq.h5")
+        self.Domain.save("Domain.h5")
         return
 
 def Main(DeviceName):
@@ -1281,6 +1464,7 @@ def Main(DeviceName):
         optimizers['QOpt'] = Adam(learning_rate=0.0002, beta_1=0.5, beta_2=0.9999)
         optimizers['GzOpt'] = Adam(learning_rate=0.0002, beta_1=0.5, beta_2=0.9999)
         optimizers['GqOpt'] = Adam(learning_rate=0.0002, beta_1=0.5, beta_2=0.9999)
+        optimizers['DomainOpt'] = Adam(learning_rate=0.0002, beta_1=0.5, beta_2=0.9999)
 
         losses = {}
         losses['AdvDlossWGAN'] = WassersteinDiscriminatorLoss
@@ -1291,21 +1475,25 @@ def Main(DeviceName):
         losses['RecXloss'] = tf.keras.losses.MeanAbsoluteError()
         losses['RecCloss'] = tf.keras.losses.CategoricalCrossentropy()
 
+        loss_weights = {}
+        loss_weights['PenAdvXloss'] = 1.
+        loss_weights['PenAdvCloss'] = 1.
+        loss_weights['PenAdvSloss'] = 1.
+        loss_weights['PenAdvNloss'] = 1.
+        loss_weights['PenRecXloss'] = 1.
+        loss_weights['PenRecCloss'] = 1.
+        loss_weights['PenRecSloss'] = 1.
+        loss_weights['PenDomainloss'] = tf.keras.backend.variable(1.)
 
-        losses['PenAdvXloss'] = 1.
-        losses['PenAdvCloss'] = 1.
-        losses['PenAdvSloss'] = 1.
-        losses['PenAdvNloss'] = 1.
-        losses['PenRecXloss'] = 1.
-        losses['PenRecCloss'] = 1.
-        losses['PenRecSloss'] = 1.
-
+        def schedule(epoch):
+            p = float(epoch) / options['epochs']
+            return 0.01 / (1. + 10 * p)**0.75
 
         # Instantiate the RepGAN model.
         GiorgiaGAN = RepGAN(options)
 
         # Compile the RepGAN model.
-        GiorgiaGAN.compile(optimizers,losses) #run_eagerly=True
+        GiorgiaGAN.compile(optimizers,losses,loss_weights) #run_eagerly=True
 
         if options['CreateData']:
             # Create the dataset
@@ -1314,25 +1502,29 @@ def Main(DeviceName):
             # Load the dataset
             Xtrn, Xvld, _ = mdof.LoadData(**options)
 
+
+
+        p = tf.keras.backend.variable(1.)
+        epochs = options['epochs']
+
+        lr_update = tf.keras.callbacks.LearningRateScheduler(schedule)
+
         #validation_data=Xvld
         history = GiorgiaGAN.fit(Xtrn,epochs=options["epochs"],
-            callbacks=[tf.keras.callbacks.ModelCheckpoint(filepath=checkpoint_dir + "/ckpt-{epoch}.ckpt", save_freq='epoch',period=500)]) #CustomLearningRateScheduler(schedule), NewCallback(p,epochs)
+            callbacks=[CustomCallback(),lr_update,MyCallback('PenDomainloss',epochs),
+            tf.keras.callbacks.ModelCheckpoint(filepath=checkpoint_dir + "/ckpt-{epoch}", save_freq='epoch',period=1)]) #CustomLearningRateScheduler(schedule), NewCallback(p,epochs)
 
         GiorgiaGAN.DumpModels()
 
-        #GiorgiaGAN.build(input_shape=(options['batchSize'], options['Xsize'], options['nXchannels']))
-
-        # GiorgiaGAN.save("GiorgiaGAN_ultimo")
-
-        #GiorgiaGAN.save_weights("ckpt")
-
-        PlotLoss(history) # Plot loss
+        # PlotLoss(history) # Plot loss
 
         # PlotReconstructedTHs(GiorgiaGAN,Xvld) # Plot reconstructed time-histories
 
         # PlotTHSGoFs(GiorgiaGAN,Xvld) # Plot reconstructed time-histories
 
         # PlotClassificationMetrics(GiorgiaGAN,Xvld) # Plot classification metrics
+
+        # PlotPredictor(GiorgiaGAN,Xvld) # Plot domain prediction
 
         # Xtrn = {}
         # Xvld = {}
@@ -1345,7 +1537,7 @@ def Main(DeviceName):
         # for i in range(1,options['latentCdim']):
         #     PlotSwitchedTHs(GiorgiaGAN,Xvld['Xvld_%d' % 0],Xvld['Xvld_%d' % i],i) # Plot switched time-histories
         #subprocess.run("panel serve plot_panel.py --show", shell=True)
-        #PlotBokeh(GiorgiaGAN,Xvld,**options)
+        PlotBokeh(GiorgiaGAN,Xvld,**options)
         
         
 

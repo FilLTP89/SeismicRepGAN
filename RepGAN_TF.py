@@ -39,7 +39,7 @@ import kerastuner as kt
 from kerastuner.tuners import RandomSearch
 from kerastuner import HyperModel
 from numpy.linalg import norm
-import MDOFload as mdof
+import MDOFload_TF as mdof
 import matplotlib.pyplot as plt
 import h5py
 from sklearn.model_selection import GridSearchCV
@@ -49,7 +49,7 @@ tfd = tfp.distributions
 
 from tensorflow.python.util.tf_export import tf_export
 from copy import deepcopy
-from plot_tools_ultimo import *
+from plot_tools_TF import *
 import subprocess
 
 #from tensorflow.python.framework import ops
@@ -89,7 +89,7 @@ RecGlossS_tracker = keras.metrics.Mean(name="loss")
 #gpu_devices = tf.config.experimental.list_physical_devices('GPU')
 
 
-checkpoint_dir = "/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_ultimo/14_04"
+checkpoint_dir = "/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_tesi/25_04"
 if not os.path.exists(checkpoint_dir):
     os.makedirs(checkpoint_dir)
 
@@ -109,7 +109,8 @@ def ParseOptions():
     parser = argparse.ArgumentParser()
     parser.add_argument("--epochs",type=int,default=2000,help='Number of epochs')
     parser.add_argument("--Xsize",type=int,default=2048,help='Data space size')
-    parser.add_argument("--nX",type=int,default=4000,help='Number of signals')
+    parser.add_argument("--nX",type=int,default=1500,help='Number of signals')
+    parser.add_argument("--N",type=int,default=2,help="Number of experiments")
     parser.add_argument("--nXchannels",type=int,default=4,help="Number of data channels")
     parser.add_argument("--nAElayers",type=int,default=3,help='Number of AE CNN layers')
     parser.add_argument("--nDlayers",type=int,default=10,help='Number of D CNN layers')
@@ -118,8 +119,9 @@ def ParseOptions():
     parser.add_argument("--nZfirst",type=int,default=8,help="Initial number of channels")
     parser.add_argument("--branching",type=str,default='conv',help='conv or dens')
     parser.add_argument("--latentSdim",type=int,default=2,help="Latent space s dimension")
-    parser.add_argument("--latentCdim",type=int,default=2,help="Number of classes")
+    parser.add_argument("--latentCdim",type=int,default=3,help="Number of classes")
     parser.add_argument("--latentNdim",type=int,default=2,help="Latent space n dimension")
+    parser.add_argument("--signal",type=int,default=3,help="Types of signals")
     parser.add_argument("--nSlayers",type=int,default=3,help='Number of S-branch CNN layers')
     parser.add_argument("--nClayers",type=int,default=3,help='Number of C-branch CNN layers')
     parser.add_argument("--nNlayers",type=int,default=3,help='Number of N-branch CNN layers')
@@ -132,17 +134,19 @@ def ParseOptions():
     parser.add_argument("--batchSize",type=int,default=50,help='input batch size')    
     parser.add_argument("--nCritic",type=int,default=1,help='number of discriminator training steps')
     parser.add_argument("--nGenerator",type=int,default=5,help='number of generator training steps')
-    parser.add_argument("--clipValue",type=float,default=0.01,help='clip weight for WGAN')
-    parser.add_argument("--dataroot", nargs="+", default=["/gpfs/workdir/invsem07/GiorgiaGAN/PortiqueElasPlas_N_2000",
-                        "/gpfs/workdir/invsem07/GiorgiaGAN/PortiqueElasPlas_E_2000"],help="Data root folder") 
-    # parser.add_argument("--dataroot", nargs="+", default=["/gpfs/workdir/invsem07/stead_1_9U","/gpfs/workdir/invsem07/stead_1_9D",
-    #                     "/gpfs/workdir/invsem07/stead_1_10D"],help="Data root folder") 
+    # parser.add_argument("--clipValue",type=float,default=0.01,help='clip weight for WGAN')
+    # parser.add_argument("--dataroot", nargs="+", default=["/gpfs/workdir/invsem07/GiorgiaGAN/PortiqueElasPlas_N_2000_index",
+    #                     "/gpfs/workdir/invsem07/GiorgiaGAN/PortiqueElasPlas_E_2000_index"],help="Data root folder") 
+    parser.add_argument("--dataroot_index", nargs="+", default=["/gpfs/workdir/invsem07/GiorgiaGAN/NDOF_code/PortiqueElasPlas_N_2000_index",
+                        "/gpfs/workdir/invsem07/GiorgiaGAN/NDOF_code/PortiqueElasPlas_E_2000_index"],help="Data root folder")  
+    parser.add_argument("--dataroot", nargs="+", default=["/gpfs/workdir/invsem07/GiorgiaGAN/tesi_0","/gpfs/workdir/invsem07/GiorgiaGAN/tesi_1",
+                        "/gpfs/workdir/invsem07/GiorgiaGAN/tesi_2"],help="Data root folder") 
     parser.add_argument("--idChannels",type=int,nargs='+',default=[1,2,3,4],help="Channel 1")
     parser.add_argument("--nParams",type=str,default=2,help="Number of parameters")
     parser.add_argument("--case",type=str,default="train_model",help="case")
     parser.add_argument("--avu",type=str,nargs='+',default="U",help="case avu")
     parser.add_argument("--pb",type=str,default="DC",help="case pb")#DC
-    parser.add_argument("--CreateData",action='store_true',default=False,help='Create data flag')
+    parser.add_argument("--CreateData",action='store_true',default=True,help='Create data flag')
     parser.add_argument("--cuda",action='store_true',default=False,help='Use cuda powered GPU')
     parser.add_argument('--dtm',type=float,default=0.04,help='time-step [s]')
     options = parser.parse_args().__dict__
@@ -283,8 +287,8 @@ class RepGAN(Model):
             Build Fx/Gz (generators)
         """
 
-        self.Fx, self.h1, self.h0 = self.BuildFx() 
-        self.Q, self.h2, self.h3 = self.BuildQ() 
+        self.Fx, self.h1, self.h0 = self.BuildFx()
+        self.Q, self.h2, self.h3 = self.BuildQ()
         self.Gz = self.BuildGz()
         self.Gq = self.BuildGq()
 
@@ -559,7 +563,7 @@ class RepGAN(Model):
         fakeX = self.Gq((realX,realS,realC,realN),training=False)
         [_,_,recS,recC,recN] = self.Q(fakeX,training=False)
         return realS, realN, fakeS, fakeN, recS, recN
-
+    
     def cycling(self,realX,realC):
         realS = tf.random.normal(mean=0.0,stddev=1.0,shape=[realX.shape[0],self.latentSdim])
         realN = tf.random.normal(mean=0.0,stddev=1.0,shape=[realX.shape[0],self.latentNdim])
@@ -571,12 +575,6 @@ class RepGAN(Model):
     def generate(self, X, fakeC_new):
         [_,_,fakeS,fakeC,fakeN] = self.Fx(X)
         recX_new = self.Gz((X,fakeS,fakeC_new,fakeN),training=False)
-        return recX_new
-
-    def switchN(self, realX_u, realX_d):
-        [_,_,fakeS_u,fakeC_u,fakeN_u] = self.Fx(realX_u)
-        [_,_,fakeS_d,fakeC_d,fakeN_d] = self.Fx(realX_d)
-        recX_new = self.Gz((realX_d,fakeS_u,fakeC_d,fakeN_u),training=False)
         return recX_new
 
     def BuildFx(self):
@@ -1250,18 +1248,18 @@ class RepGAN(Model):
 
     
     def DumpModels(self):
-        self.Fx.save("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_ultimo/14_04/Fx",save_format="tf")
-        self.Gz.save("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_ultimo/14_04/Gz",save_format="tf")
-        self.Dx.save("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_ultimo/14_04/Dx",save_format="tf")
-        self.Ds.save("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_ultimo/14_04/Ds",save_format="tf")
-        self.Dn.save("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_ultimo/14_04/Dn",save_format="tf")
-        self.Dc.save("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_ultimo/14_04/Dc",save_format="tf")
-        self.Q.save("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_ultimo/14_04/Q",save_format="tf")
-        self.Gq.save("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_ultimo/14_04/Gq",save_format="tf")
-        self.h0.save("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_ultimo/14_04/h0",save_format="tf")
-        self.h1.save("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_ultimo/14_04/h1",save_format="tf")
-        self.h2.save("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_ultimo/14_04/h2",save_format="tf")
-        self.h3.save("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_ultimo/14_04/h3",save_format="tf")
+        self.Fx.save("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_tesi/25_04/Fx",save_format="tf")
+        self.Gz.save("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_tesi/25_04/Gz",save_format="tf")
+        self.Dx.save("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_tesi/25_04/Dx",save_format="tf")
+        self.Ds.save("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_tesi/25_04/Ds",save_format="tf")
+        self.Dn.save("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_tesi/25_04/Dn",save_format="tf")
+        self.Dc.save("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_tesi/25_04/Dc",save_format="tf")
+        self.Q.save("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_tesi/25_04/Q",save_format="tf")
+        self.Gq.save("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_tesi/25_04/Gq",save_format="tf")
+        self.h0.save("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_tesi/25_04/h0",save_format="tf")
+        self.h1.save("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_tesi/25_04/h1",save_format="tf")
+        self.h2.save("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_tesi/25_04/h2",save_format="tf")
+        self.h3.save("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_tesi/25_04/h3",save_format="tf")
         return
 
 def Main(DeviceName):
@@ -1316,34 +1314,11 @@ def Main(DeviceName):
 
         #validation_data=Xvld
         history = GiorgiaGAN.fit(Xtrn,epochs=options["epochs"],
-            callbacks=[tf.keras.callbacks.ModelCheckpoint(filepath=checkpoint_dir + "/ckpt-{epoch}.ckpt", save_freq='epoch',period=500)]) #CustomLearningRateScheduler(schedule), NewCallback(p,epochs)
+            callbacks=[tf.keras.callbacks.ModelCheckpoint(filepath=checkpoint_dir + "/ckpt-{epoch}", save_freq='epoch',period=500)]) #CustomLearningRateScheduler(schedule), NewCallback(p,epochs)
 
         GiorgiaGAN.DumpModels()
 
-        #GiorgiaGAN.build(input_shape=(options['batchSize'], options['Xsize'], options['nXchannels']))
-
-        # GiorgiaGAN.save("GiorgiaGAN_ultimo")
-
-        #GiorgiaGAN.save_weights("ckpt")
-
         PlotLoss(history) # Plot loss
-
-        # PlotReconstructedTHs(GiorgiaGAN,Xvld) # Plot reconstructed time-histories
-
-        # PlotTHSGoFs(GiorgiaGAN,Xvld) # Plot reconstructed time-histories
-
-        # PlotClassificationMetrics(GiorgiaGAN,Xvld) # Plot classification metrics
-
-        # Xtrn = {}
-        # Xvld = {}
-        # for i in range(options['latentCdim']):
-        #     Xtrn['Xtrn_%d' % i], Xvld['Xvld_%d' % i], _  = mdof.Load_Un_Damaged(i,**options)
-
-        # for i in range(options['latentCdim']):
-        #     PlotBatchGoFs(GiorgiaGAN,Xtrn['Xtrn_%d' % i],Xvld['Xvld_%d' % i],i)
-
-        # for i in range(1,options['latentCdim']):
-        #     PlotSwitchedTHs(GiorgiaGAN,Xvld['Xvld_%d' % 0],Xvld['Xvld_%d' % i],i) # Plot switched time-histories
         #subprocess.run("panel serve plot_panel.py --show", shell=True)
         #PlotBokeh(GiorgiaGAN,Xvld,**options)
         
