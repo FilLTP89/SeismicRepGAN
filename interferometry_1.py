@@ -186,8 +186,8 @@ def deconvolution(realX_u,realX_d,fakeX_new,d):
 
     for i in range(realX_u.shape[2]):
         for k in range(realX_u.shape[2]):
-            np.savetxt("/gpfs/workdir/invsem07/GiorgiaGAN/results_1/IRF_u{:>d}_floor{:>d}_{:>d}.csv".format(d,i,k), IRF_u['IRF_u_%d' % i][:,:,k], delimiter=",")
-            np.savetxt("/gpfs/workdir/invsem07/GiorgiaGAN/results_1/IRF_s{:>d}_floor{:>d}_{:>d}.csv".format(d,i,k), IRF_s['IRF_s_%d' % i][:,:,k], delimiter=",")
+            np.savetxt("./results_1/IRF_u{:>d}_floor{:>d}_{:>d}.csv".format(d,i,k), IRF_u['IRF_u_%d' % i][:,:,k], delimiter=",")
+            np.savetxt("./results_1/IRF_s{:>d}_floor{:>d}_{:>d}.csv".format(d,i,k), IRF_s['IRF_s_%d' % i][:,:,k], delimiter=",")
 
 
     labels = ['1']
@@ -217,7 +217,7 @@ def deconvolution(realX_u,realX_d,fakeX_new,d):
     #     fig.suptitle('IRF floor %d - Original signals' % n)
     #     fig.text(0.5,0.05,'Time [s]', ha='center', va='center')
     #     fig.text(0.05,0.5,'Floor level', ha='center', va='center', rotation='vertical')
-    #     plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results_1/IRF{:>d} Floor_real_{:>d}.png'.format(d,i),bbox_inches = 'tight')
+    #     plt.savefig('./results_1/IRF{:>d} Floor_real_{:>d}.png'.format(d,i),bbox_inches = 'tight')
     #     plt.close()
 
     #     for i in range(realX_u.shape[2]):
@@ -243,7 +243,7 @@ def deconvolution(realX_u,realX_d,fakeX_new,d):
     #     fig.suptitle('IRF floor %d - Switched signals' % n)
     #     fig.text(0.5,0.05,'Time [s]', ha='center', va='center')
     #     fig.text(0.05,0.5,'Floor level', ha='center', va='center', rotation='vertical')
-    #     plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results_1/IRF{:>d} Floor_switch_{:>d}.png'.format(d,i),bbox_inches = 'tight')
+    #     plt.savefig('./results_1/IRF{:>d} Floor_switch_{:>d}.png'.format(d,i),bbox_inches = 'tight')
     #     plt.close()
     
     for q in range(10):
@@ -268,7 +268,7 @@ def deconvolution(realX_u,realX_d,fakeX_new,d):
         fig.suptitle('IRF floor 4 - Original signals')
         fig.text(0.5,0.05,'Time [s]', ha='center', va='center')
         fig.text(0.05,0.5,'Floor level', ha='center', va='center', rotation='vertical')
-        plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results_1/IRF{:>d}_undamaged_{:>d}.png'.format(d,j),bbox_inches = 'tight')
+        plt.savefig('./results_1/IRF{:>d}_undamaged_{:>d}.png'.format(d,j),bbox_inches = 'tight')
         plt.close()
 
         fig, axs = plt.subplots(realX_u.shape[2], 1, sharex=True, figsize=(4,6))
@@ -291,7 +291,7 @@ def deconvolution(realX_u,realX_d,fakeX_new,d):
         fig.suptitle('IRF floor 4 - Switched signals')
         fig.text(0.5,0.05,'Time [s]', ha='center', va='center')
         fig.text(0.05,0.5,'Floor level', ha='center', va='center', rotation='vertical')
-        plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results_1/IRF{:>d}_switched_{:>d}.png'.format(d,j),bbox_inches = 'tight')
+        plt.savefig('./results_1/IRF{:>d}_switched_{:>d}.png'.format(d,j),bbox_inches = 'tight')
         plt.close()
 
         fig, axs = plt.subplots(realX_u.shape[2], 1, sharex=True, figsize=(4,6))
@@ -315,7 +315,7 @@ def deconvolution(realX_u,realX_d,fakeX_new,d):
         fig.suptitle('IRF floor 4 - Comparison')
         fig.text(0.5,0.05,'Time [s]', ha='center', va='center')
         fig.text(0.05,0.5,'Floor level', ha='center', va='center', rotation='vertical')
-        plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results_1/IRF{:>d}_comparison_{:>d}.png'.format(d,j),bbox_inches = 'tight')
+        plt.savefig('./results_1/IRF{:>d}_comparison_{:>d}.png'.format(d,j),bbox_inches = 'tight')
         plt.close()
 
     
@@ -351,9 +351,9 @@ def deconvolution(realX_u,realX_d,fakeX_new,d):
 
     for i in range(realX_u.shape[2]):
         for k in range(realX_u.shape[2]):
-            np.savetxt("/gpfs/workdir/invsem07/GiorgiaGAN/results_1/dv_{:>d}_floor{:>d}_{:>d}.csv".format(d,i,k), dv['dv_%d' % i][:,k], delimiter=",")
-            np.savetxt("/gpfs/workdir/invsem07/GiorgiaGAN/results_1/cc_{:>d}_floor{:>d}_{:>d}.csv".format(d,i,k), cc['cc_%d' % i][:,k], delimiter=",")
-            np.savetxt("/gpfs/workdir/invsem07/GiorgiaGAN/results_1/error_{:>d}_floor{:>d}_{:>d}.csv".format(d,i,k), error['error_%d' % i][:,k], delimiter=",")
+            np.savetxt("./results_1/dv_{:>d}_floor{:>d}_{:>d}.csv".format(d,i,k), dv['dv_%d' % i][:,k], delimiter=",")
+            np.savetxt("./results_1/cc_{:>d}_floor{:>d}_{:>d}.csv".format(d,i,k), cc['cc_%d' % i][:,k], delimiter=",")
+            np.savetxt("./results_1/error_{:>d}_floor{:>d}_{:>d}.csv".format(d,i,k), error['error_%d' % i][:,k], delimiter=",")
 
     for i in range(realX_u.shape[2]):
         fig = plt.figure(figsize=(6, 9))
@@ -399,7 +399,7 @@ def deconvolution(realX_u,realX_d,fakeX_new,d):
         ax3.set_xlabel('Current floor')
 
         plt.subplots_adjust(hspace=0.2)
-        fig.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results_1/stretching_{:>d}_{:>d}.png'.format(d,i), dpi=100)
+        fig.savefig('./results_1/stretching_{:>d}_{:>d}.png'.format(d,i), dpi=100)
         plt.close(fig)
  
     return

@@ -32,16 +32,12 @@ from tensorflow.keras.optimizers import Adam, RMSprop, SGD
 from tensorflow.keras.constraints import Constraint, min_max_norm
 from tensorflow.keras.initializers import RandomNormal
 from tensorflow.keras.wrappers.scikit_learn import KerasClassifier
-import timeit
 from numpy.random import randn
 from numpy.random import randint
 from tensorflow.python.eager import context
-import kerastuner as kt
-from kerastuner.tuners import RandomSearch
-from kerastuner import HyperModel
 from numpy.linalg import norm
-import MDOFload_skip as mdof
-import matplotlib.pyplot as plt
+import MDOFload as mdof
+import matplotlib.pyplot as plt 
 import h5py
 from sklearn.model_selection import GridSearchCV
 
@@ -90,7 +86,7 @@ RecGlossS_tracker = keras.metrics.Mean(name="loss")
 #gpu_devices = tf.config.experimental.list_physical_devices('GPU')
 
 
-checkpoint_dir = "/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_skip/28_04"
+checkpoint_dir = "./checkpoint_skip/16_05"
 if not os.path.exists(checkpoint_dir):
     os.makedirs(checkpoint_dir)
 
@@ -111,6 +107,7 @@ def ParseOptions():
     parser.add_argument("--epochs",type=int,default=2000,help='Number of epochs')
     parser.add_argument("--Xsize",type=int,default=2048,help='Data space size')
     parser.add_argument("--nX",type=int,default=4000,help='Number of signals')
+    parser.add_argument("--N",type=int,default=2,help="Number of experiments")
     parser.add_argument("--nXchannels",type=int,default=4,help="Number of data channels")
     parser.add_argument("--nAElayers",type=int,default=3,help='Number of AE CNN layers')
     parser.add_argument("--nDlayers",type=int,default=10,help='Number of D CNN layers')
@@ -118,13 +115,13 @@ def ParseOptions():
     parser.add_argument("--stride",type=int,default=2,help='CNN stride')
     parser.add_argument("--nZfirst",type=int,default=8,help="Initial number of channels")
     parser.add_argument("--branching",type=str,default='conv',help='conv or dens')
-    parser.add_argument("--latentSdim",type=int,default=2,help="Latent space s dimension")
-    parser.add_argument("--latentCdim",type=int,default=3,help="Number of classes")
-    parser.add_argument("--latentNdim",type=int,default=20,help="Latent space n dimension")
+    parser.add_argument("--latentSdim",type=int,default=3,help="Latent space s dimension")
+    parser.add_argument("--latentCdim",type=int,default=2,help="Number of classes")
+    parser.add_argument("--latentNdim",type=int,default=3,help="Latent space n dimension")
     parser.add_argument("--signal",type=int,default=2,help="Types of signals")
-    parser.add_argument("--nSlayers",type=int,default=3,help='Number of S-branch CNN layers')
-    parser.add_argument("--nClayers",type=int,default=3,help='Number of C-branch CNN layers')
-    parser.add_argument("--nNlayers",type=int,default=3,help='Number of N-branch CNN layers')
+    parser.add_argument("--nSlayers",type=int,default=1,help='Number of S-branch CNN layers')
+    parser.add_argument("--nClayers",type=int,default=1,help='Number of C-branch CNN layers')
+    parser.add_argument("--nNlayers",type=int,default=1,help='Number of N-branch CNN layers')
     parser.add_argument("--Skernel",type=int,default=3,help='CNN kernel of S-branch branch')
     parser.add_argument("--Ckernel",type=int,default=3,help='CNN kernel of C-branch branch')
     parser.add_argument("--Nkernel",type=int,default=3,help='CNN kernel of N-branch branch')
@@ -135,10 +132,10 @@ def ParseOptions():
     parser.add_argument("--nCritic",type=int,default=1,help='number of discriminator training steps')
     parser.add_argument("--nGenerator",type=int,default=5,help='number of generator training steps')
     parser.add_argument("--clipValue",type=float,default=0.01,help='clip weight for WGAN')
-    parser.add_argument("--dataroot", nargs="+", default=["/gpfs/workdir/invsem07/GiorgiaGAN/PortiqueElasPlas_N_2000_index",
-                        "/gpfs/workdir/invsem07/GiorgiaGAN/PortiqueElasPlas_E_2000_index"],help="Data root folder") 
-    parser.add_argument("--dataroot_index", nargs="+", default=["/gpfs/workdir/invsem07/GiorgiaGAN/NDOF_code/PortiqueElasPlas_N_2000_index",
-                        "/gpfs/workdir/invsem07/GiorgiaGAN/NDOF_code/PortiqueElasPlas_E_2000_index"],help="Data root folder") 
+    parser.add_argument("--dataroot", nargs="+", default=["./PortiqueElasPlas_N_2000_index",
+                        "./PortiqueElasPlas_E_2000_index"],help="Data root folder") 
+    parser.add_argument("--dataroot_index", nargs="+", default=["./NDOF_code/PortiqueElasPlas_N_2000_index",
+                        "./NDOF_code/PortiqueElasPlas_E_2000_index"],help="Data root folder") 
     # parser.add_argument("--dataroot", nargs="+", default=["/gpfs/workdir/invsem07/stead_1_9U","/gpfs/workdir/invsem07/stead_1_9D",
     #                     "/gpfs/workdir/invsem07/stead_1_10D"],help="Data root folder") 
     parser.add_argument("--idChannels",type=int,nargs='+',default=[1,2,3,4],help="Channel 1")
@@ -146,7 +143,7 @@ def ParseOptions():
     parser.add_argument("--case",type=str,default="train_model",help="case")
     parser.add_argument("--avu",type=str,nargs='+',default="U",help="case avu")
     parser.add_argument("--pb",type=str,default="DC",help="case pb")#DC
-    parser.add_argument("--CreateData",action='store_true',default=True,help='Create data flag')
+    parser.add_argument("--CreateData",action='store_true',default=False,help='Create data flag')
     parser.add_argument("--cuda",action='store_true',default=False,help='Use cuda powered GPU')
     parser.add_argument('--dtm',type=float,default=0.04,help='time-step [s]')
     options = parser.parse_args().__dict__
@@ -366,7 +363,7 @@ class RepGAN(Model):
 
     def train_step(self, realXC):
 
-        realX, realC = realXC
+        realX, realC, mag, di = realXC
 
         self.batchSize = tf.shape(realX)[0]
 
@@ -941,68 +938,87 @@ class RepGAN(Model):
 
         elif 'conv' in self.branching:
             # variable s
+            # Zs = Dense(self.Ssize*self.nSchannels)(s)
+            # Zs = LeakyReLU(alpha=0.1)(Zs)
+            # Zs = BatchNormalization(momentum=0.95)(Zs)
+            # Zs = Reshape((self.Ssize,self.nSchannels))(Zs)
+
             Zs = Dense(self.Ssize*self.nSchannels)(s)
-            Zs = LeakyReLU(alpha=0.1)(Zs)
+            #Zs = LeakyReLU(alpha=0.1)(Zs)
+            Zs = ReLU()(Zs)
             Zs = BatchNormalization(momentum=0.95)(Zs)
-            Zs = Reshape((self.Ssize,self.nSchannels))(Zs)
+            Zs = Reshape((self.Ssize,self.nSchannels))(Zs) 
 
             for layer in range(1,self.nSlayers):
-                Zs = concatenate([Zs,s])
+                s1 = Dense(Zs.shape[1]*Zs.shape[2])(s)
+                s1 = Reshape((Zs.shape[1],Zs.shape[2]))(s1)
+                Zs = concatenate([Zs,s1])
                 Zs = Conv1DTranspose(int(self.nSchannels*self.Sstride**(-layer)),
                     self.Skernel,self.Sstride,padding="same",
                     data_format="channels_last")(Zs)
                 Zs = LeakyReLU(alpha=0.1)(Zs)
                 Zs = BatchNormalization(momentum=0.95)(Zs)
                 Zs = Dropout(0.2,name="GzDOS{:>d}".format(layer))(Zs)
-            #Zs = Flatten()(Zs)
-            import pdb
-            pdb.set_trace()
-            s1 = tf.keras.layers.ZeroPadding1D(padding=(int(Zs.shape[-1]/2)))(Reshape((self.latentSdim,1))(s))
-            s1 = Reshape((Zs.shape[-1],self.latentSdim))
-            import pdb
-            pdb.set_trace()
-            Zs = concatenate([Zs,s1], axis=-1)
-            import pdb
-            pdb.set_trace()
-            Zs = Reshape((self.Ssize,self.nSchannels))(Zs)
-            Zs = Conv1DTranspose(int(self.nSchannels*self.Sstride**(-self.nSlayers)),
-                self.Skernel,self.Sstride,padding="same",
-                data_format="channels_last")(Zs)
-            Zs = LeakyReLU(alpha=0.1)(Zs)
+            s1 = Dense(Zs.shape[1]*Zs.shape[2])(s)
+            s1 = Reshape((Zs.shape[1],Zs.shape[2]))(s1)
+            Zs = concatenate([Zs,s1])
+            Zs = Conv1DTranspose(int(self.nSchannels*self.Sstride**(-self.nSlayers)),self.Skernel,self.Sstride,padding="same",data_format="channels_last")(Zs)
+            #Zs = LeakyReLU(alpha=0.1)(Zs)
+            Zs = ReLU()(Zs)
             Zs = BatchNormalization(momentum=0.95,name="GzBNS{:>d}".format(self.nSlayers))(Zs)
             Zs = Dropout(0.2)(Zs)
             GzS = keras.Model(s,Zs)
 
-
             # variable c
-            Zc = Dense(self.Csize*self.nCchannels)(c)
-            Zc = LeakyReLU(alpha=0.1,)(Zc)
+            # Zc = Dense(self.Csize*self.nCchannels)(c)
+            # Zc = LeakyReLU(alpha=0.1,)(Zc)
+            # Zc = BatchNormalization(momentum=0.95)(Zc)
+            # Zc = Reshape((self.Csize,self.nCchannels))(Zc)
+
+            Zc = Dense(self.Ssize*self.nSchannels)(c)
+            #Zc = LeakyReLU(alpha=0.1)(Zc)
+            Zc = ReLU()(Zc)
             Zc = BatchNormalization(momentum=0.95)(Zc)
-            Zc = Reshape((self.Csize,self.nCchannels))(Zc)
+            Zc = Reshape((self.Ssize,self.nSchannels))(Zc)
+
             for layer in range(1,self.nClayers):
-                Zc = concatenate([Zc,c])
+                c1 = Dense(Zc.shape[1]*Zc.shape[2])(c)
+                c1 = Reshape((Zc.shape[1],Zc.shape[2]))(c1)
+                Zc = concatenate([Zc,c1])
                 Zc = Conv1DTranspose(int(self.nCchannels*self.Cstride**(-layer)),
                     self.Ckernel,self.Cstride,padding="same",
                     data_format="channels_last")(Zc)
                 Zc = LeakyReLU(alpha=0.1)(Zc)
                 Zc = BatchNormalization(momentum=0.95)(Zc)
                 Zc = Dropout(0.2)(Zc)
-            Zc = Flatten()(Zc)
-            Zc = concatenate([Zc,c])
+            c1 = Dense(Zc.shape[1]*Zc.shape[2])(c)
+            c1 = Reshape((Zc.shape[1],Zc.shape[2]))(c1)
+            Zc = concatenate([Zc,c1])
             Zc = Conv1DTranspose(int(self.nCchannels*self.Cstride**(-self.nClayers)),
                 self.Ckernel,self.Cstride,padding="same",
                 data_format="channels_last")(Zc)
-            Zc = LeakyReLU(alpha=0.1)(Zc)
+            #Zc = LeakyReLU(alpha=0.1)(Zc)
+            Zc = ReLU()(Zc)
             Zc = BatchNormalization(momentum=0.95)(Zc)
             Zc = Dropout(0.2)(Zc)
             GzC = keras.Model(c,Zc)
 
             # variable n
-            Zn = Dense(self.Nsize*self.nNchannels)(n)
-            Zn = LeakyReLU(alpha=0.1)(Zn)
+            # Zn = Dense(self.Nsize*self.nNchannels)(n)
+            # Zn = LeakyReLU(alpha=0.1)(Zn)
+            # Zn = BatchNormalization(momentum=0.95)(Zn)
+            # Zn = Reshape((self.Nsize,self.nNchannels))(Zn)
+
+            Zn = Dense(self.Ssize*self.nSchannels)(n)
+            #Zn = LeakyReLU(alpha=0.1)(Zn)
+            Zn = ReLU()(Zn)
             Zn = BatchNormalization(momentum=0.95)(Zn)
-            Zn = Reshape((self.Nsize,self.nNchannels))(Zn)
+            Zn = Reshape((self.Ssize,self.nSchannels))(Zn)
+
             for layer in range(1,self.nNlayers):
+                n1 = Dense(Zn.shape[1]*Zn.shape[2])(n)
+                n1 = Reshape((Zn.shape[1],Zn.shape[2]))(n1)
+                Zn = concatenate([Zn,n1])
                 Zn = concatenate([Zn,n])
                 Zn = Conv1DTranspose(int(self.nNchannels*self.Nstride**(-layer)),
                     self.Nkernel,self.Nstride,padding="same",
@@ -1010,48 +1026,71 @@ class RepGAN(Model):
                 Zn = LeakyReLU(alpha=0.1)(Zn)
                 Zn = BatchNormalization(momentum=0.95)(Zn)
                 Zn = Dropout(0.2)(Zn)
-            Zn = Flatten()(Zn)
-            Zn = concatenate([Zn,n])
+            n1 = Dense(Zn.shape[1]*Zn.shape[2])(n)
+            n1 = Reshape((Zn.shape[1],Zn.shape[2]))(n1)
+            Zn = concatenate([Zn,n1])
             Zn = Conv1DTranspose(int(self.nNchannels*self.Nstride**(-self.nNlayers)),
                 self.Nkernel,self.Nstride,padding="same",
                 data_format="channels_last")(Zn)
-            Zn = LeakyReLU(alpha=0.1)(Zn)
+            #Zn = LeakyReLU(alpha=0.1)(Zn)
+            Zn = ReLU()(Zn)
             Zn = BatchNormalization(momentum=0.95)(Zn)
             Zn = Dropout(0.2)(Zn)
             GzN = keras.Model(n,Zn)
 
-            Gz = concatenate([GzS.output,GzC.output,GzN.output])
-            Gz = Flatten()(Gz)
-            Gz = concatenate([GzS.output,GzC.output,GzN.output,s,c,n])
-            Gz = Conv1DTranspose(self.nZchannels,
-                    self.kernel,1,padding="same",
-                    data_format="channels_last")(Gz)
-            Gz = LeakyReLU(alpha=0.1)(Gz)
+            # Gz = concatenate([GzS.output,GzC.output,GzN.output])
+            s1 = Dense(Zs.shape[1]*Zs.shape[2])(s)
+            s1 = Reshape((Zs.shape[1],Zs.shape[2]))(s1)
+            c1 = Dense(Zc.shape[1]*Zc.shape[2])(c)
+            c1 = Reshape((Zc.shape[1],Zc.shape[2]))(c1)
+            n1 = Dense(Zn.shape[1]*Zn.shape[2])(n)
+            n1 = Reshape((Zn.shape[1],Zn.shape[2]))(n1)
+            Gz = concatenate([GzS.output,GzC.output,GzN.output,s1,c1,n1])
+            Gz = Conv1DTranspose(self.nZchannels,self.kernel,1,padding="same",data_format="channels_last")(Gz)
+            #Gz = LeakyReLU(alpha=0.1)(Gz)
+            Gz = ReLU()(Gz)
             Gz = BatchNormalization(axis=-1,momentum=0.95)(Gz)
 
         for layer in range(self.nAElayers-1):
-            Gz = Flatten()(Gz)
-            Gz = concatenate([Gz,s,c,n])
+            s1 = Dense(Gz.shape[1]*Gz.shape[2])(s)
+            s1 = Reshape((Gz.shape[1],Gz.shape[2]))(s1)
+            c1 = Dense(Gz.shape[1]*Gz.shape[2])(c)
+            c1 = Reshape((Gz.shape[1],Gz.shape[2]))(c1)
+            n1 = Dense(Gz.shape[1]*Gz.shape[2])(n)
+            n1 = Reshape((Gz.shape[1],Gz.shape[2]))(n1)
+            Gz = concatenate([Gz,s1,c1,n1])
             Gz = Conv1DTranspose(self.nZchannels//self.stride**(layer+1),
                 self.kernel,self.stride,padding="same",use_bias=False)(Gz)
             Gz = LeakyReLU(alpha=0.1)(Gz)
+            Gz = ReLU()(Gz)
             Gz = BatchNormalization(axis=-1,momentum=0.95)(Gz)
 
+    
         layer = self.nAElayers-1
-        Gz = Flatten()(Gz)
-        Gz = concatenate([Gz,s,c,n])
+        s1 = Dense(Gz.shape[1]*Gz.shape[2])(s)
+        s1 = Reshape((Gz.shape[1],Gz.shape[2]))(s1)
+        c1 = Dense(Gz.shape[1]*Gz.shape[2])(c)
+        c1 = Reshape((Gz.shape[1],Gz.shape[2]))(c1)
+        n1 = Dense(Gz.shape[1]*Gz.shape[2])(n)
+        n1 = Reshape((Gz.shape[1],Gz.shape[2]))(n1)
+        Gz = concatenate([Gz,s1,c1,n1])
         Gz = Conv1DTranspose(self.nZchannels//self.stride**(layer+1),
                 self.kernel,self.stride,padding="same",use_bias=False)(Gz)
-        Gz = LeakyReLU(alpha=0.1,name="GzA{:>d}".format(layer+1))(Gz)
+        #Gz = LeakyReLU(alpha=0.1,name="GzA{:>d}".format(layer+1))(Gz)
+        Gz = ReLU(name="GzA{:>d}".format(layer+1))(Gz)
         Gz = BatchNormalization(axis=-1,momentum=0.95)(Gz)
 
         layer = self.nAElayers
-        Gz = Flatten()(Gz)
-        Gz = concatenate([Gz,s,c,n])
-        X = Conv1DTranspose(self.nXchannels,self.kernel,1,
-            padding="same",activation='tanh',use_bias=False)(Gz)
+        s1 = Dense(Gz.shape[1]*Gz.shape[2])(s)
+        s1 = Reshape((Gz.shape[1],Gz.shape[2]))(s1)
+        c1 = Dense(Gz.shape[1]*Gz.shape[2])(c)
+        c1 = Reshape((Gz.shape[1],Gz.shape[2]))(c1)
+        n1 = Dense(Gz.shape[1]*Gz.shape[2])(n)
+        n1 = Reshape((Gz.shape[1],Gz.shape[2]))(n1)
+        Gz = concatenate([Gz,s1,c1,n1])
+        X = Conv1DTranspose(self.nXchannels,self.kernel,1,padding="same",activation='tanh',use_bias=False)(Gz)
 
-        Gz = keras.Model(inputs=[GzS.input,GzC.input,GzN.input,s,c,n],outputs=X,name="Gz")
+        Gz = keras.Model(inputs=[GzS.input,GzC.input,GzN.input],outputs=X,name="Gz")
         return Gz
 
     def BuildGq(self):
@@ -1089,59 +1128,87 @@ class RepGAN(Model):
 
         elif 'conv' in self.branching:
             # variable s
+            # Zs = Dense(self.Ssize*self.nSchannels)(s)
+            # Zs = LeakyReLU(alpha=0.1)(Zs)
+            # Zs = BatchNormalization(momentum=0.95)(Zs)
+            # Zs = Reshape((self.Ssize,self.nSchannels))(Zs)
+
             Zs = Dense(self.Ssize*self.nSchannels)(s)
-            Zs = LeakyReLU(alpha=0.1)(Zs)
+            #Zs = LeakyReLU(alpha=0.1)(Zs)
+            Zs = ReLU()(Zs)
             Zs = BatchNormalization(momentum=0.95)(Zs)
-            Zs = Reshape((self.Ssize,self.nSchannels))(Zs)
+            Zs = Reshape((self.Ssize,self.nSchannels))(Zs) 
 
             for layer in range(1,self.nSlayers):
-                Zs = concatenate([Zs,s])
+                s1 = Dense(Zs.shape[1]*Zs.shape[2])(s)
+                s1 = Reshape((Zs.shape[1],Zs.shape[2]))(s1)
+                Zs = concatenate([Zs,s1])
                 Zs = Conv1DTranspose(int(self.nSchannels*self.Sstride**(-layer)),
                     self.Skernel,self.Sstride,padding="same",
                     data_format="channels_last")(Zs)
                 Zs = LeakyReLU(alpha=0.1)(Zs)
                 Zs = BatchNormalization(momentum=0.95)(Zs)
                 Zs = Dropout(0.2,name="GzDOS{:>d}".format(layer))(Zs)
-            Zs = Flatten()(Zs)
-            Zs = concatenate([Zs,s])
-            Zs = Conv1DTranspose(int(self.nSchannels*self.Sstride**(-self.nSlayers)),
-                self.Skernel,self.Sstride,padding="same",
-                data_format="channels_last")(Zs)
-            Zs = LeakyReLU(alpha=0.1)(Zs)
+            s1 = Dense(Zs.shape[1]*Zs.shape[2])(s)
+            s1 = Reshape((Zs.shape[1],Zs.shape[2]))(s1)
+            Zs = concatenate([Zs,s1])
+            Zs = Conv1DTranspose(int(self.nSchannels*self.Sstride**(-self.nSlayers)),self.Skernel,self.Sstride,padding="same",data_format="channels_last")(Zs)
+            #Zs = LeakyReLU(alpha=0.1)(Zs)
+            Zs = ReLU()(Zs)
             Zs = BatchNormalization(momentum=0.95,name="GzBNS{:>d}".format(self.nSlayers))(Zs)
             Zs = Dropout(0.2)(Zs)
             GzS = keras.Model(s,Zs)
 
-
             # variable c
-            Zc = Dense(self.Csize*self.nCchannels)(c)
-            Zc = LeakyReLU(alpha=0.1,)(Zc)
+            # Zc = Dense(self.Csize*self.nCchannels)(c)
+            # Zc = LeakyReLU(alpha=0.1,)(Zc)
+            # Zc = BatchNormalization(momentum=0.95)(Zc)
+            # Zc = Reshape((self.Csize,self.nCchannels))(Zc)
+
+            Zc = Dense(self.Ssize*self.nSchannels)(c)
+            #Zc = LeakyReLU(alpha=0.1)(Zc)
+            Zc = ReLU()(Zc)
             Zc = BatchNormalization(momentum=0.95)(Zc)
-            Zc = Reshape((self.Csize,self.nCchannels))(Zc)
+            Zc = Reshape((self.Ssize,self.nSchannels))(Zc)
+
             for layer in range(1,self.nClayers):
-                Zc = concatenate([Zc,c])
+                c1 = Dense(Zc.shape[1]*Zc.shape[2])(c)
+                c1 = Reshape((Zc.shape[1],Zc.shape[2]))(c1)
+                Zc = concatenate([Zc,c1])
                 Zc = Conv1DTranspose(int(self.nCchannels*self.Cstride**(-layer)),
                     self.Ckernel,self.Cstride,padding="same",
                     data_format="channels_last")(Zc)
                 Zc = LeakyReLU(alpha=0.1)(Zc)
                 Zc = BatchNormalization(momentum=0.95)(Zc)
                 Zc = Dropout(0.2)(Zc)
-            Zc = Flatten()(Zc)
-            Zc = concatenate([Zc,c])
+            c1 = Dense(Zc.shape[1]*Zc.shape[2])(c)
+            c1 = Reshape((Zc.shape[1],Zc.shape[2]))(c1)
+            Zc = concatenate([Zc,c1])
             Zc = Conv1DTranspose(int(self.nCchannels*self.Cstride**(-self.nClayers)),
                 self.Ckernel,self.Cstride,padding="same",
                 data_format="channels_last")(Zc)
-            Zc = LeakyReLU(alpha=0.1)(Zc)
+            #Zc = LeakyReLU(alpha=0.1)(Zc)
+            Zc = ReLU()(Zc)
             Zc = BatchNormalization(momentum=0.95)(Zc)
             Zc = Dropout(0.2)(Zc)
             GzC = keras.Model(c,Zc)
 
             # variable n
-            Zn = Dense(self.Nsize*self.nNchannels)(n)
-            Zn = LeakyReLU(alpha=0.1)(Zn)
+            # Zn = Dense(self.Nsize*self.nNchannels)(n)
+            # Zn = LeakyReLU(alpha=0.1)(Zn)
+            # Zn = BatchNormalization(momentum=0.95)(Zn)
+            # Zn = Reshape((self.Nsize,self.nNchannels))(Zn)
+
+            Zn = Dense(self.Ssize*self.nSchannels)(n)
+            #Zn = LeakyReLU(alpha=0.1)(Zn)
+            Zn = ReLU()(Zn)
             Zn = BatchNormalization(momentum=0.95)(Zn)
-            Zn = Reshape((self.Nsize,self.nNchannels))(Zn)
+            Zn = Reshape((self.Ssize,self.nSchannels))(Zn)
+
             for layer in range(1,self.nNlayers):
+                n1 = Dense(Zn.shape[1]*Zn.shape[2])(n)
+                n1 = Reshape((Zn.shape[1],Zn.shape[2]))(n1)
+                Zn = concatenate([Zn,n1])
                 Zn = concatenate([Zn,n])
                 Zn = Conv1DTranspose(int(self.nNchannels*self.Nstride**(-layer)),
                     self.Nkernel,self.Nstride,padding="same",
@@ -1149,48 +1216,71 @@ class RepGAN(Model):
                 Zn = LeakyReLU(alpha=0.1)(Zn)
                 Zn = BatchNormalization(momentum=0.95)(Zn)
                 Zn = Dropout(0.2)(Zn)
-            Zn = Flatten()(Zn)
-            Zn = concatenate([Zn,n])
+            n1 = Dense(Zn.shape[1]*Zn.shape[2])(n)
+            n1 = Reshape((Zn.shape[1],Zn.shape[2]))(n1)
+            Zn = concatenate([Zn,n1])
             Zn = Conv1DTranspose(int(self.nNchannels*self.Nstride**(-self.nNlayers)),
                 self.Nkernel,self.Nstride,padding="same",
                 data_format="channels_last")(Zn)
-            Zn = LeakyReLU(alpha=0.1)(Zn)
+            #Zn = LeakyReLU(alpha=0.1)(Zn)
+            Zn = ReLU()(Zn)
             Zn = BatchNormalization(momentum=0.95)(Zn)
             Zn = Dropout(0.2)(Zn)
             GzN = keras.Model(n,Zn)
 
-            Gz = concatenate([GzS.output,GzC.output,GzN.output])
-            Gz = Flatten()(Gz)
-            Gz = concatenate([GzS.output,GzC.output,GzN.output,s,c,n])
-            Gz = Conv1DTranspose(self.nZchannels,
-                    self.kernel,1,padding="same",
-                    data_format="channels_last")(Gz)
-            Gz = LeakyReLU(alpha=0.1)(Gz)
+            # Gz = concatenate([GzS.output,GzC.output,GzN.output])
+            s1 = Dense(Zs.shape[1]*Zs.shape[2])(s)
+            s1 = Reshape((Zs.shape[1],Zs.shape[2]))(s1)
+            c1 = Dense(Zc.shape[1]*Zc.shape[2])(c)
+            c1 = Reshape((Zc.shape[1],Zc.shape[2]))(c1)
+            n1 = Dense(Zn.shape[1]*Zn.shape[2])(n)
+            n1 = Reshape((Zn.shape[1],Zn.shape[2]))(n1)
+            Gz = concatenate([GzS.output,GzC.output,GzN.output,s1,c1,n1])
+            Gz = Conv1DTranspose(self.nZchannels,self.kernel,1,padding="same",data_format="channels_last")(Gz)
+            #Gz = LeakyReLU(alpha=0.1)(Gz)
+            Gz = ReLU()(Gz)
             Gz = BatchNormalization(axis=-1,momentum=0.95)(Gz)
 
         for layer in range(self.nAElayers-1):
-            Gz = Flatten()(Gz)
-            Gz = concatenate([Gz,s,c,n])
+            s1 = Dense(Gz.shape[1]*Gz.shape[2])(s)
+            s1 = Reshape((Gz.shape[1],Gz.shape[2]))(s1)
+            c1 = Dense(Gz.shape[1]*Gz.shape[2])(c)
+            c1 = Reshape((Gz.shape[1],Gz.shape[2]))(c1)
+            n1 = Dense(Gz.shape[1]*Gz.shape[2])(n)
+            n1 = Reshape((Gz.shape[1],Gz.shape[2]))(n1)
+            Gz = concatenate([Gz,s1,c1,n1])
             Gz = Conv1DTranspose(self.nZchannels//self.stride**(layer+1),
                 self.kernel,self.stride,padding="same",use_bias=False)(Gz)
             Gz = LeakyReLU(alpha=0.1)(Gz)
+            Gz = ReLU()(Gz)
             Gz = BatchNormalization(axis=-1,momentum=0.95)(Gz)
 
+    
         layer = self.nAElayers-1
-        Gz = Flatten()(Gz)
-        Gz = concatenate([Gz,s,c,n])
+        s1 = Dense(Gz.shape[1]*Gz.shape[2])(s)
+        s1 = Reshape((Gz.shape[1],Gz.shape[2]))(s1)
+        c1 = Dense(Gz.shape[1]*Gz.shape[2])(c)
+        c1 = Reshape((Gz.shape[1],Gz.shape[2]))(c1)
+        n1 = Dense(Gz.shape[1]*Gz.shape[2])(n)
+        n1 = Reshape((Gz.shape[1],Gz.shape[2]))(n1)
+        Gz = concatenate([Gz,s1,c1,n1])
         Gz = Conv1DTranspose(self.nZchannels//self.stride**(layer+1),
                 self.kernel,self.stride,padding="same",use_bias=False)(Gz)
-        Gz = LeakyReLU(alpha=0.1,name="GzA{:>d}".format(layer+1))(Gz)
+        #Gz = LeakyReLU(alpha=0.1,name="GzA{:>d}".format(layer+1))(Gz)
+        Gz = ReLU(name="GzA{:>d}".format(layer+1))(Gz)
         Gz = BatchNormalization(axis=-1,momentum=0.95)(Gz)
 
         layer = self.nAElayers
-        Gz = Flatten()(Gz)
-        Gz = concatenate([Gz,s,c,n])
-        X = Conv1DTranspose(self.nXchannels,self.kernel,1,
-            padding="same",activation='tanh',use_bias=False)(Gz)
+        s1 = Dense(Gz.shape[1]*Gz.shape[2])(s)
+        s1 = Reshape((Gz.shape[1],Gz.shape[2]))(s1)
+        c1 = Dense(Gz.shape[1]*Gz.shape[2])(c)
+        c1 = Reshape((Gz.shape[1],Gz.shape[2]))(c1)
+        n1 = Dense(Gz.shape[1]*Gz.shape[2])(n)
+        n1 = Reshape((Gz.shape[1],Gz.shape[2]))(n1)
+        Gz = concatenate([Gz,s1,c1,n1])
+        X = Conv1DTranspose(self.nXchannels,self.kernel,1,padding="same",activation='tanh',use_bias=False)(Gz)
 
-        Gq = keras.Model(inputs=[GzS.input,GzC.input,GzN.input,s,c,n],outputs=X,name="Gq")
+        Gq = keras.Model(inputs=[GzS.input,GzC.input,GzN.input],outputs=X,name="Gz")
         return Gq
 
     def BuildDx(self):
@@ -1272,14 +1362,14 @@ class RepGAN(Model):
 
     
     def DumpModels(self):
-        self.Fx.save("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_skip/28_04/Fx",save_format="tf")
-        self.Gz.save("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_skip/28_04/Gz",save_format="tf")
-        self.Dx.save("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_skip/28_04/Dx",save_format="tf")
-        self.Ds.save("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_skip/28_04/Ds",save_format="tf")
-        self.Dn.save("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_skip/28_04/Dn",save_format="tf")
-        self.Dc.save("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_skip/28_04/Dc",save_format="tf")
-        self.Q.save("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_skip/28_04/Q",save_format="tf")
-        self.Gq.save("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_skip/28_04/Gq",save_format="tf")
+        self.Fx.save("./checkpoint_skip/16_05/Fx",save_format="tf")
+        self.Gz.save("./checkpoint_skip/16_05/Gz",save_format="tf")
+        self.Dx.save("./checkpoint_skip/16_05/Dx",save_format="tf")
+        self.Ds.save("./checkpoint_skip/16_05/Ds",save_format="tf")
+        self.Dn.save("./checkpoint_skip/16_05/Dn",save_format="tf")
+        self.Dc.save("./checkpoint_skip/16_05/Dc",save_format="tf")
+        self.Q.save("./checkpoint_skip/16_05/Q",save_format="tf")
+        self.Gq.save("./checkpoint_skip/16_05/Gq",save_format="tf")
         return
 
 def Main(DeviceName):

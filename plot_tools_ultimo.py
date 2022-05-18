@@ -136,8 +136,8 @@ def PlotLoss(history):
     ax1.set_xlabel(r"$n_{epochs}$",fontsize=20,fontweight='bold')
     ax1.set_ylabel(r'$Loss \hspace{0.5} [1]$',fontsize=20,fontweight='bold')
 
-    plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/loss.png',format='png',bbox_inches = 'tight')
-    #plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/loss.eps',format='eps',rasterized=True,bbox_inches = 'tight',dpi=200)
+    plt.savefig('/gpfs/workdir/colombergi/GiorgiaGAN/results/loss.png',format='png',bbox_inches = 'tight')
+    #plt.savefig('/gpfs/workdir/colombergi/GiorgiaGAN/results/loss.eps',format='eps',rasterized=True,bbox_inches = 'tight',dpi=200)
     plt.close()
 
     hfg = plt.figure(figsize=(12,6))
@@ -150,8 +150,8 @@ def PlotLoss(history):
     hax.set_xlabel(r'$n_{epochs}$', fontsize=20,fontweight='bold')
     hax.legend(loc='best',frameon=False,fontsize=20)
     hax.tick_params(axis='both', labelsize=18)
-    plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/D_x.png',bbox_inches = 'tight')
-    #plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/D_x.eps',bbox_inches = 'tight',dpi=200)
+    plt.savefig('/gpfs/workdir/colombergi/GiorgiaGAN/results/D_x.png',bbox_inches = 'tight')
+    #plt.savefig('/gpfs/workdir/colombergi/GiorgiaGAN/results/D_x.eps',bbox_inches = 'tight',dpi=200)
     plt.close()
 
     hfg = plt.figure(figsize=(12,6))
@@ -163,8 +163,8 @@ def PlotLoss(history):
     hax.set_xlabel(r'$n_{epochs}$', fontsize=20,fontweight='bold')
     hax.legend(loc='best',frameon=False,fontsize=20)
     hax.tick_params(axis='both', labelsize=18)
-    plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/D_c.png',bbox_inches = 'tight')
-    #plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/D_c.eps',bbox_inches = 'tight',dpi=200)
+    plt.savefig('/gpfs/workdir/colombergi/GiorgiaGAN/results/D_c.png',bbox_inches = 'tight')
+    #plt.savefig('/gpfs/workdir/colombergi/GiorgiaGAN/results/D_c.eps',bbox_inches = 'tight',dpi=200)
     plt.close()
 
     hfg = plt.figure(figsize=(12,6))
@@ -176,8 +176,8 @@ def PlotLoss(history):
     hax.set_xlabel(r'$n_{epochs}$', fontsize=20,fontweight='bold')
     hax.legend(loc='best',frameon=False,fontsize=20)
     hax.tick_params(axis='both', labelsize=18)
-    plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/D_s.png',bbox_inches = 'tight')
-    #plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/D_s.eps',bbox_inches = 'tight',dpi=200)
+    plt.savefig('/gpfs/workdir/colombergi/GiorgiaGAN/results/D_s.png',bbox_inches = 'tight')
+    #plt.savefig('/gpfs/workdir/colombergi/GiorgiaGAN/results/D_s.eps',bbox_inches = 'tight',dpi=200)
     plt.close()
 
     hfg = plt.figure(figsize=(12,6))
@@ -189,8 +189,8 @@ def PlotLoss(history):
     hax.set_xlabel(r'$n_{epochs}$', fontsize=20,fontweight='bold')
     hax.legend(loc='best',frameon=False,fontsize=20)
     hax.tick_params(axis='both', labelsize=18)
-    plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/D_n.png',bbox_inches = 'tight')
-    #plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/D_n.eps',bbox_inches = 'tight',dpi=200)
+    plt.savefig('/gpfs/workdir/colombergi/GiorgiaGAN/results/D_n.png',bbox_inches = 'tight')
+    #plt.savefig('/gpfs/workdir/colombergi/GiorgiaGAN/results/D_n.eps',bbox_inches = 'tight',dpi=200)
     plt.close()
 
 

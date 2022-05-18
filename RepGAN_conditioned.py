@@ -89,7 +89,7 @@ RecGlossS_tracker = keras.metrics.Mean(name="loss")
 #gpu_devices = tf.config.experimental.list_physical_devices('GPU')
 
 
-checkpoint_dir = "./gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_c/21_04/ckpt_c"
+checkpoint_dir = "../checkpoint_c/21_04/ckpt_c"
 if not os.path.exists(checkpoint_dir):
     os.makedirs(checkpoint_dir)
 
@@ -138,8 +138,8 @@ def ParseOptions():
     parser.add_argument("--nCritic",type=int,default=1,help='number of discriminator training steps')
     parser.add_argument("--nGenerator",type=int,default=5,help='number of generator training steps')
     parser.add_argument("--clipValue",type=float,default=0.01,help='clip weight for WGAN')
-    parser.add_argument("--dataroot", nargs="+", default=["/gpfs/workdir/invsem07/GiorgiaGAN/PortiqueElasPlas_N_2000",
-                        "/gpfs/workdir/invsem07/GiorgiaGAN/PortiqueElasPlas_E_2000"],help="Data root folder") 
+    parser.add_argument("--dataroot", nargs="+", default=["./PortiqueElasPlas_N_2000",
+                        "./PortiqueElasPlas_E_2000"],help="Data root folder") 
     # parser.add_argument("--dataroot", nargs="+", default=["/gpfs/workdir/invsem07/stead_1_9U","/gpfs/workdir/invsem07/stead_1_9D",
     #                     "/gpfs/workdir/invsem07/stead_1_10D"],help="Data root folder") 
     parser.add_argument("--idChannels",type=int,nargs='+',default=[1,2,3,4],help="Channel 1")

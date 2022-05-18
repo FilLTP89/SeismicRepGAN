@@ -95,12 +95,12 @@ def CreateData(**kwargs):
     #         axs[1,1].set_title('Signals with noise')
     #         axs[1,1].set_ylabel(r'$X (t) \hspace{0.5} [1]$')
     #         axs[1,1].set_xlabel(r'$t \hspace{0.5} [s]$')
-    #         plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results_tesi/Signals_{:>d}_{:>d}.png'.format(j,i),bbox_inches = 'tight')
+    #         plt.savefig('./results_tesi/Signals_{:>d}_{:>d}.png'.format(j,i),bbox_inches = 'tight')
     #         plt.close()
 
     # New dataset
-    load = np.loadtxt('/gpfs/workdir/invsem07/GiorgiaGAN/acc_x.txt')
-    load1 = np.loadtxt('/gpfs/workdir/invsem07/GiorgiaGAN/NDOF_code/noise_x.txt')
+    load = np.loadtxt('./acc_x.txt')
+    load1 = np.loadtxt('./NDOF_code/noise_x.txt')
     acc = np.zeros((int(load.shape[0]/4),load.shape[1]-1))
     acc1 = np.zeros((int(load1.shape[0]/4),load.shape[1]-1))
     for i in range(acc.shape[0]):
@@ -117,7 +117,7 @@ def CreateData(**kwargs):
                 H[i+int(nX/N/signal)*k+int(nX/N),j,:] = np.fft.fft(data[i+int(nX/N),j,:])/np.fft.fft(acc[:,i])
 
     # # Dataset tesi
-    # dataSrc1 = open("/gpfs/workdir/invsem07/GiorgiaGAN/signal_500.csv")
+    # dataSrc1 = open("./signal_500.csv")
     # sdof_1 = csv.reader(dataSrc1,delimiter=',')
 
     # n1 = []
@@ -172,13 +172,13 @@ def CreateData(**kwargs):
     #         hfg = plt.figure(figsize=(12,6),tight_layout=True)
     #         hax = hfg.add_subplot(111)
     #         hax.loglog(freq[:s], np.abs(H[i,j,s:]), color='black')
-    #         plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results_TF/abs_H_{:>d}_{:>d}.png'.format(j,i),bbox_inches = 'tight')
+    #         plt.savefig('./results_TF/abs_H_{:>d}_{:>d}.png'.format(j,i),bbox_inches = 'tight')
     #         plt.close()
 
     #         hfg = plt.figure(figsize=(12,6),tight_layout=True)
     #         hax = hfg.add_subplot(111)
     #         hax.loglog(freq[:s], np.abs(X[i,j,s:]), color='black')
-    #         plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results_TF/abs_X_{:>d}_{:>d}.png'.format(j,i),bbox_inches = 'tight')
+    #         plt.savefig('./results_TF/abs_X_{:>d}_{:>d}.png'.format(j,i),bbox_inches = 'tight')
     #         plt.close()
     
 
@@ -238,23 +238,23 @@ def CreateData(**kwargs):
     
     X,c = shuffle(X,c, random_state=0)
 
-    h5f = h5py.File("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_prova/28_04/Damaged_0.h5",'w')
+    h5f = h5py.File("./checkpoint_ultimo/14_04/Damaged_0.h5",'w')
     h5f.create_dataset('X0', data=X0)
     h5f.create_dataset('c0', data=c0)
     h5f.close() 
 
-    h5f = h5py.File("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_prova/28_04/Damaged_1.h5",'w')
+    h5f = h5py.File("./checkpoint_ultimo/14_04/Damaged_1.h5",'w')
     h5f.create_dataset('X1', data=X1)
     h5f.create_dataset('c1', data=c1)
     h5f.close() 
 
-    h5f = h5py.File("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_prova/28_04/Damaged_2.h5",'w')
+    h5f = h5py.File("./checkpoint_ultimo/14_04/Damaged_2.h5",'w')
     h5f.create_dataset('X2', data=X2)
     h5f.create_dataset('c2', data=c2)
     h5f.close()   
 
 
-    h5f = h5py.File("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_prova/28_04/Data.h5",'w')
+    h5f = h5py.File("./checkpoint_ultimo/14_04/Data.h5",'w')
     h5f.create_dataset('X', data=X)
     h5f.create_dataset('c', data=c)
     h5f.close()
@@ -281,36 +281,40 @@ def CreateData(**kwargs):
 def LoadData(**kwargs):
     LoadData.__globals__.update(kwargs)
 
-    dataSrc = opj("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_prova/28_04/Data.h5")
+    dataSrc = opj("./checkpoint_ultimo/14_04/Data.h5")
     
     h5f = h5py.File(dataSrc,'r')
     X = h5f['X'][...]
     c = h5f['c'][...]
+    mag = h5f['mag'][...]
+    d = h5f['d'][...]
     h5f.close()
 
     # Split between train and validation set (time series and parameters are splitted in the same way)
-    Xtrn, Xvld, Ctrn, Cvld = train_test_split(X,c,random_state=0)
+    Xtrn, Xvld, Ctrn, Cvld, Mtrn, Mvld, Dtrn, Dvld = train_test_split(X,c,mag,d,random_state=0)
 
     return (
-        tf.data.Dataset.from_tensor_slices((Xtrn,Ctrn)).batch(batchSize),
-        tf.data.Dataset.from_tensor_slices((Xvld,Cvld)).batch(batchSize),
-        tf.data.Dataset.from_tensor_slices((Xvld,Cvld)).batch(batchSize)
+        tf.data.Dataset.from_tensor_slices((Xtrn,Ctrn,Mtrn,Dtrn)).batch(batchSize),
+        tf.data.Dataset.from_tensor_slices((Xvld,Cvld,Mvld,Dvld)).batch(batchSize),
+        tf.data.Dataset.from_tensor_slices((Xvld,Cvld,Mvld,Dvld)).batch(batchSize)
         )
 
 
 def Load_Un_Damaged(i,**kwargs):
     Load_Un_Damaged.__globals__.update(kwargs)
 
-    dataSrc = opj("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_prova/28_04/Damaged_{:>d}.h5".format(i))
+    dataSrc = opj("./checkpoint_ultimo/14_04/Damaged_{:>d}.h5".format(i))
     h5f = h5py.File(dataSrc,'r')
     X = h5f['X{:>d}'.format(i)][...]
     c = h5f['c{:>d}'.format(i)][...]
+    mag = h5f['mag{:>d}'.format(i)][...]
+    d = h5f['d{:>d}'.format(i)][...]
 
     # Split between train and validation set (time series and parameters are splitted in the same way)
-    Xtrn, Xvld, Ctrn, Cvld = train_test_split(X,c,random_state=0,shuffle=False)
+    Xtrn, Xvld, Ctrn, Cvld, Mtrn, Mvld, Dtrn, Dvld = train_test_split(X,c,mag,d,random_state=0,shuffle=False)
 
     return (
-        tf.data.Dataset.from_tensor_slices((Xtrn,Ctrn)).batch(batchSize),
-        tf.data.Dataset.from_tensor_slices((Xvld,Cvld)).batch(batchSize),
-        tf.data.Dataset.from_tensor_slices((Xvld,Cvld)).batch(batchSize)
+        tf.data.Dataset.from_tensor_slices((Xtrn,Ctrn,Mtrn,Dtrn)).batch(batchSize),
+        tf.data.Dataset.from_tensor_slices((Xvld,Cvld,Mvld,Dvld)).batch(batchSize),
+        tf.data.Dataset.from_tensor_slices((Xvld,Cvld,Mvld,Dvld)).batch(batchSize)
         )

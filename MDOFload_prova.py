@@ -63,8 +63,8 @@ def ParseOptions():
     parser.add_argument("--nCritic",type=int,default=1,help='number of discriminator training steps')
     parser.add_argument("--nGenerator",type=int,default=5,help='number of generator training steps')
     parser.add_argument("--clipValue",type=float,default=0.01,help='clip weight for WGAN')
-    parser.add_argument("--dataroot", nargs="+", default=["/gpfs/workdir/invsem07/GiorgiaGAN/PortiqueElasPlas_N_2000_index",
-                        "/gpfs/workdir/invsem07/GiorgiaGAN/PortiqueElasPlas_E_2000_index"],help="Data root folder") 
+    parser.add_argument("--dataroot", nargs="+", default=["./PortiqueElasPlas_N_2000_index",
+                        "./PortiqueElasPlas_E_2000_index"],help="Data root folder") 
     # parser.add_argument("--dataroot", nargs="+", default=["/gpfs/workdir/invsem07/stead_1_9U","/gpfs/workdir/invsem07/stead_1_9D",
     #                     "/gpfs/workdir/invsem07/stead_1_10D"],help="Data root folder") 
     parser.add_argument("--idChannels",type=int,nargs='+',default=[1,2,3,4],help="Channel 1")
@@ -172,8 +172,8 @@ def CreateData(**kwargs):
     for i in range(2,data.shape[1]+1):
         labels.append('%d'% i)
 
-    load = np.loadtxt('/gpfs/workdir/invsem07/GiorgiaGAN/acc_x.txt')
-    load1 = np.loadtxt('/gpfs/workdir/invsem07/GiorgiaGAN/NDOF_code/noise_x.txt')
+    load = np.loadtxt('./acc_x.txt')
+    load1 = np.loadtxt('./NDOF_code/noise_x.txt')
     acc = np.zeros((int(load.shape[0]/4),load.shape[1]-1))
     acc1 = np.zeros((int(load1.shape[0]/4),load.shape[1]-1))
     for i in range(acc.shape[0]):
@@ -228,7 +228,7 @@ def CreateData(**kwargs):
     #             axs[data.shape[1]-1-k,0].spines[spine].set_visible(False)
     #             axs[data.shape[1]-1-k,1].spines[spine].set_visible(False)
     # fig.text(0.08,0.5,'Floor level', ha='center', va='center', rotation='vertical',fontsize=23)
-    # plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/figures/Deconvolution_acc.png',bbox_inches = 'tight')
+    # plt.savefig('./figures/Deconvolution_acc.png',bbox_inches = 'tight')
     # plt.close()
 
     # fig, axs = plt.subplots(data.shape[1], 2, sharex=False, figsize=(24,24))
@@ -259,7 +259,7 @@ def CreateData(**kwargs):
     #             axs[data.shape[1]-1-k,0].spines[spine].set_visible(False)
     #             axs[data.shape[1]-1-k,1].spines[spine].set_visible(False)
     # fig.text(0.08,0.5,'Floor level', ha='center', va='center', rotation='vertical',fontsize=23)
-    # plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/figures/Deconvolution_disp.png',bbox_inches = 'tight')
+    # plt.savefig('./figures/Deconvolution_disp.png',bbox_inches = 'tight')
     # plt.close()
     
     t = np.zeros(data.shape[2])
@@ -343,7 +343,7 @@ def CreateData(**kwargs):
                     axs[data.shape[1]-1-k,0].spines[spine].set_visible(False)
                     axs[data.shape[1]-1-k,1].spines[spine].set_visible(False)
         fig.text(0.08,0.5,'Floor level', ha='center', va='center', rotation='vertical',fontsize=23)
-        plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/figures/Acceleration_{:>d}.png'.format(i),bbox_inches = 'tight')
+        plt.savefig('./figures/Acceleration_{:>d}.png'.format(i),bbox_inches = 'tight')
         plt.close()
 
     for i in range(1):
@@ -380,7 +380,7 @@ def CreateData(**kwargs):
                     axs[data.shape[1]-1-k,0].spines[spine].set_visible(False) 
                     axs[data.shape[1]-1-k,1].spines[spine].set_visible(False)
         fig.text(0.08,0.5,'Floor level', ha='center', va='center', rotation='vertical',fontsize=23)
-        plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/figures/Displacement_{:>d}.png'.format(i),bbox_inches = 'tight')
+        plt.savefig('./figures/Displacement_{:>d}.png'.format(i),bbox_inches = 'tight')
         plt.close()
 
     #irf = np.zeros((nX,nXchannels,Xsize),dtype=np.float32)
@@ -404,7 +404,7 @@ def CreateData(**kwargs):
     #         hax.set_ylabel(r'$X(t) \hspace{0.5} [1]$', fontsize=26,fontweight='bold')
     #         hax.set_xlabel(r'$t \hspace{0.5} [s]$', fontsize=26,fontweight='bold')
     #         hax.tick_params(axis='both', labelsize=18)
-    #         plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/figures/noise_{:>d}_{:>d}.png'.format(j,i),bbox_inches = 'tight')
+    #         plt.savefig('./figures/noise_{:>d}_{:>d}.png'.format(j,i),bbox_inches = 'tight')
     #         plt.close()
 
     #         hfg = plt.figure(figsize=(12,6),tight_layout=True)
@@ -417,7 +417,7 @@ def CreateData(**kwargs):
     #         hax.set_ylabel(r'$Amplitude \hspace{0.5} [1]$', fontsize=26,fontweight='bold')
     #         hax.set_xlabel(r'$Frequency \hspace{0.5} [Hz]$', fontsize=26,fontweight='bold')
     #         hax.tick_params(axis='both', labelsize=18)
-    #         plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/figures/fft_noise_{:>d}_{:>d}.png'.format(j,i),bbox_inches = 'tight')
+    #         plt.savefig('./figures/fft_noise_{:>d}_{:>d}.png'.format(j,i),bbox_inches = 'tight')
     #         plt.close()
 
     #         i = randint(int(data.shape[0]/2),data.shape[0]-1)
@@ -429,7 +429,7 @@ def CreateData(**kwargs):
     #         hax.set_xlabel(r'$t \hspace{0.5} [s]$', fontsize=26,fontweight='bold')
     #         hax.legend([r'$X$', r"$G_z(F_x(x))$"], loc='best',frameon=False,fontsize=20)
     #         hax.tick_params(axis='both', labelsize=18)
-    #         plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/figures/earthquake_{:>d}_{:>d}.png'.format(j,i),bbox_inches = 'tight')
+    #         plt.savefig('./figures/earthquake_{:>d}_{:>d}.png'.format(j,i),bbox_inches = 'tight')
     #         plt.close()
 
     #         hfg = plt.figure(figsize=(12,6),tight_layout=True)
@@ -442,7 +442,7 @@ def CreateData(**kwargs):
     #         hax.set_ylabel(r'$Amplitude \hspace{0.5} [1]$', fontsize=26,fontweight='bold')
     #         hax.set_xlabel(r'$Frequency \hspace{0.5} [Hz]$', fontsize=26,fontweight='bold')
     #         hax.tick_params(axis='both', labelsize=18)
-    #         plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/figures/fft_earthquake_{:>d}_{:>d}.png'.format(j,i),bbox_inches = 'tight')
+    #         plt.savefig('./figures/fft_earthquake_{:>d}_{:>d}.png'.format(j,i),bbox_inches = 'tight')
     #         plt.close()
     
     # X = np.pad(X,((0,0),(0,0),(0,nxtpow2(X.shape[-1])-X.shape[-1])))
@@ -464,7 +464,7 @@ def CreateData(**kwargs):
     #     hax.set_ylabel(r'$X(t) \hspace{0.5} [1]$', fontsize=26,fontweight='bold')
     #     hax.set_xlabel(r'$t \hspace{0.5} [s]$', fontsize=26,fontweight='bold')
     #     hax.tick_params(axis='both', labelsize=18)
-    #     plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/figures/H_n_{:>d}_{:>d}.png'.format(j,i),bbox_inches = 'tight')
+    #     plt.savefig('./figures/H_n_{:>d}_{:>d}.png'.format(j,i),bbox_inches = 'tight')
     #     plt.close()
 
     #     hfg = plt.figure(figsize=(12,6),tight_layout=True)
@@ -473,7 +473,7 @@ def CreateData(**kwargs):
     #     hax.set_ylabel(r'$X(t) \hspace{0.5} [1]$', fontsize=26,fontweight='bold')
     #     hax.set_xlabel(r'$t \hspace{0.5} [s]$', fontsize=26,fontweight='bold')
     #     hax.tick_params(axis='both', labelsize=18)
-    #     plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/figures/H_e_{:>d}_{:>d}.png'.format(j,i),bbox_inches = 'tight')
+    #     plt.savefig('./figures/H_e_{:>d}_{:>d}.png'.format(j,i),bbox_inches = 'tight')
     #     plt.close()
     
 
@@ -488,7 +488,7 @@ def CreateData(**kwargs):
     #         hax.set_ylabel(r'$X(t) \hspace{0.5} [1]$', fontsize=26,fontweight='bold')
     #         hax.set_xlabel(r'$t \hspace{0.5} [s]$', fontsize=26,fontweight='bold')
     #         hax.tick_params(axis='both', labelsize=18)
-    #         plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/figures/H_n_{:>d}_{:>d}.png'.format(j,i),bbox_inches = 'tight')
+    #         plt.savefig('./figures/H_n_{:>d}_{:>d}.png'.format(j,i),bbox_inches = 'tight')
     #         plt.close()
 
     #         hfg = plt.figure(figsize=(12,6),tight_layout=True)
@@ -497,7 +497,7 @@ def CreateData(**kwargs):
     #         hax.set_ylabel(r'$X(t) \hspace{0.5} [1]$', fontsize=26,fontweight='bold')
     #         hax.set_xlabel(r'$t \hspace{0.5} [s]$', fontsize=26,fontweight='bold')
     #         hax.tick_params(axis='both', labelsize=18)
-    #         plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/figures/X_n_{:>d}_{:>d}.png'.format(j,i),bbox_inches = 'tight')
+    #         plt.savefig('./figures/X_n_{:>d}_{:>d}.png'.format(j,i),bbox_inches = 'tight')
     #         plt.close()
 
     #         hfg = plt.figure(figsize=(12,6),tight_layout=True)
@@ -506,7 +506,7 @@ def CreateData(**kwargs):
     #         hax.set_ylabel(r'$X(t) \hspace{0.5} [1]$', fontsize=26,fontweight='bold')
     #         hax.set_xlabel(r'$t \hspace{0.5} [s]$', fontsize=26,fontweight='bold')
     #         hax.tick_params(axis='both', labelsize=18)
-    #         plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/figures/H_e_{:>d}_{:>d}.png'.format(j,i),bbox_inches = 'tight')
+    #         plt.savefig('./figures/H_e_{:>d}_{:>d}.png'.format(j,i),bbox_inches = 'tight')
     #         plt.close()
 
     #         hfg = plt.figure(figsize=(12,6),tight_layout=True)
@@ -515,7 +515,7 @@ def CreateData(**kwargs):
     #         hax.set_ylabel(r'$X(t) \hspace{0.5} [1]$', fontsize=26,fontweight='bold')
     #         hax.set_xlabel(r'$t \hspace{0.5} [s]$', fontsize=26,fontweight='bold')
     #         hax.tick_params(axis='both', labelsize=18)
-    #         plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/figures/X_e_{:>d}_{:>d}.png'.format(j,i),bbox_inches = 'tight')
+    #         plt.savefig('./figures/X_e_{:>d}_{:>d}.png'.format(j,i),bbox_inches = 'tight')
     #         plt.close()
 
     return

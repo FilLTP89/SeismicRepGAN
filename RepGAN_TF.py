@@ -89,7 +89,7 @@ RecGlossS_tracker = keras.metrics.Mean(name="loss")
 #gpu_devices = tf.config.experimental.list_physical_devices('GPU')
 
 
-checkpoint_dir = "/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_tesi/25_04"
+checkpoint_dir = "/gpfs/workdir/colombergi/GiorgiaGAN/checkpoint_ultimo/14_04"
 if not os.path.exists(checkpoint_dir):
     os.makedirs(checkpoint_dir)
 
@@ -109,7 +109,7 @@ def ParseOptions():
     parser = argparse.ArgumentParser()
     parser.add_argument("--epochs",type=int,default=2000,help='Number of epochs')
     parser.add_argument("--Xsize",type=int,default=2048,help='Data space size')
-    parser.add_argument("--nX",type=int,default=1500,help='Number of signals')
+    parser.add_argument("--nX",type=int,default=4000,help='Number of signals')
     parser.add_argument("--N",type=int,default=2,help="Number of experiments")
     parser.add_argument("--nXchannels",type=int,default=4,help="Number of data channels")
     parser.add_argument("--nAElayers",type=int,default=3,help='Number of AE CNN layers')
@@ -135,18 +135,18 @@ def ParseOptions():
     parser.add_argument("--nCritic",type=int,default=1,help='number of discriminator training steps')
     parser.add_argument("--nGenerator",type=int,default=5,help='number of generator training steps')
     # parser.add_argument("--clipValue",type=float,default=0.01,help='clip weight for WGAN')
-    # parser.add_argument("--dataroot", nargs="+", default=["/gpfs/workdir/invsem07/GiorgiaGAN/PortiqueElasPlas_N_2000_index",
-    #                     "/gpfs/workdir/invsem07/GiorgiaGAN/PortiqueElasPlas_E_2000_index"],help="Data root folder") 
-    parser.add_argument("--dataroot_index", nargs="+", default=["/gpfs/workdir/invsem07/GiorgiaGAN/NDOF_code/PortiqueElasPlas_N_2000_index",
-                        "/gpfs/workdir/invsem07/GiorgiaGAN/NDOF_code/PortiqueElasPlas_E_2000_index"],help="Data root folder")  
-    parser.add_argument("--dataroot", nargs="+", default=["/gpfs/workdir/invsem07/GiorgiaGAN/tesi_0","/gpfs/workdir/invsem07/GiorgiaGAN/tesi_1",
-                        "/gpfs/workdir/invsem07/GiorgiaGAN/tesi_2"],help="Data root folder") 
+    parser.add_argument("--dataroot", nargs="+", default=["./PortiqueElasPlas_N_2000_index",
+                        "./PortiqueElasPlas_E_2000_index"],help="Data root folder") 
+    parser.add_argument("--dataroot_index", nargs="+", default=["./NDOF_code/PortiqueElasPlas_N_2000_index",
+                        "./NDOF_code/PortiqueElasPlas_E_2000_index"],help="Data root folder")  
+    # parser.add_argument("--dataroot", nargs="+", default=["./tesi_0","./tesi_1",
+    #                     "./tesi_2"],help="Data root folder") 
     parser.add_argument("--idChannels",type=int,nargs='+',default=[1,2,3,4],help="Channel 1")
     parser.add_argument("--nParams",type=str,default=2,help="Number of parameters")
     parser.add_argument("--case",type=str,default="train_model",help="case")
     parser.add_argument("--avu",type=str,nargs='+',default="U",help="case avu")
     parser.add_argument("--pb",type=str,default="DC",help="case pb")#DC
-    parser.add_argument("--CreateData",action='store_true',default=True,help='Create data flag')
+    parser.add_argument("--CreateData",action='store_true',default=False,help='Create data flag')
     parser.add_argument("--cuda",action='store_true',default=False,help='Use cuda powered GPU')
     parser.add_argument('--dtm',type=float,default=0.04,help='time-step [s]')
     options = parser.parse_args().__dict__
@@ -1248,18 +1248,18 @@ class RepGAN(Model):
 
     
     def DumpModels(self):
-        self.Fx.save("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_tesi/25_04/Fx",save_format="tf")
-        self.Gz.save("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_tesi/25_04/Gz",save_format="tf")
-        self.Dx.save("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_tesi/25_04/Dx",save_format="tf")
-        self.Ds.save("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_tesi/25_04/Ds",save_format="tf")
-        self.Dn.save("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_tesi/25_04/Dn",save_format="tf")
-        self.Dc.save("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_tesi/25_04/Dc",save_format="tf")
-        self.Q.save("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_tesi/25_04/Q",save_format="tf")
-        self.Gq.save("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_tesi/25_04/Gq",save_format="tf")
-        self.h0.save("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_tesi/25_04/h0",save_format="tf")
-        self.h1.save("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_tesi/25_04/h1",save_format="tf")
-        self.h2.save("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_tesi/25_04/h2",save_format="tf")
-        self.h3.save("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_tesi/25_04/h3",save_format="tf")
+        self.Fx.save("/gpfs/workdir/colombergi/GiorgiaGAN/checkpoint_ultimo/14_04/Fx",save_format="tf")
+        self.Gz.save("/gpfs/workdir/colombergi/GiorgiaGAN/checkpoint_ultimo/14_04/Gz",save_format="tf")
+        self.Dx.save("/gpfs/workdir/colombergi/GiorgiaGAN/checkpoint_ultimo/14_04/Dx",save_format="tf")
+        self.Ds.save("/gpfs/workdir/colombergi/GiorgiaGAN/checkpoint_ultimo/14_04/Ds",save_format="tf")
+        self.Dn.save("/gpfs/workdir/colombergi/GiorgiaGAN/checkpoint_ultimo/14_04/Dn",save_format="tf")
+        self.Dc.save("/gpfs/workdir/colombergi/GiorgiaGAN/checkpoint_ultimo/14_04/Dc",save_format="tf")
+        self.Q.save("/gpfs/workdir/colombergi/GiorgiaGAN/checkpoint_ultimo/14_04/Q",save_format="tf")
+        self.Gq.save("/gpfs/workdir/colombergi/GiorgiaGAN/checkpoint_ultimo/14_04/Gq",save_format="tf")
+        self.h0.save("/gpfs/workdir/colombergi/GiorgiaGAN/checkpoint_ultimo/14_04/h0",save_format="tf")
+        self.h1.save("/gpfs/workdir/colombergi/GiorgiaGAN/checkpoint_ultimo/14_04/h1",save_format="tf")
+        self.h2.save("/gpfs/workdir/colombergi/GiorgiaGAN/checkpoint_ultimo/14_04/h2",save_format="tf")
+        self.h3.save("/gpfs/workdir/colombergi/GiorgiaGAN/checkpoint_ultimo/14_04/h3",save_format="tf")
         return
 
 def Main(DeviceName):

@@ -95,12 +95,12 @@ def CreateData(**kwargs):
     #         axs[1,1].set_title('Signals with noise')
     #         axs[1,1].set_ylabel(r'$X (t) \hspace{0.5} [1]$')
     #         axs[1,1].set_xlabel(r'$t \hspace{0.5} [s]$')
-    #         plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results_tesi/Signals_{:>d}_{:>d}.png'.format(j,i),bbox_inches = 'tight')
+    #         plt.savefig('./results_tesi/Signals_{:>d}_{:>d}.png'.format(j,i),bbox_inches = 'tight')
     #         plt.close()
 
     # New dataset
-    load = np.loadtxt('/gpfs/workdir/invsem07/GiorgiaGAN/acc_x.txt')
-    load1 = np.loadtxt('/gpfs/workdir/invsem07/GiorgiaGAN/NDOF_code/noise_x.txt')
+    load = np.loadtxt('./acc_x.txt')
+    load1 = np.loadtxt('./NDOF_code/noise_x.txt')
     acc = np.zeros((int(load.shape[0]/4),load.shape[1]-1))
     acc1 = np.zeros((int(load1.shape[0]/4),load.shape[1]-1))
     for i in range(acc.shape[0]):
@@ -189,23 +189,23 @@ def CreateData(**kwargs):
     
     X,c = shuffle(X,c, random_state=0)
 
-    h5f = h5py.File("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_skip/28_04/Damaged_0.h5",'w')
+    h5f = h5py.File("./checkpoint_skip/28_04/Damaged_0.h5",'w')
     h5f.create_dataset('X0', data=X0)
     h5f.create_dataset('c0', data=c0)
     h5f.close() 
 
-    h5f = h5py.File("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_skip/28_04/Damaged_1.h5",'w')
+    h5f = h5py.File("./checkpoint_skip/28_04/Damaged_1.h5",'w')
     h5f.create_dataset('X1', data=X1)
     h5f.create_dataset('c1', data=c1)
     h5f.close() 
 
-    h5f = h5py.File("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_skip/28_04/Damaged_2.h5",'w')
+    h5f = h5py.File("./checkpoint_skip/28_04/Damaged_2.h5",'w')
     h5f.create_dataset('X2', data=X2)
     h5f.create_dataset('c2', data=c2)
     h5f.close()   
 
 
-    h5f = h5py.File("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_skip/28_04/Data.h5",'w')
+    h5f = h5py.File("./checkpoint_skip/28_04/Data.h5",'w')
     h5f.create_dataset('X', data=X)
     h5f.create_dataset('c', data=c)
     h5f.close()
@@ -229,7 +229,7 @@ def CreateData(**kwargs):
 def LoadData(**kwargs):
     LoadData.__globals__.update(kwargs)
 
-    dataSrc = opj("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_skip/28_04/Data.h5")
+    dataSrc = opj("./checkpoint_skip/28_04/Data.h5")
     
     h5f = h5py.File(dataSrc,'r')
     X = h5f['X'][...]
@@ -249,7 +249,7 @@ def LoadData(**kwargs):
 def Load_Un_Damaged(i,**kwargs):
     Load_Un_Damaged.__globals__.update(kwargs)
 
-    dataSrc = opj("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_skip/28_04/Damaged_{:>d}.h5".format(i))
+    dataSrc = opj("./checkpoint_skip/28_04/Damaged_{:>d}.h5".format(i))
     h5f = h5py.File(dataSrc,'r')
     X = h5f['X{:>d}'.format(i)][...]
     c = h5f['c{:>d}'.format(i)][...]

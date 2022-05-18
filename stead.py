@@ -74,7 +74,7 @@ md['nTn'] = md['vTn'].size
 # signal = tf.convert_to_tensor(acc)
 # n = tf.cast(signal,dtype=float)
 
-# np.savetxt("/gpfs/workdir/invsem07/GiorgiaGAN/stead/vtm.csv", vtm, delimiter=",")
+# np.savetxt("./stead/vtm.csv", vtm, delimiter=",")
 
 
 # signal = np.zeros((options["nsy"],options["ntm"]*2),dtype=np.float32)
@@ -82,13 +82,13 @@ md['nTn'] = md['vTn'].size
 #     for j in range(options["ntm"]*2):
 #         signal[i,j] = n[i,1,j] # {0,1,2} = {x,y,z}
 
-# np.savetxt("/gpfs/workdir/invsem07/GiorgiaGAN/stead/signal_100.csv", signal, delimiter=",")
+# np.savetxt("./stead/signal_100.csv", signal, delimiter=",")
 
 # for i in range(options["nsy"]):
 #     hfg = plt.figure(figsize=(12,6),tight_layout=True)
 #     hax = hfg.add_subplot(111)
 #     hax.plot(signal[i,:], color='black')
-#     plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/stead/signal_{:>d}.png'.format(i),bbox_inches = 'tight')
+#     plt.savefig('./stead/signal_{:>d}.png'.format(i),bbox_inches = 'tight')
 #     plt.close()
 
 def make_stream(dataset):
@@ -212,7 +212,7 @@ for j in range(options["nsy"]):
         signal[i,j+1] = acc_0[i,j]
 
 
-np.savetxt("/gpfs/workdir/invsem07/GiorgiaGAN/acc_x.txt", signal, delimiter=",")
+np.savetxt("./acc_x.txt", signal, delimiter=",")
 
 signal = np.zeros((options["ntm"]*2,options["nsy"]+1),dtype=np.float32)
 for j in range(options["nsy"]):
@@ -221,7 +221,7 @@ for j in range(options["nsy"]):
         signal[i,j+1] = acc_1[i,j]
 
 
-np.savetxt("/gpfs/workdir/invsem07/GiorgiaGAN/acc_y.txt", signal, delimiter=",")
+np.savetxt("./acc_y.txt", signal, delimiter=",")
 
 signal = np.zeros((options["ntm"]*2,options["nsy"]+1),dtype=np.float32)
 for j in range(options["nsy"]):
@@ -230,7 +230,7 @@ for j in range(options["nsy"]):
         signal[i,j+1] = acc_2[i,j]
 
 
-np.savetxt("/gpfs/workdir/invsem07/GiorgiaGAN/acc_z.txt", signal, delimiter=",")
+np.savetxt("./acc_z.txt", signal, delimiter=",")
 
 # acc_1 = np.swapaxes(acc_1,0,1)
 
@@ -239,7 +239,7 @@ np.savetxt("/gpfs/workdir/invsem07/GiorgiaGAN/acc_z.txt", signal, delimiter=",")
 #     signal[:,i] = acc_1[:,i]
 
 
-# np.savetxt("/gpfs/workdir/invsem07/GiorgiaGAN/Salome_y.txt", signal, delimiter=",")
+# np.savetxt("./Salome_y.txt", signal, delimiter=",")
 
 # acc_2 = np.swapaxes(acc_2,0,1)
 
@@ -249,10 +249,10 @@ np.savetxt("/gpfs/workdir/invsem07/GiorgiaGAN/acc_z.txt", signal, delimiter=",")
 
 # signal = np.transpose(signal)
 
-# np.savetxt("/gpfs/workdir/invsem07/GiorgiaGAN/Salome_z.txt", signal, delimiter=",")
+# np.savetxt("./Salome_z.txt", signal, delimiter=",")
 
 # vtm = md['dtm']*np.arange(0,md['ntm']*2)
-# np.savetxt("/gpfs/workdir/invsem07/GiorgiaGAN/stead_1000/vtm.csv", vtm, delimiter=",")
+# np.savetxt("./stead_1000/vtm.csv", vtm, delimiter=",")
 
 
 # t = np.zeros(signal.shape[1])
@@ -267,7 +267,7 @@ np.savetxt("/gpfs/workdir/invsem07/GiorgiaGAN/acc_z.txt", signal, delimiter=",")
 #     hax.set_xlabel(r'$t \hspace{0.5} [s]$', fontsize=26,fontweight='bold')
 #     hax.tick_params(axis='both', labelsize=20)
 #     hax.yaxis.offsetText.set_fontsize(20)
-#     plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/acceleration/signal_{:>d}.png'.format(i),bbox_inches = 'tight')
+#     plt.savefig('./acceleration/signal_{:>d}.png'.format(i),bbox_inches = 'tight')
 #     plt.close()
 
 # pga = np.zeros(signal.shape[0])
@@ -288,8 +288,8 @@ np.savetxt("/gpfs/workdir/invsem07/GiorgiaGAN/acc_z.txt", signal, delimiter=",")
 # #plt.rc('font', size=16)
 # plt.xlabel(r"$Peak \hspace{0.5} Ground \hspace{0.5} Acceleration \hspace{0.5} [m / s^{2}]$", fontsize=16)
 # plt.ylabel(r"$Probability \hspace{0.5} Density \hspace{0.5} Function \hspace{0.5} [1]$", fontsize=16)
-# plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/acceleration/pga.png',bbox_inches = 'tight')
-# #plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/shear_building/pgd_undamaged.eps',bbox_inches = 'tight',dpi=200)
+# plt.savefig('./acceleration/pga.png',bbox_inches = 'tight')
+# #plt.savefig('./shear_building/pgd_undamaged.eps',bbox_inches = 'tight',dpi=200)
 # plt.close()
 
    

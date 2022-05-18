@@ -45,7 +45,7 @@ def CreateData(**kwargs):
 
     #         i1 =i1+1
     n = []
-    dataSrc = open("/gpfs/workdir/invsem07/GiorgiaGAN/magnitude.csv")
+    dataSrc = open("./magnitude.csv")
     file = csv.reader(dataSrc)
     for row in file:
         n.append(row)
@@ -53,14 +53,14 @@ def CreateData(**kwargs):
     mag = np.array(n,dtype=np.float32)
 
     n = []
-    dataSrc = open("/gpfs/workdir/invsem07/GiorgiaGAN/source_distance.csv")
+    dataSrc = open("./source_distance.csv")
     file = csv.reader(dataSrc)
     for row in file:
         n.append(row)
 
     dis = np.array(n,dtype=np.float32)
 
-    with open('/gpfs/workdir/invsem07/GiorgiaGAN/NDOF_code/PortiqueElasPlas_E_2000/NDOF.pkl', 'rb') as f:
+    with open('./NDOF_code/PortiqueElasPlas_E_2000/NDOF.pkl', 'rb') as f:
         val = pickle.load(f)
     
     v = np.zeros((nX,Vdim),dtype=np.float32)
@@ -98,8 +98,8 @@ def CreateData(**kwargs):
     
     X = np.zeros((nX,nXchannels,Xsize),dtype=np.float32)
 
-    load = np.loadtxt('/gpfs/workdir/invsem07/GiorgiaGAN/acc_x.txt')
-    load1 = np.loadtxt('/gpfs/workdir/invsem07/GiorgiaGAN/NDOF_code/noise_x.txt')
+    load = np.loadtxt('./acc_x.txt')
+    load1 = np.loadtxt('./NDOF_code/noise_x.txt')
     acc = np.zeros((int(load.shape[0]/4),load.shape[1]-1))
     acc1 = np.zeros((int(load1.shape[0]/4),load.shape[1]-1))
     for i in range(acc.shape[0]):
@@ -158,13 +158,13 @@ def CreateData(**kwargs):
     #         hfg = plt.figure(figsize=(12,6),tight_layout=True)
     #         hax = hfg.add_subplot(111)
     #         hax.loglog(freq[:s], np.abs(H[i,j,s:]), color='black')
-    #         plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results_TF/abs_H_{:>d}_{:>d}.png'.format(j,i),bbox_inches = 'tight')
+    #         plt.savefig('./results_TF/abs_H_{:>d}_{:>d}.png'.format(j,i),bbox_inches = 'tight')
     #         plt.close()
 
     #         hfg = plt.figure(figsize=(12,6),tight_layout=True)
     #         hax = hfg.add_subplot(111)
     #         hax.loglog(freq[:s], np.abs(X[i,j,s:]), color='black')
-    #         plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results_TF/abs_X_{:>d}_{:>d}.png'.format(j,i),bbox_inches = 'tight')
+    #         plt.savefig('./results_TF/abs_X_{:>d}_{:>d}.png'.format(j,i),bbox_inches = 'tight')
     #         plt.close()
     
 
@@ -205,7 +205,7 @@ def CreateData(**kwargs):
 def LoadData(**kwargs):
     LoadData.__globals__.update(kwargs)
 
-    dataSrc = opj("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_c/13_04/Data_conditioned.h5")
+    dataSrc = opj("./checkpoint_c/13_04/Data_conditioned.h5")
     
     h5f = h5py.File(dataSrc,'r')
     X = h5f['X'][...]
@@ -226,7 +226,7 @@ def LoadData(**kwargs):
 def Load_Un_Damaged(i,**kwargs):
     Load_Un_Damaged.__globals__.update(kwargs)
 
-    dataSrc = opj("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_c/13_04/Damaged_conditioned_{:>d}.h5".format(i))
+    dataSrc = opj("./checkpoint_c/13_04/Damaged_conditioned_{:>d}.h5".format(i))
     h5f = h5py.File(dataSrc,'r')
     X = h5f['X{:>d}'.format(i)][...]
     c = h5f['c{:>d}'.format(i)][...]

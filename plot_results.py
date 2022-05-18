@@ -20,7 +20,7 @@ import os
 
 
 # BOKEH runs
-checkpoint_dir = "/gpfs/workdir/invsem07/GiorgiaGAN/ckpt_1/"
+checkpoint_dir = "./ckpt_1/"
 options = ParseOptions()
 
 # MODEL LOADING

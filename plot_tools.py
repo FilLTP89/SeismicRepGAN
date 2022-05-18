@@ -154,8 +154,8 @@ def PlotLoss(history):
     ax1.set_xlabel(r"$n_{epochs}$",fontsize=20,fontweight='bold')
     ax1.set_ylabel(r'$Loss \hspace{0.5} [1]$',fontsize=20,fontweight='bold')
 
-    plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/loss.png',format='png',bbox_inches = 'tight')
-    #plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/loss.eps',format='eps',rasterized=True,bbox_inches = 'tight',dpi=200)
+    plt.savefig('./results/loss.png',format='png',bbox_inches = 'tight')
+    #plt.savefig('./results/loss.eps',format='eps',rasterized=True,bbox_inches = 'tight',dpi=200)
     plt.close()
 
     hfg = plt.figure(figsize=(12,6))
@@ -168,8 +168,8 @@ def PlotLoss(history):
     hax.set_xlabel(r'$n_{epochs}$', fontsize=20,fontweight='bold')
     hax.legend(loc='best',frameon=False,fontsize=20)
     hax.tick_params(axis='both', labelsize=18)
-    plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/D_x.png',bbox_inches = 'tight')
-    #plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/D_x.eps',bbox_inches = 'tight',dpi=200)
+    plt.savefig('./results/D_x.png',bbox_inches = 'tight')
+    #plt.savefig('./results/D_x.eps',bbox_inches = 'tight',dpi=200)
     plt.close()
 
     hfg = plt.figure(figsize=(12,6))
@@ -181,8 +181,8 @@ def PlotLoss(history):
     hax.set_xlabel(r'$n_{epochs}$', fontsize=20,fontweight='bold')
     hax.legend(loc='best',frameon=False,fontsize=20)
     hax.tick_params(axis='both', labelsize=18)
-    plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/D_c.png',bbox_inches = 'tight')
-    #plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/D_c.eps',bbox_inches = 'tight',dpi=200)
+    plt.savefig('./results/D_c.png',bbox_inches = 'tight')
+    #plt.savefig('./results/D_c.eps',bbox_inches = 'tight',dpi=200)
     plt.close()
 
     hfg = plt.figure(figsize=(12,6))
@@ -194,8 +194,8 @@ def PlotLoss(history):
     hax.set_xlabel(r'$n_{epochs}$', fontsize=20,fontweight='bold')
     hax.legend(loc='best',frameon=False,fontsize=20)
     hax.tick_params(axis='both', labelsize=18)
-    plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/D_s.png',bbox_inches = 'tight')
-    #plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/D_s.eps',bbox_inches = 'tight',dpi=200)
+    plt.savefig('./results/D_s.png',bbox_inches = 'tight')
+    #plt.savefig('./results/D_s.eps',bbox_inches = 'tight',dpi=200)
     plt.close()
 
     hfg = plt.figure(figsize=(12,6))
@@ -207,8 +207,8 @@ def PlotLoss(history):
     hax.set_xlabel(r'$n_{epochs}$', fontsize=20,fontweight='bold')
     hax.legend(loc='best',frameon=False,fontsize=20)
     hax.tick_params(axis='both', labelsize=18)
-    plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/D_n.png',bbox_inches = 'tight')
-    #plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/D_n.eps',bbox_inches = 'tight',dpi=200)
+    plt.savefig('./results/D_n.png',bbox_inches = 'tight')
+    #plt.savefig('./results/D_n.eps',bbox_inches = 'tight',dpi=200)
     plt.close()
 
 
@@ -246,8 +246,8 @@ def PlotReconstructedTHs(model,realXC):
             hax.legend([r'$X$', r"$G_z(F_x(x))$"], loc='best',frameon=False,fontsize=20)
             hax.set_ylim([-1.0, 1.0])
             hax.tick_params(axis='both', labelsize=18)
-            plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/reconstruction_{:>d}_{:>d}.png'.format(j,i),bbox_inches = 'tight')
-            #plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/reconstruction_{:>d}_{:>d}.eps'.format(j,i),bbox_inches = 'tight',dpi=200)
+            plt.savefig('./results/reconstruction_{:>d}_{:>d}.png'.format(j,i),bbox_inches = 'tight')
+            #plt.savefig('./results/reconstruction_{:>d}_{:>d}.eps'.format(j,i),bbox_inches = 'tight',dpi=200)
             plt.close()
 
 
@@ -265,8 +265,8 @@ def PlotReconstructedTHs(model,realXC):
             hax.set_xlabel(r'$Frequency \hspace{0.5} [Hz]$', fontsize=26,fontweight='bold')
             hax.legend([r'$X$', r"$G_z(F_x(x))$"], loc='best',frameon=False,fontsize=20)
             hax.tick_params(axis='both', labelsize=18)
-            plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/fft_{:>d}_{:>d}.png'.format(j,i),bbox_inches = 'tight')
-            #plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/fft_{:>d}_{:>d}.eps'.format(j,i),bbox_inches = 'tight',dpi=200)
+            plt.savefig('./results/fft_{:>d}_{:>d}.png'.format(j,i),bbox_inches = 'tight')
+            #plt.savefig('./results/fft_{:>d}_{:>d}.eps'.format(j,i),bbox_inches = 'tight',dpi=200)
             plt.close()
 
 
@@ -317,8 +317,8 @@ def PlotSwitchedTHs(model,real_u,real_d,d):
                 hax.legend([r'$X$', r"$G_z(F_x(x))$"], loc='best',frameon=False,fontsize=20)
                 hax.set_ylim([-1.0, 1.0])
                 hax.tick_params(axis='both', labelsize=18)
-                plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/reconstruction0_{:>d}_{:>d}.png'.format(j,i),bbox_inches = 'tight')
-                #plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/reconstruction0_{:>d}_{:>d}.eps'.format(j,i),bbox_inches = 'tight',dpi=200)
+                plt.savefig('./results/reconstruction0_{:>d}_{:>d}.png'.format(j,i),bbox_inches = 'tight')
+                #plt.savefig('./results/reconstruction0_{:>d}_{:>d}.eps'.format(j,i),bbox_inches = 'tight',dpi=200)
                 plt.close()
 
 
@@ -336,8 +336,8 @@ def PlotSwitchedTHs(model,real_u,real_d,d):
                 hax.set_xlabel(r'$Frequency \hspace{0.5} [Hz]$', fontsize=26,fontweight='bold')
                 hax.legend([r'$X$', r"$G_z(F_x(x))$"], loc='best',frameon=False,fontsize=20)
                 hax.tick_params(axis='both', labelsize=18)
-                plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/fft0_{:>d}_{:>d}.png'.format(j,i),bbox_inches = 'tight')
-                #plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/fft0_{:>d}_{:>d}.eps'.format(j,i),bbox_inches = 'tight',dpi=200)
+                plt.savefig('./results/fft0_{:>d}_{:>d}.png'.format(j,i),bbox_inches = 'tight')
+                #plt.savefig('./results/fft0_{:>d}_{:>d}.eps'.format(j,i),bbox_inches = 'tight',dpi=200)
                 plt.close()
 
     recX_fft = tf.make_ndarray(tf.make_tensor_proto(recX_d))
@@ -356,8 +356,8 @@ def PlotSwitchedTHs(model,real_u,real_d,d):
             hax.legend([r'$X$', r"$G_z(F_x(x))$"], loc='best',frameon=False,fontsize=20)
             hax.set_ylim([-1.0, 1.0])
             hax.tick_params(axis='both', labelsize=18)
-            plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/reconstruction{:>d}_{:>d}_{:>d}.png'.format(d,j,i),bbox_inches = 'tight')
-            #plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/reconstruction{:>d}_{:>d}_{:>d}.eps'.format(d,j,i),bbox_inches = 'tight',dpi=200)
+            plt.savefig('./results/reconstruction{:>d}_{:>d}_{:>d}.png'.format(d,j,i),bbox_inches = 'tight')
+            #plt.savefig('./results/reconstruction{:>d}_{:>d}_{:>d}.eps'.format(d,j,i),bbox_inches = 'tight',dpi=200)
             plt.close()
 
 
@@ -375,8 +375,8 @@ def PlotSwitchedTHs(model,real_u,real_d,d):
             hax.set_xlabel(r'$Frequency \hspace{0.5} [Hz]$', fontsize=26,fontweight='bold')
             hax.legend([r'$X$', r"$G_z(F_x(x))$"], loc='best',frameon=False,fontsize=20)
             hax.tick_params(axis='both', labelsize=18)
-            plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/fft{:>d}_{:>d}_{:>d}.png'.format(d,j,i),bbox_inches = 'tight')
-            #plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/fft{:>d}_{:>d}_{:>d}.eps'.format(d,j,i),bbox_inches = 'tight',dpi=200)
+            plt.savefig('./results/fft{:>d}_{:>d}_{:>d}.png'.format(d,j,i),bbox_inches = 'tight')
+            #plt.savefig('./results/fft{:>d}_{:>d}_{:>d}.eps'.format(d,j,i),bbox_inches = 'tight',dpi=200)
             plt.close()
 
     
@@ -416,8 +416,8 @@ def PlotSwitchedTHs(model,real_u,real_d,d):
             ax2.set_xlabel(r'$t \hspace{0.5} [s]$', fontsize=26,fontweight='bold')
             ax2.legend([r"$G_z(F_x(x_u))$"], loc='best',frameon=False,fontsize=20)
             ax2.tick_params(axis='both', labelsize=18)
-            plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/reconstruction_switch{:>d}_{:>d}_{:>d}.png'.format(d,j,i),bbox_inches = 'tight')
-            #plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/reconstruction_switch{:>d}_{:>d}_{:>d}.eps'.format(d,j,i),bbox_inches = 'tight',dpi=200)
+            plt.savefig('./results/reconstruction_switch{:>d}_{:>d}_{:>d}.png'.format(d,j,i),bbox_inches = 'tight')
+            #plt.savefig('./results/reconstruction_switch{:>d}_{:>d}_{:>d}.eps'.format(d,j,i),bbox_inches = 'tight',dpi=200)
             plt.close()
 
             hfg = plt.figure(figsize=(12,6),tight_layout=True)
@@ -434,8 +434,8 @@ def PlotSwitchedTHs(model,real_u,real_d,d):
             hax.set_xlabel(r'$Frequency \hspace{0.5} [Hz]$', fontsize=26,fontweight='bold')
             hax.legend([r'$X_d$', r"$G_z(F_x(x_u))$"], loc='best',frameon=False,fontsize=20)
             hax.tick_params(axis='both', labelsize=18)
-            plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/fft_switch{:>d}_{:>d}_{:>d}.png'.format(d,j,i),bbox_inches = 'tight')
-            #plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/fft_switch{:>d}_{:>d}_{:>d}.eps'.format(d,j,i),bbox_inches = 'tight',dpi=200)
+            plt.savefig('./results/fft_switch{:>d}_{:>d}_{:>d}.png'.format(d,j,i),bbox_inches = 'tight')
+            #plt.savefig('./results/fft_switch{:>d}_{:>d}_{:>d}.eps'.format(d,j,i),bbox_inches = 'tight',dpi=200)
             plt.close()
 
             hfg = plt.figure(figsize=(12,6),tight_layout=True)
@@ -448,8 +448,8 @@ def PlotSwitchedTHs(model,real_u,real_d,d):
             hax.tick_params(axis='both', labelsize=18)
             hax.set_ylim([-1.0, 1.0])           
 
-            plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/switch{:>d}_{:>d}_{:>d}.png'.format(d,j,i),bbox_inches = 'tight')
-            #plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/switch{:>d}_{:>d}_{:>d}.eps'.format(d,j,i),bbox_inches = 'tight',dpi=200)
+            plt.savefig('./results/switch{:>d}_{:>d}_{:>d}.png'.format(d,j,i),bbox_inches = 'tight')
+            #plt.savefig('./results/switch{:>d}_{:>d}_{:>d}.eps'.format(d,j,i),bbox_inches = 'tight',dpi=200)
             plt.close()
 
 
@@ -473,8 +473,8 @@ def PlotTHSGoFs(model,realXC):
             plot_tf_gofs(realX[i,:,j],recX[i,:,j],dt=0.04,fmin=0.1,fmax=30.0,t0=0.0,nf=100,w0=6,norm='global',st2_isref=True,
                 a=10.,k=1.,left=0.1,bottom=0.125, h_1=0.2,h_2=0.125,h_3=0.2,w_1=0.2,w_2=0.6,w_cb=0.01, d_cb=0.0,show=False,
                 plot_args=['k', 'r', 'b'],ylim=0., clim=0.)
-            plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/gof_{:>d}_{:>d}.png'.format(j,i),bbox_inches = 'tight')
-            plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/gof_{:>d}_{:>d}.eps'.format(j,i),bbox_inches = 'tight',dpi=200)
+            plt.savefig('./results/gof_{:>d}_{:>d}.png'.format(j,i),bbox_inches = 'tight')
+            plt.savefig('./results/gof_{:>d}_{:>d}.eps'.format(j,i),bbox_inches = 'tight',dpi=200)
             plt.close()
 
 def colored_scatter(*args, **kwargs):
@@ -522,8 +522,8 @@ def PlotEGPGgrid(col_x,col_y,col_k,i,df,k_is_color=False, scatter_alpha=.7):
     plt.xlabel('EG', fontsize=14)
     plt.ylabel('PG', fontsize=14)
     plt.legend(legends,frameon=False,fontsize=14)
-    plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/Gz(Fx(X))_gofs_{:>d}.png'.format(i),bbox_inches = 'tight')
-    #plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/Gz(Fx(X))_gofs_{:>d}.eps'.format(i),bbox_inches = 'tight',dpi=200)
+    plt.savefig('./results/Gz(Fx(X))_gofs_{:>d}.png'.format(i),bbox_inches = 'tight')
+    #plt.savefig('./results/Gz(Fx(X))_gofs_{:>d}.eps'.format(i),bbox_inches = 'tight',dpi=200)
     plt.close()
 
 
@@ -592,7 +592,7 @@ def PlotBatchGoFs(model,Xtrn,Xvld,i):
         egpg_data.append(egpg_df_vld['egpg_df_vld_%d' % j])
     egpg_df = pd.concat(egpg_data)
 
-    egpg_df.to_csv('/gpfs/workdir/invsem07/GiorgiaGAN/results/EG_PG_{:>d}.csv'.format(i), index= True)
+    egpg_df.to_csv('./results/EG_PG_{:>d}.csv'.format(i), index= True)
     PlotEGPGgrid('EG','PG','kind',i,df=egpg_df)
 
 def PlotClassificationMetrics(model,realXC):
@@ -630,12 +630,12 @@ def PlotClassificationMetrics(model,realXC):
     report = classification_report(y_true = labels_real, y_pred = labels_fake,
             target_names=target_names,output_dict=True,zero_division=1)
     df = pd.DataFrame(report).transpose()
-    df.to_csv('/gpfs/workdir/invsem07/GiorgiaGAN/results/Classification Report C.csv', index= True)
+    df.to_csv('./results/Classification Report C.csv', index= True)
     cr = sn.heatmap(pd.DataFrame(report).iloc[:-1, :].T, annot=True, vmin=0, vmax=1, annot_kws={"size": 12})
     cr.tick_params(axis='both', labelsize=12)
     cr.set_yticklabels(cr.get_yticklabels(), rotation=0)
-    plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/classification_report_fakeC.png',bbox_inches = 'tight')
-    #plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/classification_report.eps',bbox_inches = 'tight',dpi=200)
+    plt.savefig('./results/classification_report_fakeC.png',bbox_inches = 'tight')
+    #plt.savefig('./results/classification_report.eps',bbox_inches = 'tight',dpi=200)
     plt.close()
 
     conf_mat = confusion_matrix(labels_real, labels_fake)
@@ -647,8 +647,8 @@ def PlotClassificationMetrics(model,realXC):
     plt.tick_params(axis='both', labelsize=20)
     plt.ylabel("True class",fontsize=22,labelpad=10)
     plt.xlabel("Predicted class",fontsize=22,labelpad=10)
-    plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/confusion_matrix_fakeC.png',bbox_inches = 'tight')
-    #plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/confusion_matrixC.eps',bbox_inches = 'tight',dpi=200)
+    plt.savefig('./results/confusion_matrix_fakeC.png',bbox_inches = 'tight')
+    #plt.savefig('./results/confusion_matrixC.eps',bbox_inches = 'tight',dpi=200)
     plt.close()
 
 
@@ -656,12 +656,12 @@ def PlotClassificationMetrics(model,realXC):
     report = classification_report(y_true = labels_real, y_pred = labels_rec,
             target_names=target_names,output_dict=True,zero_division=1)
     df = pd.DataFrame(report).transpose()
-    df.to_csv('/gpfs/workdir/invsem07/GiorgiaGAN/results/Classification Report recC.csv', index= True)
+    df.to_csv('./results/Classification Report recC.csv', index= True)
     cr = sn.heatmap(pd.DataFrame(report).iloc[:-1, :].T, annot=True, vmin=0, vmax=1, annot_kws={"size": 12})
     cr.tick_params(axis='both', labelsize=12)
     cr.set_yticklabels(cr.get_yticklabels(), rotation=0)
-    plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/classification_report_recC.png',bbox_inches = 'tight')
-    #plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/classification_reportrec.eps',bbox_inches = 'tight',dpi=200)
+    plt.savefig('./results/classification_report_recC.png',bbox_inches = 'tight')
+    #plt.savefig('./results/classification_reportrec.eps',bbox_inches = 'tight',dpi=200)
     plt.close()
 
     
@@ -674,8 +674,8 @@ def PlotClassificationMetrics(model,realXC):
     plt.tick_params(axis='both', labelsize=20)
     plt.ylabel("True class",fontsize=22,labelpad=10)
     plt.xlabel("Predicted class",fontsize=22,labelpad=10)
-    plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/confusion_matrix_recC.png',bbox_inches = 'tight')
-    #plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/confusion_matrixrecC.eps',bbox_inches = 'tight',dpi=200)
+    plt.savefig('./results/confusion_matrix_recC.png',bbox_inches = 'tight')
+    #plt.savefig('./results/confusion_matrixrecC.eps',bbox_inches = 'tight',dpi=200)
     plt.close()
 
     return
@@ -709,12 +709,12 @@ def PlotPredictor(model,realXC):
     report = classification_report(y_true = labels_real, y_pred = labels_pred,
             target_names=target_names,output_dict=True,zero_division=1)
     df = pd.DataFrame(report).transpose()
-    df.to_csv('/gpfs/workdir/invsem07/GiorgiaGAN/results/Classification Report D.csv', index= True)
+    df.to_csv('./results/Classification Report D.csv', index= True)
     cr = sn.heatmap(pd.DataFrame(report).iloc[:-1, :].T, annot=True, vmin=0, vmax=1, annot_kws={"size": 12})
     cr.tick_params(axis='both', labelsize=12)
     cr.set_yticklabels(cr.get_yticklabels(), rotation=0)
-    plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/classification_report_domain.png',bbox_inches = 'tight')
-    #plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/classification_domain.eps',bbox_inches = 'tight',dpi=200)
+    plt.savefig('./results/classification_report_domain.png',bbox_inches = 'tight')
+    #plt.savefig('./results/classification_domain.eps',bbox_inches = 'tight',dpi=200)
     plt.close()
 
     conf_mat = confusion_matrix(labels_real, labels_pred)
@@ -726,8 +726,8 @@ def PlotPredictor(model,realXC):
     plt.tick_params(axis='both', labelsize=20)
     plt.ylabel("True class",fontsize=22,labelpad=10)
     plt.xlabel("Predicted class",fontsize=22,labelpad=10)
-    plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/confusion_matrix_domain.png',bbox_inches = 'tight')
-    #plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/confusion_matrix_domain.eps',bbox_inches = 'tight',dpi=200)
+    plt.savefig('./results/confusion_matrix_domain.png',bbox_inches = 'tight')
+    #plt.savefig('./results/confusion_matrix_domain.eps',bbox_inches = 'tight',dpi=200)
     plt.close()
 
     return

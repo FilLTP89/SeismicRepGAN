@@ -89,7 +89,7 @@ RecGlossS_tracker = keras.metrics.Mean(name="loss")
 #gpu_devices = tf.config.experimental.list_physical_devices('GPU')
 
 
-checkpoint_dir = "/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_ultimo/14_04"
+checkpoint_dir = "./checkpoint_ultimo/14_04"
 if not os.path.exists(checkpoint_dir):
     os.makedirs(checkpoint_dir)
 
@@ -133,8 +133,8 @@ def ParseOptions():
     parser.add_argument("--nCritic",type=int,default=1,help='number of discriminator training steps')
     parser.add_argument("--nGenerator",type=int,default=5,help='number of generator training steps')
     parser.add_argument("--clipValue",type=float,default=0.01,help='clip weight for WGAN')
-    parser.add_argument("--dataroot", nargs="+", default=["/gpfs/workdir/invsem07/GiorgiaGAN/PortiqueElasPlas_N_2000",
-                        "/gpfs/workdir/invsem07/GiorgiaGAN/PortiqueElasPlas_E_2000"],help="Data root folder") 
+    parser.add_argument("--dataroot", nargs="+", default=["./PortiqueElasPlas_N_2000",
+                        "./PortiqueElasPlas_E_2000"],help="Data root folder") 
     # parser.add_argument("--dataroot", nargs="+", default=["/gpfs/workdir/invsem07/stead_1_9U","/gpfs/workdir/invsem07/stead_1_9D",
     #                     "/gpfs/workdir/invsem07/stead_1_10D"],help="Data root folder") 
     parser.add_argument("--idChannels",type=int,nargs='+',default=[1,2,3,4],help="Channel 1")
@@ -1250,18 +1250,18 @@ class RepGAN(Model):
 
     
     def DumpModels(self):
-        self.Fx.save("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_ultimo/14_04/Fx",save_format="tf")
-        self.Gz.save("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_ultimo/14_04/Gz",save_format="tf")
-        self.Dx.save("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_ultimo/14_04/Dx",save_format="tf")
-        self.Ds.save("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_ultimo/14_04/Ds",save_format="tf")
-        self.Dn.save("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_ultimo/14_04/Dn",save_format="tf")
-        self.Dc.save("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_ultimo/14_04/Dc",save_format="tf")
-        self.Q.save("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_ultimo/14_04/Q",save_format="tf")
-        self.Gq.save("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_ultimo/14_04/Gq",save_format="tf")
-        self.h0.save("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_ultimo/14_04/h0",save_format="tf")
-        self.h1.save("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_ultimo/14_04/h1",save_format="tf")
-        self.h2.save("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_ultimo/14_04/h2",save_format="tf")
-        self.h3.save("/gpfs/workdir/invsem07/GiorgiaGAN/checkpoint_ultimo/14_04/h3",save_format="tf")
+        self.Fx.save("./checkpoint_ultimo/14_04/Fx",save_format="tf")
+        self.Gz.save("./checkpoint_ultimo/14_04/Gz",save_format="tf")
+        self.Dx.save("./checkpoint_ultimo/14_04/Dx",save_format="tf")
+        self.Ds.save("./checkpoint_ultimo/14_04/Ds",save_format="tf")
+        self.Dn.save("./checkpoint_ultimo/14_04/Dn",save_format="tf")
+        self.Dc.save("./checkpoint_ultimo/14_04/Dc",save_format="tf")
+        self.Q.save("./checkpoint_ultimo/14_04/Q",save_format="tf")
+        self.Gq.save("./checkpoint_ultimo/14_04/Gq",save_format="tf")
+        self.h0.save("./checkpoint_ultimo/14_04/h0",save_format="tf")
+        self.h1.save("./checkpoint_ultimo/14_04/h1",save_format="tf")
+        self.h2.save("./checkpoint_ultimo/14_04/h2",save_format="tf")
+        self.h3.save("./checkpoint_ultimo/14_04/h3",save_format="tf")
         return
 
 def Main(DeviceName):
