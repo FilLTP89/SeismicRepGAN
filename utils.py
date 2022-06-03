@@ -10,7 +10,9 @@ __Maintainer__ = "Filippo Gatti"
 __email__ = "filippo.gatti@centralesupelec.fr"
 __status__ = "Beta"
 
+import os
 import argparse
+import tensorflow as tf
 
 def ParseOptions():
     parser = argparse.ArgumentParser()
@@ -47,7 +49,7 @@ def ParseOptions():
     parser.add_argument("--dataroot", nargs="+", default=["/gpfs/workdir/colombergi/GiorgiaGAN/PortiqueElasPlas_N_2000_index",
                         "/gpfs/workdir/colombergi/GiorgiaGAN/PortiqueElasPlas_E_2000_index"],help="Data root folder") 
     parser.add_argument("--dataroot_index", nargs="+", default=["/gpfs/workdir/colombergi/GiorgiaGAN/PortiqueElasPlas_N_2000_index",
-                        "/gpfs/workdir/colombergi/GiorgiaGAN/PortiqueElasPlas_E_2000_index"],help="Data root folder")  
+                        "/gpfs/workdir/colombergi/GiorgiaGAN/PortiqueElasPlas_E_2000_index"],help="Data root folder") 
     parser.add_argument("--idChannels",type=int,nargs='+',default=[1,2,3,4],help="Channel 1")
     parser.add_argument("--nParams",type=str,default=2,help="Number of parameters")
     parser.add_argument("--case",type=str,default="train_model",help="case")
@@ -56,6 +58,9 @@ def ParseOptions():
     parser.add_argument("--CreateData",action='store_true',default=False,help='Create data flag')
     parser.add_argument("--cuda",action='store_true',default=False,help='Use cuda powered GPU')
     parser.add_argument('--dtm',type=float,default=0.04,help='time-step [s]')
+    parser.add_argument("--checkpoint_dir",default='/gpfs/workdir/colombergi/GiorgiaGAN/checkpoint/03_06',help="Checkpoint")
+    parser.add_argument("--results_dir",default='/gpfs/workdir/colombergi/GiorgiaGAN/results',help="Checkpoint")
+    parser.add_argument("--discriminator",default='GAN',help="Type of Dz")
     options = parser.parse_args().__dict__
 
     options['batchXshape'] = (options['batchSize'],options['Xsize'],options['nXchannels'])
@@ -74,9 +79,9 @@ def ParseOptions():
     options['Csize'] = int(options['Zsize']*options['Cstride']**(-options['nClayers']))
     options['Nsize'] = int(options['Zsize']*options['Nstride']**(-options['nNlayers']))
 
-    options['nDlayers'] = min(options['nDlayers'],int(mt.log(options['Xsize'],options['stride'])))
+    #options['nDlayers'] = min(options['nDlayers'],int(tf.math.log(options['Xsize'],options['stride'])))
 
-    # assert options['nSchannels'] >= 1
-    # assert options['Ssize'] >= options['Zsize']//(options['stride']**options['nSlayers'])
+    if not os.path.exists(options['checkpoint_dir']):
+        os.makedirs(options['checkpoint_dir'])
 
     return options
