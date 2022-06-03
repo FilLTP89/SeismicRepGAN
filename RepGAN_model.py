@@ -542,8 +542,9 @@ class RepGAN(tf.keras.Model):
         h_σs2 = kl.LeakyReLU(alpha=0.1)(h_σs2)
         h_σs2 = kl.Dense(self.latentSdim,name="FxFWlvS")(h_σs2)
         h_σs2 = kl.BatchNormalization(momentum=0.95,axis=-1,name="FxBNlvS")(h_σs2)
-        h_σs2 = kl.LeakyReLU(alpha=0.1,name="FxAlvS{:>d}".format(layer+2))(h_σs2)     
-        σs2 = tf.math.sigmoid(h_σs2)
+        h_σs2 = kl.LeakyReLU(alpha=0.1,name="FxAlvS{:>d}".format(layer+2))(h_σs2)
+        σs2 = kl.Activation(tf.keras.activation.softplus())
+        
 
         # variable c
         layer = self.nClayers
