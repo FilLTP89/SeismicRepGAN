@@ -14,7 +14,7 @@ import tensorflow as tf
 import numpy as np
 from tensorflow.keras.optimizers import Adam, RMSprop
 
-def GaussianNLL(x,μ,Σ,mod='var',raxis=None):
+def GaussianNLL(x,μ,sigma,raxis=None):
     """
         Gaussian negative loglikelihood loss function
     """
@@ -25,13 +25,16 @@ def GaussianNLL(x,μ,Σ,mod='var',raxis=None):
 
     log2pi = -0.5*n_dims*tf.math.log(2.*np.pi)
 
-    if 'var' in mod:
-        Σ = tf.math.log(Σ)
+    #if 'var' in mod:
+    #   Σ = tf.math.log(Σ) #eps1e-8
 
-    mse = -0.5*tf.square(x-μ)*tf.exp(-Σ)
-    traceΣ = -0.5*tf.reduce_sum(Σ,axis=raxis)
+    #mse = -0.5*tf.square(x-μ)*tf.exp(-Σ)
+    #traceΣ = -tf.reduce_sum(Σ,axis=raxis)
+    #NLL = tf.reduce_sum(mse,axis=raxis)+traceΣ+log2pi
 
-    NLL = tf.reduce_sum(mse,axis=raxis)+traceΣ+log2pi
+    mse = -0.5*tf.reduce_sum(tf.keras.backend.square((x-μ))/sigma,axis=raxis) 
+    sigma_trace = -0.5*tf.reduce_sum(tf.math.log(sigma), axis=raxis)
+    NLL = mse+sigma_trace+log2pi
 
     return tf.reduce_mean(NLL)
 
@@ -101,9 +104,14 @@ def getOptimizers(**kwargs):
     getOptimizers.__globals__.update(kwargs)
     optimizers = {}
     optimizers['DxOpt'] = Adam(learning_rate=0.002, beta_1=0.5, beta_2=0.9999)
-    optimizers['DcOpt'] = Adam(learning_rate=0.002, beta_1=0.5, beta_2=0.9999)#RMSprop(learning_rate=0.002)
-    optimizers['DsOpt'] = Adam(learning_rate=0.002, beta_1=0.5, beta_2=0.9999)#RMSprop(learning_rate=0.002)
-    optimizers['DnOpt'] = Adam(learning_rate=0.002, beta_1=0.5, beta_2=0.9999) #RMSprop(learning_rate=0.002)
+    if 'WGAN' in discriminator:
+        optimizers['DcOpt'] = RMSprop(learning_rate=0.002)
+        optimizers['DsOpt'] = RMSprop(learning_rate=0.002)
+        optimizers['DnOpt'] = RMSprop(learning_rate=0.002)
+    else:
+        optimizers['DcOpt'] = Adam(learning_rate=0.002, beta_1=0.5, beta_2=0.9999)
+        optimizers['DsOpt'] = Adam(learning_rate=0.002, beta_1=0.5, beta_2=0.9999)
+        optimizers['DnOpt'] = Adam(learning_rate=0.002, beta_1=0.5, beta_2=0.9999) 
     optimizers['FxOpt'] = Adam(learning_rate=0.001, beta_1=0.5, beta_2=0.9999)
     optimizers['GzOpt'] = Adam(learning_rate=0.001, beta_1=0.5, beta_2=0.9999)
     return optimizers
@@ -117,8 +125,8 @@ def getLosses(**kwargs):
     else:
         losses['AdvDlossDz'] = HingeDGANLoss 
         losses['AdvGlossDz'] = GGANLoss 
-    losses['AdvDlossDx'] = HingeDGANLoss#tf.keras.losses.BinaryCrossentropy()
-    losses['AdvGlossDx'] = GGANLoss #tf.keras.losses.BinaryCrossentropy()
+    losses['AdvDlossDx'] = tf.keras.losses.BinaryCrossentropy() #HingeDGANLoss
+    losses['AdvGlossDx'] = tf.keras.losses.BinaryCrossentropy() #GGANLoss
     losses['RecSloss'] = GaussianNLL
     losses['RecXloss'] = tf.keras.losses.MeanSquaredError()
     losses['RecCloss'] = tf.keras.losses.CategoricalCrossentropy()

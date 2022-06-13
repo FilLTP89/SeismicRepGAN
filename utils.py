@@ -60,7 +60,8 @@ def ParseOptions():
     parser.add_argument('--dtm',type=float,default=0.04,help='time-step [s]')
     parser.add_argument("--checkpoint_dir",default='/gpfs/workdir/colombergi/GiorgiaGAN/checkpoint/03_06',help="Checkpoint")
     parser.add_argument("--results_dir",default='/gpfs/workdir/colombergi/GiorgiaGAN/results',help="Checkpoint")
-    parser.add_argument("--discriminator",default='GAN',help="Type of Dz")
+    parser.add_argument("--discriminator",default='WGAN',help="Type of Dz")
+    parser.add_argument("--σs2",default='sigmoid',help="Last σs2 activation layer")
     options = parser.parse_args().__dict__
 
     options['batchXshape'] = (options['batchSize'],options['Xsize'],options['nXchannels'])
