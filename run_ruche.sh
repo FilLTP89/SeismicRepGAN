@@ -19,7 +19,5 @@ module load cuda/11.4.0/gcc-9.2.0
 source activate tf
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/gpfs/users/colombergi/.conda/envs/tf/lib
  
-python3 RepGANoriginal_skip.py --nX 4000 --cuda --epochs 2000 --latentSdim 2 --latentNdim 512 --nXRepX 1 --nRepXRep 5 --nCritic 1 \
- --nGenerator 1 --checkpoint_dir '/gpfs/workdir/colombergi/GiorgiaGAN/checkpoint/03_06' --results_dir '/gpfs/workdir/colombergi/GiorgiaGAN/results'
-#python3 post_processing.py --nX 4000 --cuda --epochs 2 --latentSdim 2 --latentNdim 512 --nXRepX 1 --nRepXRep 5 --nCritic 1 \
-# --nGenerator 1 --checkpoint_dir '/gpfs/workdir/colombergi/GiorgiaGAN/checkpoint/03_06' --results_dir '/gpfs/workdir/colombergi/GiorgiaGAN/results'
+python3 RepGAN_drive.py --nX 4000 --cuda --epochs 2000 --latentSdim 2 --latentNdim 20 --nXRepX 1 --nRepXRep 1 --nCritic 5 --nGenerator 1 --checkpoint_dir '/gpfs/workdir/colombergi/GiorgiaGAN/checkpoint/13_06' --results_dir '/gpfs/workdir/colombergi/GiorgiaGAN/results'
+#python3 post_processing.py --nX 4000 --cuda --epochs 2000 --latentSdim 2 --latentNdim 20 --nXRepX 1 --nRepXRep 1 --nCritic 5 --nGenerator 1 --checkpoint_dir '/gpfs/workdir/colombergi/GiorgiaGAN/checkpoint/13_06' --results_dir '/gpfs/workdir/colombergi/GiorgiaGAN/results'
