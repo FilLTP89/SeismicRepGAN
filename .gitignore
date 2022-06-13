@@ -1,3 +1,4 @@
+*.o*
 typeguard*
 *addons*
 *.png
