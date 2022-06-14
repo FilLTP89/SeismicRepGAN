@@ -14,7 +14,9 @@ import tensorflow as tf
 import numpy as np
 from tensorflow.keras.optimizers import Adam, RMSprop
 
-def GaussianNLL(x,μ,sigma,raxis=None):
+ε = 1e-8
+
+def GaussianNLL(x,μ,Σ,mod='var',raxis=None):
     """
         Gaussian negative loglikelihood loss function
     """
@@ -25,16 +27,16 @@ def GaussianNLL(x,μ,sigma,raxis=None):
 
     log2pi = -0.5*n_dims*tf.math.log(2.*np.pi)
 
-    #if 'var' in mod:
-    #   Σ = tf.math.log(Σ) #eps1e-8
+    if 'var' in mod:
+      Σ = tf.math.log(Σ+ε)
 
-    #mse = -0.5*tf.square(x-μ)*tf.exp(-Σ)
-    #traceΣ = -tf.reduce_sum(Σ,axis=raxis)
-    #NLL = tf.reduce_sum(mse,axis=raxis)+traceΣ+log2pi
+    mse = -0.5*tf.square(x-μ)*tf.exp(-Σ)
+    traceΣ = -tf.reduce_sum(Σ,axis=raxis)
+    NLL = tf.reduce_sum(mse,axis=raxis)+traceΣ+log2pi
 
-    mse = -0.5*tf.reduce_sum(tf.keras.backend.square((x-μ))/sigma,axis=raxis) 
-    sigma_trace = -0.5*tf.reduce_sum(tf.math.log(sigma), axis=raxis)
-    NLL = mse+sigma_trace+log2pi
+    # mse = -0.5*tf.reduce_sum(tf.keras.backend.square((x-μ))/sigma,axis=raxis) 
+    # sigma_trace = -0.5*tf.reduce_sum(tf.math.log(sigma), axis=raxis)
+    # NLL = mse+sigma_trace+log2pi
 
     return tf.reduce_mean(NLL)
 
