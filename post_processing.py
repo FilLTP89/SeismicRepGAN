@@ -180,7 +180,7 @@ def arias_intensity(dtm,tha,pc=0.95,nf=9.81):
 
 
 
-def PlotReconstructedTHs(model,realXC):
+def PlotReconstructedTHs(model,realXC,results_dir):
     # Plot reconstructed time-histories
     realX = np.concatenate([x for x, c, m, d in realXC], axis=0)
     realC = np.concatenate([c for x, c, m, d in realXC], axis=0)
@@ -209,8 +209,8 @@ def PlotReconstructedTHs(model,realXC):
             hax.legend([r'$X$', r"$G_z(F_x(x))$"], loc='best',frameon=False,fontsize=20)
             hax.set_ylim([-1.0, 1.0])
             hax.tick_params(axis='both', labelsize=18)
-            plt.savefig('./results/reconstruction_{:>d}_{:>d}.png'.format(j,i),bbox_inches = 'tight')
-            #plt.savefig('./results/reconstruction_{:>d}_{:>d}.eps'.format(j,i),bbox_inches = 'tight',dpi=200)
+            plt.savefig(results_dir + '/reconstruction_{:>d}_{:>d}.png'.format(j,i),bbox_inches = 'tight')
+            #plt.savefig(results_dir + '/reconstruction_{:>d}_{:>d}.eps'.format(j,i),bbox_inches = 'tight',dpi=200)
             plt.close()
 
 
@@ -228,8 +228,8 @@ def PlotReconstructedTHs(model,realXC):
             hax.set_xlabel(r'$Frequency \hspace{0.5} [Hz]$', fontsize=26,fontweight='bold')
             hax.legend([r'$X$', r"$G_z(F_x(x))$"], loc='best',frameon=False,fontsize=20)
             hax.tick_params(axis='both', labelsize=18)
-            plt.savefig('./results/fft_{:>d}_{:>d}.png'.format(j,i),bbox_inches = 'tight')
-            #plt.savefig('./results/fft_{:>d}_{:>d}.eps'.format(j,i),bbox_inches = 'tight',dpi=200)
+            plt.savefig(results_dir + '/fft_{:>d}_{:>d}.png'.format(j,i),bbox_inches = 'tight')
+            #plt.savefig(results_dir + '/fft_{:>d}_{:>d}.eps'.format(j,i),bbox_inches = 'tight',dpi=200)
             plt.close()
 
 def cross_2d_dam(und,dam,i0,dt,nw,kspec,fmin,fmax,tmin,tmax):
@@ -256,7 +256,7 @@ def cross_2d_dam(und,dam,i0,dt,nw,kspec,fmin,fmax,tmin,tmax):
     return [irf,t]
 
 
-def PlotSwitchedTHs(model,real_u,real_d,d):
+def PlotSwitchedTHs(model,real_u,real_d,d,results_dir):
     # Plot reconstructed time-histories
     
     realX_u = np.concatenate([x for x, c, m, d in real_u], axis=0)
@@ -295,8 +295,8 @@ def PlotSwitchedTHs(model,real_u,real_d,d):
                 hax.legend([r'$X$', r"$G_z(F_x(x))$"], loc='best',frameon=False,fontsize=20)
                 hax.set_ylim([-1.0, 1.0])
                 hax.tick_params(axis='both', labelsize=18)
-                plt.savefig('./results/reconstruction0_{:>d}_{:>d}.png'.format(j,i),bbox_inches = 'tight')
-                #plt.savefig('./results/reconstruction0_{:>d}_{:>d}.eps'.format(j,i),bbox_inches = 'tight',dpi=200)
+                plt.savefig(results_dir + '/reconstruction0_{:>d}_{:>d}.png'.format(j,i),bbox_inches = 'tight')
+                #plt.savefig(results_dir + '/reconstruction0_{:>d}_{:>d}.eps'.format(j,i),bbox_inches = 'tight',dpi=200)
                 plt.close()
 
 
@@ -314,8 +314,8 @@ def PlotSwitchedTHs(model,real_u,real_d,d):
                 hax.set_xlabel(r'$Frequency \hspace{0.5} [Hz]$', fontsize=26,fontweight='bold')
                 hax.legend([r'$X$', r"$G_z(F_x(x))$"], loc='best',frameon=False,fontsize=20)
                 hax.tick_params(axis='both', labelsize=18)
-                plt.savefig('./results/fft0_{:>d}_{:>d}.png'.format(j,i),bbox_inches = 'tight')
-                #plt.savefig('./results/fft0_{:>d}_{:>d}.eps'.format(j,i),bbox_inches = 'tight',dpi=200)
+                plt.savefig(results_dir + '/fft0_{:>d}_{:>d}.png'.format(j,i),bbox_inches = 'tight')
+                #plt.savefig(results_dir + '/fft0_{:>d}_{:>d}.eps'.format(j,i),bbox_inches = 'tight',dpi=200)
                 plt.close()
 
     recX_fft = tf.make_ndarray(tf.make_tensor_proto(recX_d))
@@ -334,8 +334,8 @@ def PlotSwitchedTHs(model,real_u,real_d,d):
             hax.legend([r'$X$', r"$G_z(F_x(x))$"], loc='best',frameon=False,fontsize=20)
             hax.set_ylim([-1.0, 1.0])
             hax.tick_params(axis='both', labelsize=18)
-            plt.savefig('./results/reconstruction{:>d}_{:>d}_{:>d}.png'.format(d,j,i),bbox_inches = 'tight')
-            #plt.savefig('./results/reconstruction{:>d}_{:>d}_{:>d}.eps'.format(d,j,i),bbox_inches = 'tight',dpi=200)
+            plt.savefig(results_dir + '/reconstruction{:>d}_{:>d}_{:>d}.png'.format(d,j,i),bbox_inches = 'tight')
+            #plt.savefig(results_dir + '/reconstruction{:>d}_{:>d}_{:>d}.eps'.format(d,j,i),bbox_inches = 'tight',dpi=200)
             plt.close()
 
 
@@ -353,8 +353,8 @@ def PlotSwitchedTHs(model,real_u,real_d,d):
             hax.set_xlabel(r'$Frequency \hspace{0.5} [Hz]$', fontsize=26,fontweight='bold')
             hax.legend([r'$X$', r"$G_z(F_x(x))$"], loc='best',frameon=False,fontsize=20)
             hax.tick_params(axis='both', labelsize=18)
-            plt.savefig('./results/fft{:>d}_{:>d}_{:>d}.png'.format(d,j,i),bbox_inches = 'tight')
-            #plt.savefig('./results/fft{:>d}_{:>d}_{:>d}.eps'.format(d,j,i),bbox_inches = 'tight',dpi=200)
+            plt.savefig(results_dir + '/fft{:>d}_{:>d}_{:>d}.png'.format(d,j,i),bbox_inches = 'tight')
+            #plt.savefig(results_dir + '/fft{:>d}_{:>d}_{:>d}.eps'.format(d,j,i),bbox_inches = 'tight',dpi=200)
             plt.close()
 
         
@@ -410,8 +410,8 @@ def PlotSwitchedTHs(model,real_u,real_d,d):
             ax2.set_xlabel(r'$t \hspace{0.5} [s]$', fontsize=26,fontweight='bold')
             ax2.legend([r"$G_z(F_x(x_u))$"], loc='best',frameon=False,fontsize=20)
             ax2.tick_params(axis='both', labelsize=18)
-            plt.savefig('./results/reconstruction_switch{:>d}_{:>d}_{:>d}.png'.format(d,j,i),bbox_inches = 'tight')
-            #plt.savefig('./results/reconstruction_switch{:>d}_{:>d}_{:>d}.eps'.format(d,j,i),bbox_inches = 'tight',dpi=200)
+            plt.savefig(results_dir + '/reconstruction_switch{:>d}_{:>d}_{:>d}.png'.format(d,j,i),bbox_inches = 'tight')
+            #plt.savefig(results_dir + '/reconstruction_switch{:>d}_{:>d}_{:>d}.eps'.format(d,j,i),bbox_inches = 'tight',dpi=200)
             plt.close()
 
             hfg = plt.figure(figsize=(12,6),tight_layout=True)
@@ -428,8 +428,8 @@ def PlotSwitchedTHs(model,real_u,real_d,d):
             hax.set_xlabel(r'$Frequency \hspace{0.5} [Hz]$', fontsize=26,fontweight='bold')
             hax.legend([r'$X_d$', r"$G_z(F_x(x_u))$"], loc='best',frameon=False,fontsize=20)
             hax.tick_params(axis='both', labelsize=18)
-            plt.savefig('./results/fft_switch{:>d}_{:>d}_{:>d}.png'.format(d,j,i),bbox_inches = 'tight')
-            #plt.savefig('./results/fft_switch{:>d}_{:>d}_{:>d}.eps'.format(d,j,i),bbox_inches = 'tight',dpi=200)
+            plt.savefig(results_dir + '/fft_switch{:>d}_{:>d}_{:>d}.png'.format(d,j,i),bbox_inches = 'tight')
+            #plt.savefig(results_dir + '/fft_switch{:>d}_{:>d}_{:>d}.eps'.format(d,j,i),bbox_inches = 'tight',dpi=200)
             plt.close()
 
             hfg = plt.figure(figsize=(12,6),tight_layout=True)
@@ -442,8 +442,8 @@ def PlotSwitchedTHs(model,real_u,real_d,d):
             hax.tick_params(axis='both', labelsize=18)
             hax.set_ylim([-1.0, 1.0])           
 
-            plt.savefig('./results/switch{:>d}_{:>d}_{:>d}.png'.format(d,j,i),bbox_inches = 'tight')
-            #plt.savefig('./results/switch{:>d}_{:>d}_{:>d}.eps'.format(d,j,i),bbox_inches = 'tight',dpi=200)
+            plt.savefig(results_dir + '/switch{:>d}_{:>d}_{:>d}.png'.format(d,j,i),bbox_inches = 'tight')
+            #plt.savefig(results_dir + '/switch{:>d}_{:>d}_{:>d}.eps'.format(d,j,i),bbox_inches = 'tight',dpi=200)
             plt.close()
 
             fig, axs = plt.subplots(2, 2, figsize=(24,12))
@@ -495,7 +495,7 @@ def PlotSwitchedTHs(model,real_u,real_d,d):
 
 
 
-def PlotTHSGoFs(model,realXC):
+def PlotTHSGoFs(model,realXC,results_dir):
     # Plot reconstructed time-histories
     #realX, realC = realXC
 
@@ -513,15 +513,15 @@ def PlotTHSGoFs(model,realXC):
             plot_tf_gofs(realX[i,:,j],recX[i,:,j],dt=0.04,fmin=0.1,fmax=30.0,t0=0.0,nf=100,w0=6,norm='global',st2_isref=True,
                 a=10.,k=1.,left=0.1,bottom=0.125, h_1=0.2,h_2=0.125,h_3=0.2,w_1=0.2,w_2=0.6,w_cb=0.01, d_cb=0.0,show=False,
                 plot_args=['k', 'r', 'b'],ylim=0., clim=0.)
-            plt.savefig('./results/gof_{:>d}_{:>d}.png'.format(j,i),bbox_inches = 'tight')
-            #plt.savefig('./results/gof_{:>d}_{:>d}.eps'.format(j,i),bbox_inches = 'tight',dpi=200)
+            plt.savefig(results_dir + '/gof_{:>d}_{:>d}.png'.format(j,i),bbox_inches = 'tight')
+            #plt.savefig(results_dir + '/gof_{:>d}_{:>d}.eps'.format(j,i),bbox_inches = 'tight',dpi=200)
             plt.close()
 
 def colored_scatter(*args, **kwargs):
     plt.scatter(*args, **kwargs)
     return
 
-def PlotEGPGgrid(col_x,col_y,col_k,i,df,k_is_color=False, scatter_alpha=.7):
+def PlotEGPGgrid(col_x,col_y,col_k,i,results_dir,df,k_is_color=False, scatter_alpha=.7):
     k=0
     for name, df_group in df.groupby(col_k):
         k+=1
@@ -562,12 +562,12 @@ def PlotEGPGgrid(col_x,col_y,col_k,i,df,k_is_color=False, scatter_alpha=.7):
     plt.xlabel('EG', fontsize=14)
     plt.ylabel('PG', fontsize=14)
     plt.legend(legends,frameon=False,fontsize=14)
-    plt.savefig('./results/Gz(Fx(X))_gofs_{:>d}.png'.format(i),bbox_inches = 'tight')
-    #plt.savefig('./results/Gz(Fx(X))_gofs_{:>d}.eps'.format(i),bbox_inches = 'tight',dpi=200)
+    plt.savefig(results_dir + '/Gz(Fx(X))_gofs_{:>d}.png'.format(i),bbox_inches = 'tight')
+    #plt.savefig(results_dir + '/Gz(Fx(X))_gofs_{:>d}.eps'.format(i),bbox_inches = 'tight',dpi=200)
     plt.close()
 
 
-def PlotBatchGoFs(model,Xtrn,Xvld,i):
+def PlotBatchGoFs(model,Xtrn,Xvld,i,results_dir):
     # Plot GoFs on a batch
 
     
@@ -625,10 +625,10 @@ def PlotBatchGoFs(model,Xtrn,Xvld,i):
         egpg_data.append(egpg_df_vld['egpg_df_vld_%d' % j])
     egpg_df = pd.concat(egpg_data)
 
-    egpg_df.to_csv('./results/EG_PG_{:>d}.csv'.format(i), index= True)
-    PlotEGPGgrid('EG','PG','kind',i,df=egpg_df)
+    egpg_df.to_csv(results_dir + '/EG_PG_{:>d}.csv'.format(i), index= True)
+    PlotEGPGgrid('EG','PG','kind',i,results_dir,df=egpg_df)
 
-def PlotClassificationMetrics(model,realXC):
+def PlotClassificationMetrics(model,realXC,results_dir):
     # Plot classification metrics
     realX = np.concatenate([x for x, c, m, d in realXC], axis=0)
     realC = np.concatenate([c for x, c, m, d in realXC], axis=0)
@@ -661,12 +661,12 @@ def PlotClassificationMetrics(model,realXC):
     report = classification_report(y_true = labels_real, y_pred = labels_fake,
             target_names=target_names,output_dict=True,zero_division=1)
     df = pd.DataFrame(report).transpose()
-    df.to_csv('./results/Classification Report C.csv', index= True)
+    df.to_csv(results_dir + '/Classification Report C.csv', index= True)
     cr = sn.heatmap(pd.DataFrame(report).iloc[:-1, :].T, annot=True, vmin=0, vmax=1, annot_kws={"size": 12})
     cr.tick_params(axis='both', labelsize=12)
     cr.set_yticklabels(cr.get_yticklabels(), rotation=0)
-    plt.savefig('./results/classification_report_fakeC.png',bbox_inches = 'tight')
-    #plt.savefig('./results/classification_report.eps',bbox_inches = 'tight',dpi=200)
+    plt.savefig(results_dir + '/classification_report_fakeC.png',bbox_inches = 'tight')
+    #plt.savefig(results_dir + '/classification_report.eps',bbox_inches = 'tight',dpi=200)
     plt.close()
 
     conf_mat = confusion_matrix(labels_real, labels_fake)
@@ -678,8 +678,8 @@ def PlotClassificationMetrics(model,realXC):
     plt.tick_params(axis='both', labelsize=20)
     plt.ylabel("True class",fontsize=22,labelpad=10)
     plt.xlabel("Predicted class",fontsize=22,labelpad=10)
-    plt.savefig('./results/confusion_matrix_fakeC.png',bbox_inches = 'tight')
-    #plt.savefig('./results/confusion_matrixC.eps',bbox_inches = 'tight',dpi=200)
+    plt.savefig(results_dir + '/confusion_matrix_fakeC.png',bbox_inches = 'tight')
+    #plt.savefig(results_dir + '/confusion_matrixC.eps',bbox_inches = 'tight',dpi=200)
     plt.close()
 
 
@@ -687,12 +687,12 @@ def PlotClassificationMetrics(model,realXC):
     report = classification_report(y_true = labels_real, y_pred = labels_rec,
             target_names=target_names,output_dict=True,zero_division=1)
     df = pd.DataFrame(report).transpose()
-    df.to_csv('./results/Classification Report recC.csv', index= True)
+    df.to_csv(results_dir + '/Classification Report recC.csv', index= True)
     cr = sn.heatmap(pd.DataFrame(report).iloc[:-1, :].T, annot=True, vmin=0, vmax=1, annot_kws={"size": 12})
     cr.tick_params(axis='both', labelsize=12)
     cr.set_yticklabels(cr.get_yticklabels(), rotation=0)
-    plt.savefig('./results/classification_report_recC.png',bbox_inches = 'tight')
-    #plt.savefig('./results/classification_reportrec.eps',bbox_inches = 'tight',dpi=200)
+    plt.savefig(results_dir + '/classification_report_recC.png',bbox_inches = 'tight')
+    #plt.savefig(results_dir + '/classification_reportrec.eps',bbox_inches = 'tight',dpi=200)
     plt.close()
 
     
@@ -705,8 +705,8 @@ def PlotClassificationMetrics(model,realXC):
     plt.tick_params(axis='both', labelsize=20)
     plt.ylabel("True class",fontsize=22,labelpad=10)
     plt.xlabel("Predicted class",fontsize=22,labelpad=10)
-    plt.savefig('./results/confusion_matrix_recC.png',bbox_inches = 'tight')
-    #plt.savefig('./results/confusion_matrixrecC.eps',bbox_inches = 'tight',dpi=200)
+    plt.savefig(results_dir + '/confusion_matrix_recC.png',bbox_inches = 'tight')
+    #plt.savefig(results_dir + '/confusion_matrixrecC.eps',bbox_inches = 'tight',dpi=200)
     plt.close()
 
     return
@@ -728,7 +728,7 @@ def scatter_hist(x, y, ax, ax_histx, ax_histy):
     ax_histx.hist(x, bins=bins)
     ax_histy.hist(y, bins=bins, orientation='horizontal')
 
-def PlotLatentSpace(model,realXC):
+def PlotLatentSpace(model,realXC,results_dir):
     s_list = []
     n_list = []
     cq_list = []
@@ -773,7 +773,7 @@ def PlotLatentSpace(model,realXC):
 
     # use the previously defined function
     scatter_hist(s_np[:,0],s_np[:,1], ax, ax_histx, ax_histy)
-    fig.savefig('./results/s_all.png')
+    fig.savefig(results_dir + '/s_all.png')
     plt.close()
 
     for n_i in range(1):
@@ -793,7 +793,7 @@ def PlotLatentSpace(model,realXC):
         plt.xlabel("N0",fontsize=12,labelpad=10)
         plt.title("N variables",fontsize=16)
         plt.legend(["0","1"],frameon=False,fontsize=14)
-        fig.savefig('./results/n_{:>d}_{:>d}'.format(n_i,n_i+1),dpi=300,bbox_inches = 'tight')
+        fig.savefig(results_dir + '/n_{:>d}_{:>d}'.format(n_i,n_i+1),dpi=300,bbox_inches = 'tight')
         plt.close()
 
     
@@ -815,12 +815,12 @@ def PlotLatentSpace(model,realXC):
         plt.title("S variables",fontsize=16)
         plt.legend(["0","1"],frameon=False,fontsize=14)
 
-        fig.savefig('./results/s_{:>d}_{:>d}'.format(s_i,s_i+1),dpi=300,bbox_inches = 'tight')
+        fig.savefig(results_dir + '/s_{:>d}_{:>d}'.format(s_i,s_i+1),dpi=300,bbox_inches = 'tight')
         plt.close()
 
     return
 
-def PlotTSNE(model,realXC):
+def PlotTSNE(model,realXC,results_dir):
     
     realX = np.concatenate([x for x, c, m, d in realXC], axis=0)
     realC = np.concatenate([c for x, c, m, d in realXC], axis=0)
@@ -936,7 +936,7 @@ def PlotTSNE(model,realXC):
     d3 = ax.scatter([], [], c='k', s=s3, label=r'$Collapsed$', marker="o", alpha=0.3)
     plt.legend(handles=[d1,d2,d3], bbox_to_anchor=(1.04,0), loc="lower left",borderaxespad=(0),frameon=False,
             title=r'$Park \hspace{0.5} & \hspace{0.5} Ang \hspace{0.5} Index$',fontsize=14,title_fontsize=14)
-    plt.savefig('./results/data.png',bbox_inches = 'tight')
+    plt.savefig(results_dir + '/data.png',bbox_inches = 'tight')
     plt.close()
     
     size = np.array(size,dtype=np.float32)
@@ -1045,7 +1045,7 @@ def PlotTSNE(model,realXC):
     d3 = ax.scatter([], [], c='k', s=s3, label=r'$Collapsed$', marker="o", alpha=0.3)
     plt.legend(handles=[d1,d2,d3], bbox_to_anchor=(1.04,0), loc="lower left",borderaxespad=(0),frameon=False,
             title=r'$Park \hspace{0.5} & \hspace{0.5} Ang \hspace{0.5} Index$',fontsize=14,title_fontsize=14)
-    plt.savefig('./results/tsne_N.png',bbox_inches = 'tight')
+    plt.savefig(results_dir + '/tsne_N.png',bbox_inches = 'tight')
     plt.close()
 
     fig, ax = plt.subplots(1,2, figsize=(16,6))
@@ -1071,7 +1071,7 @@ def PlotTSNE(model,realXC):
     ax[1].set_ylabel(r'$Dimension \hspace{0.5} 2$',fontsize=14)
     ax[1].xaxis.set_tick_params(labelsize=14)
     ax[1].yaxis.set_tick_params(labelsize=14)
-    plt.savefig('./results/tsne_N_low_high.png',bbox_inches = 'tight')
+    plt.savefig(results_dir + '/tsne_N_low_high.png',bbox_inches = 'tight')
     plt.close()
 
     
@@ -1158,7 +1158,7 @@ def PlotTSNE(model,realXC):
     d3 = ax.scatter([], [], c='k', s=s3, label=r'$Collapsed$', marker="o", alpha=0.3)
     plt.legend(handles=[d1,d2,d3], bbox_to_anchor=(1.04,0), loc="lower left", borderaxespad=(0),frameon=False,
             title=r'$Park \hspace{0.5} & \hspace{0.5} Ang \hspace{0.5} Index$',fontsize=14,title_fontsize=14)
-    plt.savefig('./results/tsne_S.png',bbox_inches = 'tight')
+    plt.savefig(results_dir + '/tsne_S.png',bbox_inches = 'tight')
     plt.close()
 
     
@@ -1181,7 +1181,7 @@ def PlotTSNE(model,realXC):
     ax[1].set_ylim(s_min_y,s_max_y)
     ax[1].set_xlabel(r'$Dimension \hspace{0.5} 1$',fontsize=14)
     ax[1].set_ylabel(r'$Dimension \hspace{0.5} 2$',fontsize=14)
-    plt.savefig('./results/tsne_S_low_high.png',bbox_inches = 'tight')
+    plt.savefig(results_dir + '/tsne_S_low_high.png',bbox_inches = 'tight')
     plt.close()
 
     fig, ax = plt.subplots()
@@ -1207,7 +1207,7 @@ def PlotTSNE(model,realXC):
     plt.xlabel(r'$Dimension \hspace{0.5} 1$',fontsize=14)
     plt.ylabel(r'$Dimension \hspace{0.5} 2$',fontsize=14)
     plt.title(r"$Variables \hspace{0.5} S \hspace{0.5} and \hspace{0.5} N: \hspace{0.5} T-SNE \hspace{0.5} projection$")
-    plt.savefig('./results/tsne_S_N.png',bbox_inches = 'tight')
+    plt.savefig(results_dir + '/tsne_S_N.png',bbox_inches = 'tight')
     plt.close()
 
     fig = plt.figure(figsize = (10, 7))
@@ -1235,7 +1235,7 @@ def PlotTSNE(model,realXC):
     cbar = plt.colorbar(p1)
     cbar.set_label(r"$Damage \hspace{0.5} index$",fontsize=14)
     cbar.ax.yaxis.set_tick_params(labelsize=14)
-    plt.savefig('./results/3d_S_index.png',bbox_inches = 'tight')
+    plt.savefig(results_dir + '/3d_S_index.png',bbox_inches = 'tight')
     plt.close()
 
     fig = plt.figure(figsize = (10, 7))
@@ -1253,7 +1253,7 @@ def PlotTSNE(model,realXC):
     cbar = plt.colorbar(p1)
     cbar.set_label(r"$Magnitude$",fontsize=14)
     cbar.ax.yaxis.set_tick_params(labelsize=14)
-    plt.savefig('./results/3d_S_mag.png',bbox_inches = 'tight')
+    plt.savefig(results_dir + '/3d_S_mag.png',bbox_inches = 'tight')
     plt.close()
 
     fig = plt.figure(figsize = (10, 7))
@@ -1271,7 +1271,7 @@ def PlotTSNE(model,realXC):
     cbar.ax.set_ylabel(r"$Damage \hspace{0.5} index$",fontsize=14)
     cbar.ax.yaxis.set_tick_params(labelsize=14)
     plt.legend(scatterpoints=1, frameon=False, labelspacing=1, title=r'$Magnitude$',loc="upper left",fontsize=14,title_fontsize=14) 
-    plt.savefig('./results/3d_N_index.png',bbox_inches = 'tight')
+    plt.savefig(results_dir + '/3d_N_index.png',bbox_inches = 'tight')
     plt.close()
 
     fig = plt.figure(figsize = (10, 7))
@@ -1289,7 +1289,7 @@ def PlotTSNE(model,realXC):
     cbar.ax.set_ylabel(r"$Magnitude$",fontsize=14)
     cbar.ax.yaxis.set_tick_params(labelsize=14)
     plt.legend(scatterpoints=1, frameon=False, labelspacing=1, title=r'$Magnitude$',loc="upper left",fontsize=14,title_fontsize=14) 
-    plt.savefig('./results/3d_N_mag.png',bbox_inches = 'tight')
+    plt.savefig(results_dir + '/3d_N_mag.png',bbox_inches = 'tight')
     plt.close()
 
     fig = plt.figure(figsize = (10, 7))
@@ -1309,7 +1309,7 @@ def PlotTSNE(model,realXC):
     cbar.ax.set_ylabel(r"$Damage \hspace{0.5} index$",fontsize=14)
     cbar.ax.yaxis.set_tick_params(labelsize=14)
     plt.legend(scatterpoints=1, frameon=False, labelspacing=1, title=r'$Variable$',loc="upper left",fontsize=14,title_fontsize=14) 
-    plt.savefig('./results/3d_S_N_index.png',bbox_inches = 'tight')
+    plt.savefig(results_dir + '/3d_S_N_index.png',bbox_inches = 'tight')
     plt.close()
 
     fig = plt.figure(figsize = (10, 7))
@@ -1329,12 +1329,12 @@ def PlotTSNE(model,realXC):
     cbar.ax.set_ylabel(r"$Magnitude$",fontsize=14)
     cbar.ax.yaxis.set_tick_params(labelsize=14)
     plt.legend(scatterpoints=1, frameon=False, labelspacing=1, title=r'$Variable$',loc="upper left",fontsize=14,title_fontsize=14) 
-    plt.savefig('./results/3d_S_N_mag.png',bbox_inches = 'tight')
+    plt.savefig(results_dir + '/3d_S_N_mag.png',bbox_inches = 'tight')
     plt.close()
 
     return
 
-def PlotChangeS(model,realXC):
+def PlotChangeS(model,realXC,results_dir):
 
     realX = np.concatenate([x for x, c, m, d in realXC], axis=0)
     realC = np.concatenate([c for x, c, m, d in realXC], axis=0)
@@ -1362,11 +1362,11 @@ def PlotChangeS(model,realXC):
     report = classification_report(y_true = labels_real, y_pred = labels_rec,
             target_names=target_names,output_dict=True,zero_division=1)
     df = pd.DataFrame(report).transpose()
-    df.to_csv('./results/ChangeS_ClassificationC.csv', index= True)
+    df.to_csv(results_dir + '/ChangeS_ClassificationC.csv', index= True)
     cr = sn.heatmap(pd.DataFrame(report).iloc[:-1, :].T, annot=True, vmin=0, vmax=1, annot_kws={"size": 12})
     cr.tick_params(axis='both', labelsize=12)
     cr.set_yticklabels(cr.get_yticklabels(), rotation=0)
-    plt.savefig('./results/ChangeS_ClassificationC.png',bbox_inches = 'tight')
+    plt.savefig(results_dir + '/ChangeS_ClassificationC.png',bbox_inches = 'tight')
     plt.close()
 
     conf_mat = confusion_matrix(labels_real, labels_rec)
@@ -1378,7 +1378,7 @@ def PlotChangeS(model,realXC):
     plt.tick_params(axis='both', labelsize=20)
     plt.ylabel("True class",fontsize=22,labelpad=10)
     plt.xlabel("Predicted class",fontsize=22,labelpad=10)
-    plt.savefig('./results/ChangeS_ConfusionC.png',bbox_inches = 'tight')
+    plt.savefig(results_dir + '/ChangeS_ConfusionC.png',bbox_inches = 'tight')
     plt.close()
 
     transformerN1 = TSNE(n_components=2, verbose=1, random_state=123)
@@ -1403,7 +1403,7 @@ def PlotChangeS(model,realXC):
 
     ax[1].set_title(r"$F_x(G_z(c,s,n))$: T-SNE projection")
     sn.scatterplot(ax=ax[1], x="Dimension 1", y="Dimension 2", hue=dfN2.C.tolist(),palette=sn.color_palette("hls", 2),data=dfN2)
-    plt.savefig('./results/ChangeS_tsne_N.png',bbox_inches = 'tight')
+    plt.savefig(results_dir + '/ChangeS_tsne_N.png',bbox_inches = 'tight')
     plt.close()
     
     transformerS1 = TSNE(n_components=2, verbose=1, random_state=123)
@@ -1428,98 +1428,108 @@ def PlotChangeS(model,realXC):
 
     ax[1].set_title(r"$F_x(G_z(c,s,n))$: T-SNE projection")
     sn.scatterplot(ax=ax[1], x="Dimension 1", y="Dimension 2", hue=dfS2.C.tolist(),palette=sn.color_palette("hls", 2),data=dfS2)
-    plt.savefig('./results/ChangeS_tsne_S.png',bbox_inches = 'tight')
+    plt.savefig(results_dir + '/ChangeS_tsne_S.png',bbox_inches = 'tight')
     plt.close
 
     return
 
-def PlotDistributions(model,realXC):
+def PlotDistributions(model,realXC,results_dir):
     
     realX = np.concatenate([x for x, c, m, d in realXC], axis=0)
     realC = np.concatenate([c for x, c, m, d in realXC], axis=0)
     mag = np.concatenate([m for x, c, m, d in realXC], axis=0)
     di = np.concatenate([d for x, c, m, d in realXC], axis=0)
 
-    realS, realN, fakeS, fakeN, recS, recN = model.distribution(realX,realC)
+    realS, realN, fakeS, fakeN, recS, recN, Zmu, Zlogvar, Recmu, Reclogvar = model.distribution(realX,realC)
+
+    realS_mean = tf.reduce_mean(realS,axis=0)
+    fakeS_mean = tf.reduce_mean(fakeS,axis=0)
+    recS_mean = tf.reduce_mean(recS,axis=0)
+
+    fig, ax = plt.subplots()
+    ax.scatter(Zmu, Zlogvar,marker="o",label=None, alpha=0.8,edgecolors='w')
+    ax.set_xlabel(r'$Z_{μ}$',fontsize=14)
+    ax.set_ylabel(r'$Z_{σ}$',fontsize=14)
+    plt.savefig(results_dir + '/fakeS_sampling.png',bbox_inches = 'tight')
+    plt.close()
+
+    fig, ax = plt.subplots()
+    ax.scatter(Recmu, Reclogvar,marker="o",label=None, alpha=0.8,edgecolors='w')
+    ax.set_xlabel(r'$Z_{μ}$',fontsize=14)
+    ax.set_ylabel(r'$Z_{σ}$',fontsize=14)
+    plt.savefig(results_dir + '/recS_sampling.png',bbox_inches = 'tight')
+    plt.close()
 
 
-    for i in range(realS.shape[1]):
-        sn.distplot(realS[:,i], hist=True, kde=True, color = 'b', hist_kws={'edgecolor':'black'},kde_kws={'linewidth': 2}, label='S')
-        sn.distplot(fakeS[:,i], hist=True, kde=True, color = 'g', hist_kws={'edgecolor':'black'},kde_kws={'linewidth': 2}, label=r"$F_x(x)$")
-        sn.distplot(recS[:,i], hist=True, kde=True, color = 'r', hist_kws={'edgecolor':'black'},kde_kws={'linewidth': 2}, label=r"$F_x(G_z(c,s,n))$")
-        plt.legend()
-        plt.title('Distribution S{:>d}'.format(i))
-        plt.xlabel("Variable S")
-        plt.ylabel("Density")
-        plt.savefig('./results/distribution_S_{:>d}.png'.format(i),bbox_inches = 'tight')
-        plt.close()
+    fig, ax = plt.subplots(1,3, figsize=(24,6))
+    ax[0].set_title(r"$Distribution \hspace{0.5} S$")
+    ax[0].set_xlabel("Variable S")
+    ax[0].set_ylabel("Density")
+    sn.distplot(ax=ax[0], x = realS_mean, hist=True, kde=True, color = 'b', hist_kws={'edgecolor':'black'},kde_kws={'linewidth': 2})
+    
+    ax[1].set_title(r"$ Distribution \hspace{0.5} F_x(x)$")
+    ax[1].set_xlabel("Variable S")
+    ax[1].set_ylabel("Density")
+    sn.distplot(ax=ax[1], x = fakeS_mean, hist=True, kde=True, color = 'g', hist_kws={'edgecolor':'black'},kde_kws={'linewidth': 2})
 
-    for i in range(realN.shape[1]):
-        sn.distplot(realN[:,i], hist=True, kde=True, color = 'b', hist_kws={'edgecolor':'black'},kde_kws={'linewidth': 2}, label='N')
-        sn.distplot(fakeN[:,i], hist=True, kde=True, color = 'g', hist_kws={'edgecolor':'black'},kde_kws={'linewidth': 2}, label=r"$F_x(x)$")
-        sn.distplot(recN[:,i], hist=True, kde=True, color = 'r', hist_kws={'edgecolor':'black'},kde_kws={'linewidth': 2}, label=r"$F_x(G_z(c,s,n))$")
-        plt.legend()
-        plt.title('Distribution N{:>d}'.format(i))
-        plt.xlabel("Variable N")
-        plt.ylabel("Density")
-        plt.savefig('./results/distribution_N_{:>d}.png'.format(i),bbox_inches = 'tight')
+    ax[2].set_title(r"$ Distribution \hspace{0.5} F_x(G_z(c,s,n))$")
+    ax[2].set_xlabel("Variable S")
+    ax[2].set_ylabel("Density")
+    sn.distplot(ax=ax[2], x = recS_mean, hist=True, kde=True, color = 'r', hist_kws={'edgecolor':'black'},kde_kws={'linewidth': 2})
+
+    plt.savefig(results_dir + '/Distribution_Smean.png',bbox_inches = 'tight')
+    plt.close()
+
+
+    for i in range(10):
+        j = randint(0, realX.shape[0]-1)
+
+        fig, ax = plt.subplots(1,3, figsize=(24,6))
+        ax[0].set_title(r"$Distribution \hspace{0.5} S$")
+        ax[0].set_xlabel("Variable S")
+        ax[0].set_ylabel("Density")
+        sn.distplot(ax=ax[0], x = realS[j,:], hist=True, kde=True, color = 'b', hist_kws={'edgecolor':'black'},kde_kws={'linewidth': 2})
+        
+        ax[1].set_title(r"$ Distribution \hspace{0.5} F_x(x)$")
+        ax[1].set_xlabel("Variable S")
+        ax[1].set_ylabel("Density")
+        sn.distplot(ax=ax[1], x = fakeS[j,:], hist=True, kde=True, color = 'g', hist_kws={'edgecolor':'black'},kde_kws={'linewidth': 2})
+
+        ax[2].set_title(r"$ Distribution \hspace{0.5} F_x(G_z(c,s,n))$")
+        ax[2].set_xlabel("Variable S")
+        ax[2].set_ylabel("Density")
+        sn.distplot(ax=ax[2], x = recS[j,:], hist=True, kde=True, color = 'r', hist_kws={'edgecolor':'black'},kde_kws={'linewidth': 2})
+
+        plt.savefig(results_dir + '/Distribution_S_{:>d}.png'.format(j),bbox_inches = 'tight')
         plt.close()
 
     return
 
+if __name__ == '__main__':
+    options = ParseOptions()
 
-options = ParseOptions()
+    # MODEL LOADING
+    optimizers = RepGAN_losses.getOptimizers(**options)
+    losses = RepGAN_losses.getLosses(**options)
 
-# MODEL LOADING
-optimizers = {}
-optimizers['DxOpt'] = Adam(learning_rate=0.0002, beta_1=0.5, beta_2=0.9999)
-optimizers['DcOpt'] = Adam(learning_rate=0.0002, beta_1=0.5, beta_2=0.9999)
-optimizers['DsOpt'] = Adam(learning_rate=0.0002, beta_1=0.5, beta_2=0.9999)
-optimizers['DnOpt'] = Adam(learning_rate=0.0002, beta_1=0.5, beta_2=0.9999)
-optimizers['FxOpt'] = Adam(learning_rate=0.0002, beta_1=0.5, beta_2=0.9999)
-optimizers['QOpt'] = Adam(learning_rate=0.0002, beta_1=0.5, beta_2=0.9999)
-optimizers['GzOpt'] = Adam(learning_rate=0.0002, beta_1=0.5, beta_2=0.9999)
-optimizers['GqOpt'] = Adam(learning_rate=0.0002, beta_1=0.5, beta_2=0.9999)
+    # Instantiate the RepGAN model.
+    GiorgiaGAN = RepGAN(options)
 
-losses = {}
-losses['AdvDlossWGAN'] = WassersteinDiscriminatorLoss
-losses['AdvGlossWGAN'] = WassersteinGeneratorLoss
-losses['AdvDlossGAN'] = tf.keras.losses.BinaryCrossentropy()
-losses['AdvGlossGAN'] = tf.keras.losses.BinaryCrossentropy()
-losses['RecSloss'] = GaussianNLL
-losses['RecXloss'] = tf.keras.losses.MeanAbsoluteError()  # XLoss #
-losses['RecCloss'] = tf.keras.losses.CategoricalCrossentropy()
-losses['PenAdvXloss'] = 1.
-losses['PenAdvCloss'] = 1.
-losses['PenAdvSloss'] = 1.
-losses['PenAdvNloss'] = 1.
-losses['PenRecXloss'] = 1.
-losses['PenRecCloss'] = 1.
-losses['PenRecSloss'] = 1.
+    # Compile the RepGAN model.
+    GiorgiaGAN.compile(optimizers, losses)  # run_eagerly=True
 
-# Instantiate the RepGAN model.
-GiorgiaGAN = RepGAN(options)
+    Xtrn, Xvld, _ = mdof.LoadData(**options)
 
-# Compile the RepGAN model.
-GiorgiaGAN.compile(optimizers, losses)  # run_eagerly=True
-
-Xtrn, Xvld, _ = mdof.LoadData(**options)
-
-GiorgiaGAN.Fx = keras.models.load_model("./checkpoint_ultimo/06_05/Fx",compile=False)
-GiorgiaGAN.Gz = keras.models.load_model("./checkpoint_ultimo/06_05/Gz",compile=False)
-GiorgiaGAN.Dx = keras.models.load_model("./checkpoint_ultimo/06_05/Dx",compile=False)
-GiorgiaGAN.Ds = keras.models.load_model("./checkpoint_ultimo/06_05/Ds",compile=False)
-GiorgiaGAN.Dn = keras.models.load_model("./checkpoint_ultimo/06_05/Dn",compile=False)
-GiorgiaGAN.Dc = keras.models.load_model("./checkpoint_ultimo/06_05/Dc",compile=False)
-GiorgiaGAN.Q  = keras.models.load_model("./checkpoint_ultimo/06_05/Q",compile=False)
-GiorgiaGAN.Gq = keras.models.load_model("./checkpoint_ultimo/06_05/Gq",compile=False)
-GiorgiaGAN.h0 = keras.models.load_model("./checkpoint_ultimo/06_05/h0",compile=False)
-GiorgiaGAN.h1 = keras.models.load_model("./checkpoint_ultimo/06_05/h1",compile=False)
-GiorgiaGAN.h2 = keras.models.load_model("./checkpoint_ultimo/06_05/h2",compile=False)
-GiorgiaGAN.h3 = keras.models.load_model("./checkpoint_ultimo/06_05/h3",compile=False)
+    GiorgiaGAN.Fx = keras.models.load_model(options['checkpoint_dir'] + '/Fx',compile=False)
+    GiorgiaGAN.Gz = keras.models.load_model(options['checkpoint_dir'] + '/Gz',compile=False)
+    GiorgiaGAN.Dx = keras.models.load_model(options['checkpoint_dir'] + '/Dx',compile=False)
+    GiorgiaGAN.Ds = keras.models.load_model(options['checkpoint_dir'] + '/Ds',compile=False)
+    GiorgiaGAN.Dn = keras.models.load_model(options['checkpoint_dir'] + '/Dn',compile=False)
+    GiorgiaGAN.Dc = keras.models.load_model(options['checkpoint_dir'] + '/Dc',compile=False)
 
 
-GiorgiaGAN.build(input_shape=(options['batchSize'], options['Xsize'], options['nXchannels']))
+    GiorgiaGAN.build(input_shape=(options['batchSize'], options['Xsize'], options['nXchannels']))
+
 
 #load_status = GiorgiaGAN.load_weights("ckpt")
 
@@ -1527,36 +1537,36 @@ GiorgiaGAN.build(input_shape=(options['batchSize'], options['Xsize'], options['n
 #print('restoring model from ' + latest)
 #GiorgiaGAN.load_weights(latest)
 #initial_epoch = int(latest[len(checkpoint_dir) + 7:])
-GiorgiaGAN.summary()
+    GiorgiaGAN.summary()
 
-if options['CreateData']:
-    # Create the dataset
-    Xtrn,  Xvld, _ = mdof.CreateData(**options)
-else:
-    # Load the dataset
-    Xtrn, Xvld, _ = mdof.LoadData(**options)
+    if options['CreateData']:
+        # Create the dataset
+        Xtrn,  Xvld, _ = mdof.CreateData(**options)
+    else:
+        # Load the dataset
+        Xtrn, Xvld, _ = mdof.LoadData(**options)
 
-# PlotReconstructedTHs(GiorgiaGAN,Xvld) # Plot reconstructed time-histories
+    PlotReconstructedTHs(GiorgiaGAN,Xvld,options['results_dir']) # Plot reconstructed time-histories
 
-# PlotTHSGoFs(GiorgiaGAN,Xvld) # Plot reconstructed time-histories
+    PlotTHSGoFs(GiorgiaGAN,Xvld,options['results_dir']) # Plot reconstructed time-histories
 
-# PlotClassificationMetrics(GiorgiaGAN,Xvld) # Plot classification metrics
+    PlotClassificationMetrics(GiorgiaGAN,Xvld,options['results_dir']) # Plot classification metrics
 
-# PlotLatentSpace(GiorgiaGAN,Xvld)
+    PlotLatentSpace(GiorgiaGAN,Xvld,options['results_dir'])
 
-PlotTSNE(GiorgiaGAN,Xvld)
+    PlotTSNE(GiorgiaGAN,Xvld,options['results_dir'])
 
-# PlotDistributions(GiorgiaGAN,Xvld)
+    PlotDistributions(GiorgiaGAN,Xvld,options['results_dir'])
 
-# Xtrn = {}
-# Xvld = {}
-# for i in range(options['latentCdim']):
-#     Xtrn['Xtrn_%d' % i], Xvld['Xvld_%d' % i], _  = mdof.Load_Un_Damaged(i,**options)
+    Xtrn = {}
+    Xvld = {}
+    for i in range(options['latentCdim']):
+        Xtrn['Xtrn_%d' % i], Xvld['Xvld_%d' % i], _  = mdof.Load_Un_Damaged(i,**options)
 
-# # for i in range(options['latentCdim']):
-# #     PlotBatchGoFs(GiorgiaGAN,Xtrn['Xtrn_%d' % i],Xvld['Xvld_%d' % i],i)
+    for i in range(options['latentCdim']):
+        PlotBatchGoFs(GiorgiaGAN,Xtrn['Xtrn_%d' % i],Xvld['Xvld_%d' % i],i,options['results_dir'])
 
-# for i in range(1,options['latentCdim']):
-#     PlotSwitchedTHs(GiorgiaGAN,Xvld['Xvld_%d' % 0],Xvld['Xvld_%d' % i],i) # Plot switched time-histories
+    for i in range(1,options['latentCdim']):
+        PlotSwitchedTHs(GiorgiaGAN,Xvld['Xvld_%d' % 0],Xvld['Xvld_%d' % i],i,options['results_dir']) # Plot switched time-histories
 
 
