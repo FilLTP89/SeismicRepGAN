@@ -36,7 +36,7 @@ import numpy as np
 import scipy
 from scipy import signal
 import scipy.linalg      as linalg
-import utils_2      as utils 
+import utils     as utils 
 import mtspec_2     as spec
 
 class MTCross:
