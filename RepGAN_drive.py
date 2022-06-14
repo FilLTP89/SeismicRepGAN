@@ -38,18 +38,7 @@ from RepGAN_model import RepGAN
 import RepGAN_losses
 
 
-def make_or_restore_model():
-    # Either restore the latest model, or create a fresh one
-    # if there is no checkpoint available.
-    checkpoints = [options['checkpoint_dir'] + "/" + name for name in os.listdir(options['checkpoint_dir'])]
-    if checkpoints:
-        latest_checkpoint = max(checkpoints, key=os.path.getctime)
-        print("Restoring from", latest_checkpoint)
-        return keras.models.load_model(latest_checkpoint)
-    print("Creating a new model")
-    return get_compiled_model()
-
-def Main(DeviceName):
+def Train(DeviceName):
 
     options = ParseOptions()
 
@@ -59,6 +48,7 @@ def Main(DeviceName):
     with tf.device(DeviceName):
         
         losses = RepGAN_losses.getLosses(**options)
+        optimizers = RepGAN_losses.getOptimizers(**options)
 
         # Instantiate the RepGAN model.
         GiorgiaGAN = RepGAN(options)
