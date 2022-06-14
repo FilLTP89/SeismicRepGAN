@@ -15,8 +15,9 @@ import itertools
 import matplotlib
 from matplotlib import pyplot as plt
 from sklearn.utils import shuffle
-from RepGAN_ultimo import RepGAN, ParseOptions, WassersteinDiscriminatorLoss, WassersteinGeneratorLoss, GaussianNLL
-from tensorflow.keras.optimizers import Adam
+from RepGAN_model import RepGAN
+import RepGAN_losses
+from tensorflow.keras.optimizers import Adam, RMSprop
 
 from matplotlib.pyplot import *
 from matplotlib import cm
@@ -49,10 +50,10 @@ from bokeh.models import Text, Label
 import panel as pn
 pn.extension()
 
-checkpoint_dir = "./checkpoint_ultimo/06_05"
 
 from interferometry import *
 import MDOFload as mdof
+from utils import *
 
 from sklearn.manifold import TSNE
 
