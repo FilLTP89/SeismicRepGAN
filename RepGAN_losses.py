@@ -71,13 +71,12 @@ def WassersteinLoss(y_true, y_predict):
     # reduce to average for global batch (reduce for output sample) [b,1] -> [b,1]
     return y_true*tf.reduce_mean(y_predict,axis=raxis)
 
-def MutualInfoLoss(c, c_given_x):
+def MutualInfoLoss(c, c_given_x,raxis=1):
     """The mutual information metric we aim to minimize"""
-    eps = 1e-8
-    conditional_entropy = -tf.keras.backend.mean(tf.keras.backend.sum(tf.math.log(c_given_x+eps)*c,axis=1))
-    entropy = -tf.keras.backend.mean(tf.keras.backend.sum(tf.math.log(c+eps)*c,axis=1))
+    H_CgivenX = -tf.reduce_mean(tf.reduce_mean(tf.log(c_given_x+ε)*c,axis=raxis))
+    H_C = -tf.reduce.mean(tf.reduce_mean(tf.log(c+ε)*c,axis=raxis))
 
-    return conditional_entropy - entropy
+    return H_CgivenX - H_C
 
 # Info Loss for Q (GANPatch adapted)
 def InfoLoss(y_true, y_predict):
