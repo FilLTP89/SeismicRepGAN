@@ -53,7 +53,7 @@ def HingeDGANLoss(d_logits_real, d_logits_fake):
     return real_loss + fake_loss
 
 def GGANLoss(d_logits_fake):
-    return - tf.reduce_mean(d_logits_fake)
+    return -tf.reduce_mean(d_logits_fake)
 
 def WassersteinDiscriminatorLoss(y_true, y_fake):
     real_loss = tf.reduce_mean(y_true)
