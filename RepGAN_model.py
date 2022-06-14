@@ -101,6 +101,7 @@ class RepGAN(tf.keras.Model):
         """
         self.__dict__.update(losses)
 
+    @tf.function
     def train_XZX(self,X,c):
 
         # Create labels for BCE in GAN loss
@@ -118,12 +119,12 @@ class RepGAN(tf.keras.Model):
         n_prior = tf.random.normal(mean=0.0,stddev=1.0,shape=[self.batchSize,self.latentNdim],dtype=tf.float32)
 
         # Train generators
-        self.Fx.trainable = True
-        self.Gz.trainable = True
-        self.Dx.trainable = False
-        self.Dc.trainable = False
-        self.Ds.trainable = False
-        self.Dn.trainable = False
+        # self.Fx.trainable = True
+        # self.Gz.trainable = True
+        # self.Dx.trainable = False
+        # self.Dc.trainable = False
+        # self.Ds.trainable = False
+        # self.Dn.trainable = False
 
         # Train nGenerator times the generators
         #for _ in range(self.nGenerator):
@@ -148,12 +149,12 @@ class RepGAN(tf.keras.Model):
         self.GzOpt.apply_gradients(zip(gradGz,self.Gz.trainable_variables))
 
         # Train discriminators
-        self.Fx.trainable = False
-        self.Gz.trainable = False
-        self.Dx.trainable = False
-        self.Dc.trainable = True
-        self.Ds.trainable = True
-        self.Dn.trainable = True
+        # self.Fx.trainable = False
+        # self.Gz.trainable = False
+        # self.Dx.trainable = False
+        # self.Dc.trainable = True
+        # self.Ds.trainable = True
+        # self.Dn.trainable = True
 
         # Train nCritic times the discriminators
         for _ in range(self.nCritic):
@@ -196,12 +197,12 @@ class RepGAN(tf.keras.Model):
             self.DnOpt.apply_gradients(zip(gradDn,self.Dn.trainable_variables))
         
 
-        self.Fx.trainable = True
-        self.Gz.trainable = False
-        self.Dx.trainable = False
-        self.Dc.trainable = False
-        self.Ds.trainable = False
-        self.Dn.trainable = False
+        # self.Fx.trainable = True
+        # self.Gz.trainable = False
+        # self.Dx.trainable = False
+        # self.Dc.trainable = False
+        # self.Ds.trainable = False
+        # self.Dn.trainable = False
 
         with tf.GradientTape(persistent=True) as tape:
 
@@ -230,6 +231,7 @@ class RepGAN(tf.keras.Model):
         return RecGlossX,AdvDloss,AdvDlossC,AdvDlossS,AdvDlossN,AdvGloss,AdvGlossC,AdvGlossS,AdvGlossN,\
                 c_fakecritic,s_fakecritic,n_fakecritic,c_critic,s_priorcritic,n_priorcritic
 
+    @tf.function
     def train_ZXZ(self,X,c):
 
         # Create labels for BCE in GAN loss
@@ -245,9 +247,9 @@ class RepGAN(tf.keras.Model):
         for _ in range(self.nCritic):
 
             # Train discriminators
-            self.Fx.trainable = False
-            self.Gz.trainable = False
-            self.Dx.trainable = True
+            # self.Fx.trainable = False
+            # self.Gz.trainable = False
+            # self.Dx.trainable = True
 
             with tf.GradientTape(persistent=True) as tape:
 
@@ -270,9 +272,9 @@ class RepGAN(tf.keras.Model):
 
 
             # Train generators
-            self.Fx.trainable = False
-            self.Gz.trainable = True
-            self.Dx.trainable = False
+            # self.Fx.trainable = False
+            # self.Gz.trainable = True
+            # self.Dx.trainable = False
 
             with tf.GradientTape(persistent=True) as tape:
 
@@ -293,9 +295,9 @@ class RepGAN(tf.keras.Model):
             self.GzOpt.apply_gradients(zip(gradGz,self.Gz.trainable_variables))
 
             # Train generators
-            self.Fx.trainable = True
-            self.Gz.trainable = True
-            self.Dx.trainable = False
+            # self.Fx.trainable = True
+            # self.Gz.trainable = True
+            # self.Dx.trainable = False
 
             with tf.GradientTape(persistent=True) as tape:
                 
