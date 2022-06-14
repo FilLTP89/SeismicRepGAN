@@ -110,7 +110,7 @@ def CreateData(**kwargs):
     #     c[nX//latentCdim*i:nX//latentCdim*(i+1),i] = 1.0
 
     # for i in range(latentCdim):
-    #     h5f = h5py.File("/gpfs/workdir/colombergi/GiorgiaGAN/checkpoint_ultimo/06_05/Damaged_{:>d}.h5".format(i),'w')
+    #     h5f = h5py.File("/gpfs/workdir/colombergi/GiorgiaGAN/input data/Damaged_{:>d}.h5".format(i),'w')
     #     h5f.create_dataset('X{:>d}'.format(i), data=X[nX//latentCdim*i:nX//latentCdim*(i+1),:,:])
     #     h5f.create_dataset('c{:>d}'.format(i), data=c[nX//latentCdim*i:nX//latentCdim*(i+1),:])
     #     h5f.create_dataset('mag{:>d}'.format(i), data=mag[nX//latentCdim*i:nX//latentCdim*(i+1),:])
@@ -191,14 +191,14 @@ def CreateData(**kwargs):
         c[nX//latentCdim*i:nX//latentCdim*(i+1),i] = 1.0
 
     for i in range(latentCdim):
-        h5f = h5py.File("/gpfs/workdir/colombergi/GiorgiaGAN/checkpoint_ultimo/06_05/Damaged_{:>d}.h5".format(i),'w')
+        h5f = h5py.File("/gpfs/workdir/colombergi/GiorgiaGAN/input data/Damaged_{:>d}.h5".format(i),'w')
         h5f.create_dataset('X{:>d}'.format(i), data=X[nX//latentCdim*i:nX//latentCdim*(i+1),:,:])
         h5f.create_dataset('c{:>d}'.format(i), data=c[nX//latentCdim*i:nX//latentCdim*(i+1),:])
         h5f.create_dataset('mag{:>d}'.format(i), data=mag[nX//latentCdim*i:nX//latentCdim*(i+1),:])
         h5f.create_dataset('d{:>d}'.format(i), data=d[nX//latentCdim*i:nX//latentCdim*(i+1),:])
         h5f.close()
 
-    h5f = h5py.File("/gpfs/workdir/colombergi/GiorgiaGAN/checkpoint_ultimo/06_05/Data.h5",'w')
+    h5f = h5py.File("/gpfs/workdir/colombergi/GiorgiaGAN/input data/Data.h5",'w')
     h5f.create_dataset('X', data=X)
     h5f.create_dataset('c', data=c)
     h5f.create_dataset('mag', data=mag)
@@ -206,28 +206,28 @@ def CreateData(**kwargs):
     h5f.close()
     
     
-    # h5f = h5py.File("/gpfs/workdir/colombergi/GiorgiaGAN/checkpoint_ultimo/06_05/Damaged_0.h5",'w')
+    # h5f = h5py.File("/gpfs/workdir/colombergi/GiorgiaGAN/input data/Damaged_0.h5",'w')
     # h5f.create_dataset('X0', data=X0)
     # h5f.create_dataset('c0', data=c0)
     # h5f.create_dataset('m0', data=m0)
     # h5f.create_dataset('d0', data=d0)
     # h5f.close() 
 
-    # h5f = h5py.File("/gpfs/workdir/colombergi/GiorgiaGAN/checkpoint_ultimo/06_05/Damaged_1.h5",'w')
+    # h5f = h5py.File("/gpfs/workdir/colombergi/GiorgiaGAN/input data/Damaged_1.h5",'w')
     # h5f.create_dataset('X1', data=X1)
     # h5f.create_dataset('c1', data=c1)
     # h5f.create_dataset('m1', data=m1)
     # h5f.create_dataset('d1', data=d1)
     # h5f.close() 
 
-    # h5f = h5py.File("/gpfs/workdir/colombergi/GiorgiaGAN/checkpoint_ultimo/06_05/Damaged_2.h5",'w')
+    # h5f = h5py.File("/gpfs/workdir/colombergi/GiorgiaGAN/input data/Damaged_2.h5",'w')
     # h5f.create_dataset('X2', data=X2)
     # h5f.create_dataset('c2', data=c2)
     # h5f.create_dataset('m2', data=m2)
     # h5f.create_dataset('d2', data=d2)
     # h5f.close()   
 
-    # h5f = h5py.File("/gpfs/workdir/colombergi/GiorgiaGAN/checkpoint_ultimo/06_05/Data.h5",'w')
+    # h5f = h5py.File("/gpfs/workdir/colombergi/GiorgiaGAN/input data/Data.h5",'w')
     # h5f.create_dataset('X', data=X)
     # h5f.create_dataset('c', data=c)
     # h5f.create_dataset('mag', data=mag)
@@ -251,7 +251,7 @@ def CreateData(**kwargs):
 def LoadData(**kwargs):
     LoadData.__globals__.update(kwargs)
 
-    dataSrc = opj("/gpfs/workdir/colombergi/GiorgiaGAN/checkpoint_ultimo/06_05/Data.h5")
+    dataSrc = opj("/gpfs/workdir/colombergi/GiorgiaGAN/input data/Data.h5")
     
     h5f = h5py.File(dataSrc,'r')
     X = h5f['X'][...]
@@ -273,7 +273,7 @@ def LoadData(**kwargs):
 def Load_Un_Damaged(i,**kwargs):
     Load_Un_Damaged.__globals__.update(kwargs)
 
-    dataSrc = opj("/gpfs/workdir/colombergi/GiorgiaGAN/checkpoint_ultimo/06_05/Damaged_{:>d}.h5".format(i))
+    dataSrc = opj("/gpfs/workdir/colombergi/GiorgiaGAN/input data/Damaged_{:>d}.h5".format(i))
     h5f = h5py.File(dataSrc,'r')
     X = h5f['X{:>d}'.format(i)][...]
     c = h5f['c{:>d}'.format(i)][...]
