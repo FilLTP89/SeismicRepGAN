@@ -1,3 +1,5 @@
+result*
+checkpoint*
 *.o*
 typeguard*
 *addons*

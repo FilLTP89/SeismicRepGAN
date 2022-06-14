@@ -100,7 +100,7 @@ def CreateData(**kwargs):
     X = np.swapaxes(X,1,2)
 
     n = []
-    dataSrc = open("/gpfs/workdir/colombergi/GiorgiaGAN/magnitude.csv")
+    dataSrc = open("/gpfs/workdir/colombergi/GiorgiaGAN/input data/magnitude.csv")
     file = csv.reader(dataSrc)
     for row in file:
         n.append(row)
