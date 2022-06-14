@@ -80,5 +80,4 @@ def Train(DeviceName):
         
 if __name__ == '__main__':
     DeviceName = tf.test.gpu_device_name()
-    Main(DeviceName)
-
+    Train(DeviceName)
