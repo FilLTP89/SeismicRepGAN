@@ -27,7 +27,7 @@ import numpy as np
 import scipy
 import scipy.signal as signal
 import scipy.linalg as linalg
-import utils_2 as utils 
+import utils as utils 
 
 #-------------------------------------------------------------------------
 # MTSPEC main code 
