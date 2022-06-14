@@ -178,8 +178,6 @@ def arias_intensity(dtm,tha,pc=0.95,nf=9.81):
     return aid,ait,idx
 
 
-
-
 def PlotReconstructedTHs(model,realXC,results_dir):
     # Plot reconstructed time-histories
     realX = np.concatenate([x for x, c, m, d in realXC], axis=0)
