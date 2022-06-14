@@ -52,8 +52,8 @@ class sampleS(kl.Layer):
     def call(self, inputs):
         μ,σ2 = inputs
         ε = tf.random.normal(shape=tf.shape(μ),mean=0.0,stddev=1.0)
-        #return μ + tf.multiply(tf.sqrt(σ2),ε)
-        return μ + tf.multiply(σ2,ε)
+        return μ + tf.multiply(tf.sqrt(σ2),ε)
+        #return μ + tf.multiply(σ2,ε)
 
 class RepGAN(tf.keras.Model):
 
