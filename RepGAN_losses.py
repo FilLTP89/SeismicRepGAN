@@ -73,8 +73,8 @@ def WassersteinLoss(y_true, y_predict):
 
 def MutualInfoLoss(c, c_given_x,raxis=1):
     """The mutual information metric we aim to minimize"""
-    H_CgivenX = -tf.reduce_mean(tf.reduce_mean(tf.log(c_given_x+ε)*c,axis=raxis))
-    H_C = -tf.reduce.mean(tf.reduce_mean(tf.log(c+ε)*c,axis=raxis))
+    H_CgivenX = -tf.reduce_mean(tf.reduce_mean(tf.math.log(c_given_x+ε)*c,axis=raxis))
+    H_C = -tf.reduce_mean(tf.reduce_mean(tf.math.log(c+ε)*c,axis=raxis))
 
     return H_CgivenX - H_C
 
@@ -131,6 +131,7 @@ def getLosses(**kwargs):
     losses['RecSloss'] = GaussianNLL
     losses['RecXloss'] = tf.keras.losses.MeanSquaredError()
     losses['RecCloss'] = tf.keras.losses.CategoricalCrossentropy()
+    losses['RecCloss'] = MutualInfoLoss
 
     losses['PenAdvXloss'] = 1.
     losses['PenAdvCloss'] = 1.
