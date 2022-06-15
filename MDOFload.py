@@ -127,22 +127,41 @@ def CreateData(**kwargs):
             i2=i2+Xsize
         i1 = i1+1
 
-    max1 = np.max(np.absolute(X1))
-    max2 = np.max(np.absolute(X2))
-    pga = max(max1,max2)
+    for i in range(nX//2):
+        for j in range(nXchannels):
+            pga_1 = np.max(np.absolute(X1[i,j,:]))
+            pga_2 = np.max(np.absolute(X2[i,j,:]))
+            pga = max(pga_1,pga_2)
+            for k in range(Xsize):
+                X1[i,j,k] = X1[i,j,k]/pga
+                X2[i,j,k] = X2[i,j,k]/pga
 
     X = np.vstack((X1,X2))
 
-    for i in range(nX):
-        for j in range(nXchannels):
-            for k in range(Xsize):
-                X[i,j,k] = X[i,j,k]/pga
+    # X = X.astype('float32')
+    # #pga = np.max(np.absolute(X))
+    # OldMax = np.max(X)
+    # OldMin = np.min(X)
+    # OldRange = (OldMax - OldMin)  
+    # NewRange = ((1.0) - (-1.0))
+
+    # for i in range(nX):
+    #     for j in range(nXchannels):
+    #         for k in range(Xsize):
+    #             X[i,j,k] = (((X[i,j,k] - OldMin) * NewRange) / OldRange) + (-1.0)
 
     # scaler = MinMaxScaler(feature_range=(-1,1))
     # for i1 in range(nXchannels):
     #     X2[:,i1,:] = scaler.fit_transform(X2[:,i1,:])
 
+    # for i in range(nX):
+    #     for j in range(nXchannels):
+    #         pga = np.max(np.absolute(X[i,j,:]))
+    #         for k in range(Xsize):
+    #             X[i,j,k] = X[i,j,k]/pga
 
+
+    
     X = np.pad(X,((0,0),(0,0),(0,nxtpow2(X.shape[-1])-X.shape[-1])))
     X = np.swapaxes(X,1,2)
 
@@ -163,21 +182,24 @@ def CreateData(**kwargs):
     # h5f.create_dataset('c2', data=c2)
     # h5f.close()
 
-    for j in range(2):
-        for i in range(X.shape[0]//2):
-            hfg = plt.figure(figsize=(12,6),tight_layout=True)
-            hax = hfg.add_subplot(111)
-            hax.plot(X[i,:,j], color='black')
-            plt.savefig('./signals/undamaged_{:>d}_{:>d}.png'.format(j,i),bbox_inches = 'tight')
-            #plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/resampling.eps',bbox_inches = 'tight',dpi=200)
-            plt.close()
+    # for j in range(2):
+    #     for i in range(X.shape[0]//2):
+    #         hfg = plt.figure(figsize=(12,6),tight_layout=True)
+    #         hax = hfg.add_subplot(111)
+    #         hax.plot(X[i,:,j], color='black')
+    #         plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/signals_512/undamaged_{:>d}_{:>d}.png'.format(j,i),bbox_inches = 'tight')
+    #         #plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/resampling.eps',bbox_inches = 'tight',dpi=200)
+    #         plt.close()
 
-            hfg = plt.figure(figsize=(12,6),tight_layout=True)
-            hax = hfg.add_subplot(111)
-            hax.plot(X[(i+X.shape[0]//2),:,j], color='black')
-            plt.savefig('./signals/damaged_{:>d}_{:>d}.png'.format(j,i),bbox_inches = 'tight')
-            #plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/resampling.eps',bbox_inches = 'tight',dpi=200)
-            plt.close()
+    #         hfg = plt.figure(figsize=(12,6),tight_layout=True)
+    #         hax = hfg.add_subplot(111)
+    #         hax.plot(X[(i+X.shape[0]//2),:,j], color='black')
+    #         plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/signals_512/damaged_{:>d}_{:>d}.png'.format(j,i),bbox_inches = 'tight')
+    #         #plt.savefig('/gpfs/workdir/invsem07/GiorgiaGAN/results/resampling.eps',bbox_inches = 'tight',dpi=200)
+    #         plt.close()
+
+    
+    
    
     # # Load data - Undamaged
     # X1 = []
@@ -239,7 +261,7 @@ def CreateData(**kwargs):
     #     c1[i1,labels[i1]] = 1.0
     c1[:,0] = 1.0
 
-    h5f = h5py.File("Undamaged.h5",'w')
+    h5f = h5py.File("Undamaged_8.h5",'w')
     h5f.create_dataset('X1', data=X[0:X.shape[0]//2,:,:])
     h5f.create_dataset('c1', data=c1)
     h5f.close()
@@ -288,7 +310,7 @@ def CreateData(**kwargs):
     #     c2[i1,labels[i1]] = 1.0
     c2[:,1] = 1.0
 
-    h5f = h5py.File("Damaged.h5",'w')
+    h5f = h5py.File("Damaged_8.h5",'w')
     h5f.create_dataset('X2', data=X[X.shape[0]//2:,:,:])
     h5f.create_dataset('c2', data=c2)
     h5f.close()
@@ -336,14 +358,17 @@ def CreateData(**kwargs):
 
     X, c = shuffle(X, c, random_state=0)
 
-    h5f = h5py.File("{:>s}_gdl.h5".format(dataSrc.split('_gdl_')[0]),'w')
+    #s = np.random.normal(loc=0.0,scale=scaleS,size=[nX,latentSdim]).astype('float32')
+
+    h5f = h5py.File("Data_8.h5",'w')
     h5f.create_dataset('X', data=X)
     h5f.create_dataset('c', data=c)
+    #h5f.create_dataset('s', data=s)
     h5f.close()
 
     
     # Split between train and validation set (time series and parameters are splitted in the same way)
-    Xtrn, Xvld, Ctrn, Cvld = train_test_split(X,c,random_state=5)
+    Xtrn, Xvld, Ctrn, Cvld = train_test_split(X,c, random_state=0)
 
     return (
         tf.data.Dataset.from_tensor_slices((Xtrn,Ctrn)).batch(batchSize),
@@ -355,19 +380,17 @@ def CreateData(**kwargs):
 
 def LoadData(**kwargs):
     LoadData.__globals__.update(kwargs)
-    if len(avu) == 0:
-        dataSrc = opj(dataroot,"{:>s}_damaged_concat_{:>s}_gdl.h5".format(pb,case))
-    else:
-        dataSrc = opj(dataroot,"{:>s}_{:>s}_damaged_concat_{:>s}_gdl.h5".format(pb,avu,case))
-    
 
+    dataSrc = opj("Data_8.h5")
+    
     h5f = h5py.File(dataSrc,'r')
     X = h5f['X'][...]
     c = h5f['c'][...]
+    #s = h5f['s'][...]
     h5f.close()
 
     # Split between train and validation set (time series and parameters are splitted in the same way)
-    Xtrn, Xvld, Ctrn, Cvld = train_test_split(X,c,random_state=5)
+    Xtrn, Xvld, Ctrn, Cvld = train_test_split(X,c, random_state=0)
 
     return (
         tf.data.Dataset.from_tensor_slices((Xtrn,Ctrn)).batch(batchSize),
@@ -399,7 +422,7 @@ def LoadData(**kwargs):
 
 def LoadUndamaged(**kwargs):
     LoadUndamaged.__globals__.update(kwargs)
-    dataSrc = opj("Undamaged.h5")
+    dataSrc = opj("Undamaged_8.h5")
     
 
     h5f = h5py.File(dataSrc,'r')
@@ -408,7 +431,7 @@ def LoadUndamaged(**kwargs):
     h5f.close()
 
     # Split between train and validation set (time series and parameters are splitted in the same way)
-    Xtrn, Xvld, Ctrn, Cvld = train_test_split(X,c,random_state=5)
+    Xtrn, Xvld, Ctrn, Cvld = train_test_split(X,c, random_state=0)
 
     return (
         tf.data.Dataset.from_tensor_slices((Xtrn,Ctrn)).batch(batchSize),
@@ -418,7 +441,7 @@ def LoadUndamaged(**kwargs):
 
 def LoadDamaged(**kwargs):
     LoadDamaged.__globals__.update(kwargs)
-    dataSrc = opj("Damaged.h5")
+    dataSrc = opj("Damaged_8.h5")
     
 
     h5f = h5py.File(dataSrc,'r')
@@ -427,7 +450,7 @@ def LoadDamaged(**kwargs):
     h5f.close()
 
     # Split between train and validation set (time series and parameters are splitted in the same way)
-    Xtrn, Xvld, Ctrn, Cvld = train_test_split(X,c,random_state=5)
+    Xtrn, Xvld, Ctrn, Cvld = train_test_split(X,c, random_state=0)
 
     return (
         tf.data.Dataset.from_tensor_slices((Xtrn,Ctrn)).batch(batchSize),
