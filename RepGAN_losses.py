@@ -130,8 +130,8 @@ def getLosses(**kwargs):
     losses['AdvGlossDx'] = tf.keras.losses.BinaryCrossentropy() #GGANLoss
     losses['RecSloss'] = GaussianNLL
     losses['RecXloss'] = tf.keras.losses.MeanSquaredError()
-    losses['RecCloss'] = tf.keras.losses.CategoricalCrossentropy()
     losses['RecCloss'] = MutualInfoLoss
+    losses['FakeCloss'] = tf.keras.losses.CategoricalCrossentropy()
 
     losses['PenAdvXloss'] = 1.
     losses['PenAdvCloss'] = 1.

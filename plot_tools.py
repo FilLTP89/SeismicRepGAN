@@ -60,7 +60,8 @@ def PlotLoss(history,checkpoint_dir):
     loss[r"$RecGlossX$"] = history.history['RecGlossX']
     loss[r"$RecGlossC$"] = history.history['RecGlossC']
     loss[r"$RecGlossS$"] = history.history['RecGlossS']
-    loss[r"$Qloss$"] = history.history['RecGlossS']
+    loss[r"$Qloss$"] = history.history['Qloss']
+    loss[r"$FakeCloss$"] = history.history['FakeCloss']
 
     clr = sn.color_palette("bright",len(loss.keys()))
 

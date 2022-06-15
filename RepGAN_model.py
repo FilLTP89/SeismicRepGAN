@@ -33,6 +33,7 @@ RecGlossX_tracker = keras.metrics.Mean(name="loss")
 RecGlossC_tracker = keras.metrics.Mean(name="loss")
 RecGlossS_tracker = keras.metrics.Mean(name="loss")
 Qloss_tracker = keras.metrics.Mean(name="loss")
+FakeCloss_tracker = keras.metrics.Mean(name="loss")
 
 class ClipConstraint(tf.keras.constraints.Constraint):
     # set clip value when initialized
@@ -88,7 +89,7 @@ class RepGAN(tf.keras.Model):
     def metrics(self):
         return AdvDLoss_tracker,AdvGLoss_tracker,AdvDlossX_tracker,AdvDlossC_tracker,AdvDlossS_tracker,\
             AdvDlossN_tracker,AdvGlossX_tracker,AdvGlossC_tracker,AdvGlossS_tracker,AdvGlossN_tracker,\
-            RecGlossX_tracker,RecGlossC_tracker,RecGlossS_tracker,Qloss_tracker
+            RecGlossX_tracker,RecGlossC_tracker,RecGlossS_tracker,Qloss_tracker,FakeCloss_tracker
 
     def compile(self,optimizers,losses): #run_eagerly
         super(RepGAN, self).compile()
@@ -128,6 +129,18 @@ class RepGAN(tf.keras.Model):
 
         # Train nGenerator times the generators
         #for _ in range(self.nGenerator):
+        with tf.GradientTape(persistent=True) as tape:
+
+            # Encode real signals
+            _,_,s_fake,c_fake,n_fake = self.Fx(X,training=True)
+
+            FakeCloss = self.FakeCloss(c,c_fake)
+        
+        # Get the gradients w.r.t the generator loss
+        gradFx = tape.gradient(FakeCloss,(self.Fx.trainable_variables),unconnected_gradients=tf.UnconnectedGradients.ZERO)
+
+        # Update the weights of the generator using the generator optimizer
+        self.FxOpt.apply_gradients(zip(gradFx,self.Fx.trainable_variables))
 
         with tf.GradientTape(persistent=True) as tape:
 
@@ -228,7 +241,7 @@ class RepGAN(tf.keras.Model):
         # Update the weights of the generator using the generator optimizer
         self.FxOpt.apply_gradients(zip(gradFx,self.Fx.trainable_variables))
 
-        return RecGlossX,AdvDloss,AdvDlossC,AdvDlossS,AdvDlossN,AdvGloss,AdvGlossC,AdvGlossS,AdvGlossN,\
+        return RecGlossX,FakeCloss,AdvDloss,AdvDlossC,AdvDlossS,AdvDlossN,AdvGloss,AdvGlossC,AdvGlossS,AdvGlossN,\
                 c_fakecritic,s_fakecritic,n_fakecritic,c_critic,s_priorcritic,n_priorcritic
 
     @tf.function
@@ -340,7 +353,7 @@ class RepGAN(tf.keras.Model):
 
         (AdvDlossX,AdvGlossX,RecGlossS,RecGlossC,Qloss,X_fakecritic,X_critic) = ZXZout
 
-        (RecGlossX,AdvDloss,AdvDlossC,AdvDlossS,AdvDlossN,AdvGloss,AdvGlossC,AdvGlossS,AdvGlossN,\
+        (RecGlossX,FakeCloss,AdvDloss,AdvDlossC,AdvDlossS,AdvDlossN,AdvGloss,AdvGlossC,AdvGlossS,AdvGlossN,\
             c_fakecritic,s_fakecritic,n_fakecritic,c_critic,s_priorcritic,n_priorcritic) = XZXout     
       
         # Compute our own metrics
@@ -362,11 +375,13 @@ class RepGAN(tf.keras.Model):
 
         Qloss_tracker.update_state(Qloss)
 
+        FakeCloss_tracker.update_state(FakeCloss)
+
         return {"AdvDLoss": AdvDLoss_tracker.result(),"AdvGLoss": AdvGLoss_tracker.result(),"AdvDlossX": AdvDlossX_tracker.result(),
             "AdvDlossC": AdvDlossC_tracker.result(), "AdvDlossS": AdvDlossS_tracker.result(),"AdvDlossN": AdvDlossN_tracker.result(),
             "AdvGlossX": AdvGlossX_tracker.result(),"AdvGlossC": AdvGlossC_tracker.result(),"AdvGlossS": AdvGlossS_tracker.result(),
             "AdvGlossN": AdvGlossN_tracker.result(),"RecGlossX": RecGlossX_tracker.result(),"RecGlossC": RecGlossC_tracker.result(),
-            "RecGlossS": RecGlossS_tracker.result(), "Qloss": Qloss_tracker.result(),
+            "RecGlossS": RecGlossS_tracker.result(), "Qloss": Qloss_tracker.result(), "FakeCloss": FakeCloss_tracker.result(),
             "fakeX":tf.math.reduce_mean(X_fakecritic),"X":tf.math.reduce_mean(X_critic),
             "c_fake":tf.math.reduce_mean(c_fakecritic),"c":tf.math.reduce_mean(c_critic),"n_fake":tf.math.reduce_mean(n_fakecritic),
             "n_prior":tf.math.reduce_mean(n_priorcritic),"s_fake":tf.math.reduce_mean(s_fakecritic),"s_prior":tf.math.reduce_mean(s_priorcritic)}
