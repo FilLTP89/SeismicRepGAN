@@ -2,7 +2,7 @@
 #!/usr/bin/env python3
 u"""General informations"""
 __author__ = "Filippo Gatti Giorgia Colombera"
-__copyright__ = "Copyright 2021, CentraleSupélec (MSSMat UMR CNRS 8579)"
+__copyright__ = "Copyright 2021, CentraleSupélec (LMPS UMR CNRS 9026)"
 __credits__ = ["Filippo Gatti"]
 __license__ = "GPL"
 __version__ = "1.0.1"
