@@ -75,7 +75,7 @@ def Train(DeviceName):
         history = GiorgiaGAN.fit(Xtrn,epochs=options["epochs"],
             callbacks=[tf.keras.callbacks.ModelCheckpoint(filepath=options['checkpoint_dir'] + "/ckpt-{epoch}.ckpt", save_freq='epoch',period=500)]) #CustomLearningRateScheduler(schedule), NewCallback(p,epochs)
 
-        GiorgiaGAN.DumpModels()
+        DumpModels(GiorgiaGAN.models,options['results_dir'])
 
         PlotLoss(history,options['results_dir']) # Plot loss
         

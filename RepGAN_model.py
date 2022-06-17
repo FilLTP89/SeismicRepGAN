@@ -67,6 +67,10 @@ class RepGAN(tf.keras.Model):
 
         # define the constraint
         self.ClipD = ClipConstraint(0.01)
+        
+        self.BuildModels()
+        
+    def BuildModels(self):
         """
             Build the discriminators
         """
@@ -77,8 +81,11 @@ class RepGAN(tf.keras.Model):
         """
             Build Fx/Gz (generators)
         """
-        self.Fx = self.BuildFx() 
+        self.Fx = self.BuildFx()
         self.Gz = self.BuildGz()
+        
+        self.models = [self.Dx, self.Dc, self.Ds, self.Dn,
+                       self.Fx, self.Gz]
 
     def get_config(self):
         config = super().get_config().copy()
@@ -194,14 +201,6 @@ class RepGAN(tf.keras.Model):
             self.DcOpt.apply_gradients(zip(gradDc,self.Dc.trainable_variables))
             self.DsOpt.apply_gradients(zip(gradDs,self.Ds.trainable_variables))
             self.DnOpt.apply_gradients(zip(gradDn,self.Dn.trainable_variables))
-        
-
-        # self.Fx.trainable = True
-        # self.Gz.trainable = False
-        # self.Dx.trainable = False
-        # self.Dc.trainable = False
-        # self.Ds.trainable = False
-        # self.Dn.trainable = False
 
         with tf.GradientTape(persistent=True) as tape:
 
@@ -778,12 +777,3 @@ class RepGAN(tf.keras.Model):
             Ps = tfa.layers.SpectralNormalization(kl.Dense(1,activation=tf.keras.activations.linear))(h)
         Ds = tf.keras.Model(s,Ps,name="Ds")
         return Ds
-    
-    def DumpModels(self):
-        self.Fx.save(self.checkpoint_dir + "/Fx",save_format="tf")
-        self.Gz.save(self.checkpoint_dir + "/Gz",save_format="tf")
-        self.Dx.save(self.checkpoint_dir + "/Dx",save_format="tf")
-        self.Ds.save(self.checkpoint_dir + "/Ds",save_format="tf")
-        self.Dn.save(self.checkpoint_dir + "/Dn",save_format="tf")
-        self.Dc.save(self.checkpoint_dir + "/Dc",save_format="tf")
-        return
