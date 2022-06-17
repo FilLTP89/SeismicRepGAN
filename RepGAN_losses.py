@@ -40,66 +40,77 @@ def GaussianNLL(x,μ,Σ,mod='var',raxis=None):
 
     return tf.reduce_mean(NLL)
 
-def GANLoss(y_true, y_predict):
+def GANDiscriminatorLoss(X, Gz):
     # General GAN Loss (for real and fake) with labels: {0,1}. Sigmoid output from D
     bce_loss = tf.keras.losses.BinaryCrossentropy(from_logits=True)
-    real_loss = bce_loss(tf.ones_like(y_true), y_true)
-    fake_loss = bce_loss(tf.zeros_like(y_predict), y_predict)
+    real_loss = bce_loss(tf.ones_like(X), X)
+    fake_loss = bce_loss(tf.zeros_like(Gz), Gz)
     return real_loss + fake_loss
 
-def HingeDGANLoss(d_logits_real, d_logits_fake):
-    real_loss = tf.reduce_mean(tf.nn.relu(1. - d_logits_real))
-    fake_loss = tf.reduce_mean(tf.nn.relu(1. + d_logits_fake))
+def GANGeneratorLoss(logitsDGz):
+    """Generator GAN Loss for generator from logits"""
+    return -tf.reduce_mean(logitsDGz)
+
+def HingeDGANLoss(logitsDX, logitsDGz):
+    real_loss = tf.reduce_mean(tf.nn.relu(1. - logitsDX))
+    fake_loss = tf.reduce_mean(tf.nn.relu(1. + logitsDGz))
     return real_loss + fake_loss
 
-def GGANLoss(d_logits_fake):
-    return -tf.reduce_mean(d_logits_fake)
-
-def WassersteinDiscriminatorLoss(y_true, y_fake):
-    real_loss = tf.reduce_mean(y_true)
-    fake_loss = tf.reduce_mean(y_fake)
+def WassersteinDiscriminatorLoss(X, Gz):
+    """Compute standard Wasserstein loss (complete)"""
+    real_loss = tf.reduce_mean(X)
+    fake_loss = tf.reduce_mean(Gz)
     return fake_loss - real_loss
 
-def WassersteinGeneratorLoss(y_fake):
-    return -tf.reduce_mean(y_fake)
+def WassersteinGeneratorLoss(Gz):
+    """Compute standard Wasserstein loss (generator only)"""
+    return -tf.reduce_mean(Gz)
 
-def WassersteinLoss(y_true, y_predict):
-    # General WGAN Loss (for real and fake) with labels: {-1,1}. Linear output from D
-    # Adapted to work with multiple output discriminator (e.g.: PatchGAN Discriminator)
-    # get axis to reduce (reduce for output sample) [b,a,b,c,..] -> [b,1]
-    raxis = [i for i in range(1,len(y_predict.shape))]
+def WassersteinLoss(s, Gz):
+    """General WGAN Loss (for real and fake) with labels s:={-1,1}. 
+    Logit output from D
+    Adapted to work with multiple output discriminator (e.g.: PatchGAN Discriminator)
+    get axis to reduce (reduce for output sample) [b,a,b,c,..] -> [b,1]"""
+    raxis = [i for i in range(1,len(Gz.shape))]
     # reduce to average for global batch (reduce for output sample) [b,1] -> [b,1]
-    return y_true*tf.reduce_mean(y_predict,axis=raxis)
+    return s*tf.reduce_mean(Gz,axis=raxis)
+
+
+def GradientPenalty(X, Gz, D):
+    """Compute the gradient penalty of discriminator D"""
+    # Get the interpolated image
+    α = tf.random.normal([X.shape[0], 1, 1], 0.0, 1.0)
+    δ = Gz - X
+    δ = Gz - X
+    XδX = X + α*δ
+
+    with tf.GradientTape() as gp_tape:
+        gp_tape.watch(XδX)
+        # 1. Get the discriminator output for this interpolated image.
+        DXδX = D(XδX, training=True)
+
+    # 2. Calculate the gradients w.r.t to this interpolated image.
+    GradD = gp_tape.gradient(DXδX, [XδX])[0]
+    # 3. Calculate the norm of the gradients.
+    NormGradD = tf.sqrt(tf.reduce_sum(tf.square(GradD), axis=[1]))
+    GPloss = tf.reduce_mean((NormGradD - 1.0) ** 2)
+    return GPloss
+
+def WassersteinLossGP(X, Gz, D, λ=1.0):
+    "Wasserstrain loss with Gradient Penalty"
+    Ls=WassersteinLoss(X,Gz)
+    GP=GradientPenalty(X, Gz, D)
+    return Ls+λ*GP
 
 def MutualInfoLoss(c, c_given_x,raxis=1):
     """The mutual information metric we aim to minimize"""
     H_CgivenX = -tf.reduce_mean(tf.reduce_mean(tf.math.log(c_given_x+ε)*c,axis=raxis))
     H_C = -tf.reduce_mean(tf.reduce_mean(tf.math.log(c+ε)*c,axis=raxis))
-
     return H_CgivenX - H_C
 
 # Info Loss for Q (GANPatch adapted)
-def InfoLoss(y_true, y_predict):
-    return tf.keras.losses.CategoricalCrossentropy(y_true, y_predict)
-
-def GradientPenalty(batchSize,X,Gz,D):
-    """ Calculates the gradient penalty. """
-    # Get the interpolated image
-    alpha = tf.random.normal([batchSize, 1, 1], 0.0, 1.0)
-    deviation = Gz - X
-    interpolation = X + alpha * deviation
-
-    with tf.GradientTape() as gp_tape:
-        gp_tape.watch(interpolation)
-        # 1. Get the discriminator output for this interpolated image.
-        prediction = D(interpolation,training=True)
-
-    # 2. Calculate the gradients w.r.t to this interpolated image.
-    GradD = gp_tape.gradient(prediction, [interpolation])[0]
-    # 3. Calculate the norm of the gradients.
-    NormGradD = tf.sqrt(tf.reduce_sum(tf.square(GradD), axis=[1]))
-    gp = tf.reduce_mean((NormGradD - 1.0) ** 2)
-    return gp
+def InfoLoss(X, Gz):
+    return tf.keras.losses.CategoricalCrossentropy(X, Gz)
 
 def getOptimizers(**kwargs):
     getOptimizers.__globals__.update(kwargs)
@@ -120,19 +131,7 @@ def getOptimizers(**kwargs):
 def getLosses(**kwargs):
     getLosses.__globals__.update(kwargs)
     losses = {}
-    if 'WGAN' in discriminator:
-        losses['AdvDlossDz'] = WassersteinLoss 
-        losses['AdvGlossDz'] = WassersteinLoss 
-    else:
-        losses['AdvDlossDz'] = HingeDGANLoss 
-        losses['AdvGlossDz'] = GGANLoss 
-    losses['AdvDlossDx'] = tf.keras.losses.BinaryCrossentropy() #HingeDGANLoss
-    losses['AdvGlossDx'] = tf.keras.losses.BinaryCrossentropy() #GGANLoss
-    losses['RecSloss'] = GaussianNLL
-    losses['RecXloss'] = tf.keras.losses.MeanSquaredError()
-    losses['RecCloss'] = MutualInfoLoss
-    losses['FakeCloss'] = tf.keras.losses.CategoricalCrossentropy()
-
+    
     losses['PenAdvXloss'] = 1.
     losses['PenAdvCloss'] = 1.
     losses['PenAdvSloss'] = 1.
@@ -140,4 +139,35 @@ def getLosses(**kwargs):
     losses['PenRecXloss'] = 1.
     losses['PenRecCloss'] = 1.
     losses['PenRecSloss'] = 1.
+    
+    if DzTrainType.upper() == "WGAN":
+        losses['AdvDlossDz'] = WassersteinLoss 
+        losses['AdvGlossDz'] = WassersteinLoss 
+    elif DzTrainType.upper() == "WGANGP":
+        losses['AdvDlossDz'] = WassersteinLoss
+        losses['AdvGlossDz'] = WassersteinLoss
+    elif DzTrainType.upper() == "GAN":
+        losses['AdvDlossDz'] = tf.keras.losses.BinaryCrossentropy()
+        losses['AdvGlossDz'] = tf.keras.losses.BinaryCrossentropy()
+    elif DzTrainType.upper() == "HINGE":
+        losses['AdvDlossDz'] = HingeDGANLoss
+        losses['AdvGlossDz'] = GGANLoss
+
+    if DxTrainType.upper() == "WGAN":
+        losses['AdvDlossDx'] = WassersteinLoss
+        losses['AdvGlossDx'] = WassersteinLoss
+    elif DxTrainType.upper() == "WGANGP":
+        losses['AdvDlossDx'] = WassersteinLoss
+        losses['AdvGlossDx'] = WassersteinLoss
+    elif DxTrainType.upper() == 'GAN':
+        losses['AdvDlossDx'] = tf.keras.losses.BinaryCrossentropy()
+        losses['AdvGlossDx'] = tf.keras.losses.BinaryCrossentropy()
+    elif DxTrainType.upper() == "HINGE":
+        raise Exception("Hinge loss not implemented for Dx")
+
+    losses['RecSloss'] = GaussianNLL
+    losses['RecXloss'] = tf.keras.losses.MeanSquaredError()
+    losses['RecCloss'] = MutualInfoLoss
+    losses['FakeCloss'] = tf.keras.losses.CategoricalCrossentropy()
+
     return losses
