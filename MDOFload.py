@@ -42,7 +42,7 @@ def CreateData(**kwargs):
 
         for channel in idChannels:
             #load the measurements recorded by each single channel
-            dataSrc = open(os.path.join(dataroot[i],"Acc_{:>d}.csv".format(channel)))
+            dataSrc = open(opj(rawdata_dir[i],"Acc_{:>d}.csv".format(channel)))
             file = csv.reader(dataSrc)
 
 
@@ -79,7 +79,7 @@ def CreateData(**kwargs):
     X = np.swapaxes(X,1,2)
 
     n = []
-    dataSrc = open("/gpfs/workdir/colombergi/GiorgiaGAN/input data/magnitude.csv")
+    dataSrc = open(opj(store_dir,"magnitude.csv"))
     file = csv.reader(dataSrc)
     for row in file:
         n.append(row)
@@ -93,7 +93,7 @@ def CreateData(**kwargs):
     # Park and Ang damage index
     for i in range(signal):
         n = []
-        dataSrc = open(os.path.join(dataroot_index[i],"damage_index.csv"))
+        dataSrc = open(opj(rawdata_dir[i],"damage_index.csv"))
         file = csv.reader(dataSrc)
         for row in file:
             n.append(row)
@@ -140,7 +140,7 @@ def CreateData(**kwargs):
 def LoadData(**kwargs):
     LoadData.__globals__.update(kwargs)
 
-    dataSrc = opj("/gpfs/workdir/colombergi/GiorgiaGAN/input data/Data.h5")
+    dataSrc = opj(store_dir,"Data.h5")
     
     h5f = h5py.File(dataSrc,'r')
     X = h5f['X'][...]
@@ -162,7 +162,7 @@ def LoadData(**kwargs):
 def Load_Un_Damaged(i,**kwargs):
     Load_Un_Damaged.__globals__.update(kwargs)
 
-    dataSrc = opj("/gpfs/workdir/colombergi/GiorgiaGAN/input data/Damaged_{:>d}.h5".format(i))
+    dataSrc = opj(store_dir,"Damaged_{:>d}.h5".format(i))
     h5f = h5py.File(dataSrc,'r')
     X = h5f['X{:>d}'.format(i)][...]
     c = h5f['c{:>d}'.format(i)][...]

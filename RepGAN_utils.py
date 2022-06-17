@@ -16,6 +16,7 @@ import tensorflow as tf
 
 def ParseOptions():
     parser = argparse.ArgumentParser()
+    parser.add_argument("--cuda", action='store_true',default=False, help='Use cuda powered GPU')
     parser.add_argument("--epochs",type=int,default=2000,help='Number of epochs')
     parser.add_argument("--Xsize",type=int,default=2048,help='Data space size')
     parser.add_argument("--nX",type=int,default=4000,help='Number of signals')
@@ -53,25 +54,23 @@ def ParseOptions():
     parser.add_argument("--QcLR", type=float, default=0.0002,help='Learning rate for Qc [GAN=0.0002/WGAN=0.00002]')
     parser.add_argument("--DclassLR", type=float, default=0.0002,help='Learning rate for Qc [GAN=0.0002/WGAN=0.00002]')
     parser.add_argument("--nCritic",type=int,default=1,help='number of discriminator training steps')
+    parser.add_argument("--nGenerator", type=int, default=1,help='number of generator training steps')
     parser.add_argument("--nXRepX",type=int,default=1,help='number of discriminator training steps')
     parser.add_argument("--nRepXRep",type=int,default=5,help='number of discriminator training steps')
-    parser.add_argument("--nGenerator",type=int,default=1,help='number of generator training steps')
     parser.add_argument("--clipValue",type=float,default=0.01,help='clip weight for WGAN')
-    parser.add_argument("--dataroot", nargs="+", default=["/gpfs/workdir/colombergi/GiorgiaGAN/PortiqueElasPlas_N_2000_index",
-                        "/gpfs/workdir/colombergi/GiorgiaGAN/PortiqueElasPlas_E_2000_index"],help="Data root folder") 
-    parser.add_argument("--dataroot_index", nargs="+", default=["/gpfs/workdir/colombergi/GiorgiaGAN/PortiqueElasPlas_N_2000_index",
-                        "/gpfs/workdir/colombergi/GiorgiaGAN/PortiqueElasPlas_E_2000_index"],help="Data root folder") 
-    parser.add_argument("--idChannels",type=int,nargs='+',default=[1,2,3,4],help="Channel 1")
-    parser.add_argument("--nParams",type=str,default=2,help="Number of parameters")
-    parser.add_argument("--case",type=str,default="train_model",help="case")
-    parser.add_argument("--avu",type=str,nargs='+',default="U",help="case avu")
-    parser.add_argument("--pb",type=str,default="DC",help="case pb")#DC
-    parser.add_argument("--CreateData",action='store_true',default=False,help='Create data flag')
-    parser.add_argument("--cuda",action='store_true',default=False,help='Use cuda powered GPU')
-    parser.add_argument('--dtm',type=float,default=0.04,help='time-step [s]')
-    parser.add_argument("--checkpoint_dir",default='/gpfs/workdir/colombergi/GiorgiaGAN/checkpoint/03_06',help="Checkpoint")
-    parser.add_argument("--results_dir",default='/gpfs/workdir/colombergi/GiorgiaGAN/results',help="Checkpoint")
-    parser.add_argument("--discriminator",default='WGAN',help="Type of Dz")
+    
+    parser.add_argument("--CreateData", action='store_true',default=False, help='Create data flag')
+    parser.add_argument("--rawdata_dir", nargs="+", default=["PortiqueElasPlas_N_2000_index","PortiqueElasPlas_E_2000_index"],help="Data root folder") 
+    parser.add_argument("--store_dir", default=["input_data"], help="Data root folder")
+    parser.add_argument("--checkpoint_dir",default='checkpoint',help="Checkpoint")
+    parser.add_argument("--results_dir",default='results',help="Checkpoint")
+    parser.add_argument("--idChannels", type=int, nargs='+', default=[1, 2, 3, 4], help="Channel 1")
+    parser.add_argument("--nParams", type=str, default=2,help="Number of parameters")
+    parser.add_argument("--case", type=str, default="train_model", help="case")
+    parser.add_argument("--avu", type=str, nargs='+',default="U", help="case avu")
+    parser.add_argument("--pb", type=str, default="DC", help="case pb")  # DC
+    parser.add_argument('--dtm', type=float, default=0.04,help='time-step [s]')
+    parser.add_argument("--discriminator", default='WGAN', help="Type of Dz")
     parser.add_argument("--sigmas2",default='sigmoid',help="Last sigmas2 activation layer")
     options = parser.parse_args().__dict__
 
@@ -97,3 +96,10 @@ def ParseOptions():
         os.makedirs(options['checkpoint_dir'])
 
     return options
+
+
+def DumpModels(models, results_dir):
+    for m in models:
+        m.save(os.path.join(results_dir,m.name),
+            save_format="tf")
+    return
