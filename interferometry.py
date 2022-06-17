@@ -11,8 +11,7 @@ import matplotlib.pyplot as plt
 from scipy.signal import windows, detrend, filtfilt, butter, lfilter, resample
 from scipy import interpolate
 from mtcross_2 import MTCross
-import utils as utils
-
+from interferometry_utils import *
 from random import randint
 
 
