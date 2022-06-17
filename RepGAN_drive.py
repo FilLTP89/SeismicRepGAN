@@ -14,7 +14,8 @@ __status__ = "Beta"
 import os
 os.environ['CUDA_VISIBLE_DEVICES'] = "0"
 
-from utils import *
+from RepGAN_utils import *
+from interferometry_utils import *
 import math as mt
 
 import tensorflow as tf
