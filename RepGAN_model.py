@@ -120,13 +120,6 @@ class RepGAN(tf.keras.Model):
         n_prior = tf.random.normal(mean=0.0,stddev=1.0,shape=[self.batchSize,self.latentNdim],dtype=tf.float32)
 
         # Train generators
-        # self.Fx.trainable = True
-        # self.Gz.trainable = True
-        # self.Dx.trainable = False
-        # self.Dc.trainable = False
-        # self.Ds.trainable = False
-        # self.Dn.trainable = False
-
         # Train nGenerator times the generators
         #for _ in range(self.nGenerator):
         with tf.GradientTape(persistent=True) as tape:
@@ -162,13 +155,6 @@ class RepGAN(tf.keras.Model):
         self.GzOpt.apply_gradients(zip(gradGz,self.Gz.trainable_variables))
 
         # Train discriminators
-        # self.Fx.trainable = False
-        # self.Gz.trainable = False
-        # self.Dx.trainable = False
-        # self.Dc.trainable = True
-        # self.Ds.trainable = True
-        # self.Dn.trainable = True
-
         # Train nCritic times the discriminators
         for _ in range(self.nCritic):
             
@@ -260,10 +246,6 @@ class RepGAN(tf.keras.Model):
         for _ in range(self.nCritic):
 
             # Train discriminators
-            # self.Fx.trainable = False
-            # self.Gz.trainable = False
-            # self.Dx.trainable = True
-
             with tf.GradientTape(persistent=True) as tape:
 
                 # Decode factorial prior
@@ -285,10 +267,6 @@ class RepGAN(tf.keras.Model):
 
 
             # Train generators
-            # self.Fx.trainable = False
-            # self.Gz.trainable = True
-            # self.Dx.trainable = False
-
             with tf.GradientTape(persistent=True) as tape:
 
                 # Decode factorial prior
@@ -308,10 +286,6 @@ class RepGAN(tf.keras.Model):
             self.GzOpt.apply_gradients(zip(gradGz,self.Gz.trainable_variables))
 
             # Train generators
-            # self.Fx.trainable = True
-            # self.Gz.trainable = True
-            # self.Dx.trainable = False
-
             with tf.GradientTape(persistent=True) as tape:
                 
                 # Encode fake signals
@@ -424,7 +398,7 @@ class RepGAN(tf.keras.Model):
 
     def BuildFx(self):
         """
-            kl.Conv1D Fx structure
+            Conv1D Fx structure
         """
         # To build this model using the functional API
 
@@ -551,11 +525,12 @@ class RepGAN(tf.keras.Model):
         h_σs2 = kl.Dense(self.latentSdim,name="FxFWlvS")(h_σs2)
         h_σs2 = kl.BatchNormalization(momentum=0.95,axis=-1,name="FxBNlvS")(h_σs2)
         #h_σs2 = kl.LeakyReLU(alpha=0.1,name="FxAlvS{:>d}".format(layer+2))(h_σs2)
-        if 'σs2' in self.σs2:
-            σs2 = tf.math.sigmoid(h_σs2)
-        else:
+        if 'sigmoid' in self.sigmas2:
+            σs2 = tf.keras.activations.sigmoid(h_σs2)
+        elif 'softplus' in self.sigmas2:
             σs2 = tf.keras.activations.softplus(h_σs2)
-
+        else:
+            σs2
         
 
         # variable c
@@ -593,7 +568,7 @@ class RepGAN(tf.keras.Model):
 
     def BuildGz(self):
         """
-            kl.Conv1D Gz structure
+            Conv1D Gz structure
             https://www.pyimagesearch.com/2019/02/04/keras-multiple-inputs-and-mixed-data/
 
         """
@@ -694,7 +669,7 @@ class RepGAN(tf.keras.Model):
 
     def BuildDx(self):
         """
-            kl.Conv1D discriminator structure
+            Conv1D discriminator structure
         """
         layer = 0
         X = kl.Input(shape=self.Xshape,name="X")
@@ -727,7 +702,7 @@ class RepGAN(tf.keras.Model):
 
     def BuildDc(self):
         """
-            kl.Dense discriminator structure
+            Dense discriminator structure
         """
         c = kl.Input(shape=(self.latentCdim,))
         if 'WGAN' in self.discriminator:
@@ -754,7 +729,7 @@ class RepGAN(tf.keras.Model):
 
     def BuildDn(self):
         """
-            kl.Dense discriminator structure
+            Dense discriminator structure
         """
         n = kl.Input(shape=(self.latentNdim,))
         if 'WGAN' in self.discriminator:
@@ -780,7 +755,7 @@ class RepGAN(tf.keras.Model):
 
     def BuildDs(self):
         """
-            kl.Dense discriminator structure
+            Dense discriminator structure
         """
         s = kl.Input(shape=(self.latentSdim,))
         if 'WGAN' in self.discriminator:
