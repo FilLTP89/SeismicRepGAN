@@ -102,7 +102,7 @@ class RepGAN(tf.keras.Model):
         """
         self.__dict__.update(losses)
 
-    @tf.function
+    #@tf.function
     def train_XZX(self,X,c):
 
         # Create labels for BCE in GAN loss
@@ -244,7 +244,7 @@ class RepGAN(tf.keras.Model):
         return RecGlossX,FakeCloss,AdvDloss,AdvDlossC,AdvDlossS,AdvDlossN,AdvGloss,AdvGlossC,AdvGlossS,AdvGlossN,\
                 c_fakecritic,s_fakecritic,n_fakecritic,c_critic,s_priorcritic,n_priorcritic
 
-    @tf.function
+    #@tf.function
     def train_ZXZ(self,X,c):
 
         # Create labels for BCE in GAN loss
