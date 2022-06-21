@@ -11,11 +11,16 @@ __email__ = "filippo.gatti@centralesupelec.fr"
 __status__ = "Beta"
 
 import tensorflow as tf
+import tensorflow.keras.losses as kl
 import numpy as np
 from tensorflow.keras.optimizers import Adam, RMSprop
 
+bce_loss = kl.BinaryCrossentropy(from_logits=True)
+
 ε = 1e-8
 
+
+@tf.function
 def GaussianNLL(x,μ,Σ,mod='var',raxis=None):
     """
         Gaussian negative loglikelihood loss function
@@ -25,13 +30,13 @@ def GaussianNLL(x,μ,Σ,mod='var',raxis=None):
     if not raxis:
         raxis = [i for i in range(1,len(x.shape))]
 
-    log2pi = -0.5*n_dims*tf.math.log(2.*np.pi)
+    log2pi = 0.5*n_dims*tf.math.log(2.*np.pi)
 
     if 'var' in mod:
       Σ = tf.math.log(Σ+ε)
 
-    mse = -0.5*tf.square(x-μ)*tf.exp(-Σ)
-    traceΣ = -tf.reduce_sum(Σ,axis=raxis)
+    mse = 0.5*tf.square(x-μ)*tf.exp(-Σ)
+    traceΣ = tf.reduce_sum(Σ,axis=raxis)
     NLL = tf.reduce_sum(mse,axis=raxis)+traceΣ+log2pi
 
     # mse = -0.5*tf.reduce_sum(tf.keras.backend.square((x-μ))/sigma,axis=raxis) 
@@ -40,33 +45,29 @@ def GaussianNLL(x,μ,Σ,mod='var',raxis=None):
 
     return tf.reduce_mean(NLL)
 
-def GANDiscriminatorLoss(X, Gz):
+
+@tf.function
+def GANDiscriminatorLoss(DX, DGz, D=None, λ=1.0):
     # General GAN Loss (for real and fake) with labels: {0,1}. Sigmoid output from D
-    bce_loss = tf.keras.losses.BinaryCrossentropy(from_logits=True)
-    real_loss = bce_loss(tf.ones_like(X), X)
-    fake_loss = bce_loss(tf.zeros_like(Gz), Gz)
-    return real_loss + fake_loss
+    real_loss = bce_loss(tf.ones_like(DX), DX)
+    fake_loss = bce_loss(tf.zeros_like(DGz), DGz)
+    return λ*(real_loss + fake_loss)
 
-def GANGeneratorLoss(logitsDGz):
-    """Generator GAN Loss for generator from logits"""
-    return -tf.reduce_mean(logitsDGz)
 
+@tf.function
+def GANGeneratorLoss(DGz, λ=1.0):
+    """Generator GAN Loss for generator"""
+    real_loss = bce_loss(tf.ones_like(DGz), DGz)
+    return λ*real_loss
+
+@tf.function
 def HingeDGANLoss(logitsDX, logitsDGz):
     real_loss = tf.reduce_mean(tf.nn.relu(1. - logitsDX))
     fake_loss = tf.reduce_mean(tf.nn.relu(1. + logitsDGz))
-    return real_loss + fake_loss
+    return λ*(real_loss + fake_loss)
 
-def WassersteinDiscriminatorLoss(X, Gz):
-    """Compute standard Wasserstein loss (complete)"""
-    real_loss = tf.reduce_mean(X)
-    fake_loss = tf.reduce_mean(Gz)
-    return fake_loss - real_loss
-
-def WassersteinGeneratorLoss(Gz):
-    """Compute standard Wasserstein loss (generator only)"""
-    return -tf.reduce_mean(Gz)
-
-def WassersteinLoss(s, Gz):
+@tf.function
+def WGANLoss(s, Gz):
     """General WGAN Loss (for real and fake) with labels s:={-1,1}. 
     Logit output from D
     Adapted to work with multiple output discriminator (e.g.: PatchGAN Discriminator)
@@ -76,6 +77,20 @@ def WassersteinLoss(s, Gz):
     return s*tf.reduce_mean(Gz,axis=raxis)
 
 
+@tf.function
+def WGANDiscriminatorLoss(DX, DGz, D=None, λ=1.0):
+    """Compute standard WGAN loss (complete)"""
+    return λ*WGANLoss(1.0, DGz)+λ*WGANLoss(-1.0, DX)
+
+
+@tf.function
+def WGANGeneratorLoss(Gz, λ=1.0):
+    """Compute standard WGAN loss (generator only)
+    Logit output from D
+    """
+    return λ*WGANLoss(-1.0, DGz)
+
+@tf.function
 def GradientPenalty(X, Gz, D):
     """Compute the gradient penalty of discriminator D"""
     # Get the interpolated image
@@ -96,12 +111,23 @@ def GradientPenalty(X, Gz, D):
     GPloss = tf.reduce_mean((NormGradD - 1.0) ** 2)
     return GPloss
 
-def WassersteinLossGP(X, Gz, D, λ=1.0):
+
+@tf.function
+def WGANGPDiscriminatorLoss(DX, DGz, D, λ=1.0):
     "Wasserstrain loss with Gradient Penalty"
-    Ls=WassersteinLoss(X,Gz)
-    GP=GradientPenalty(X, Gz, D)
+    Ls = WGANDiscriminatorLoss(DX, DGz)
+    GP = GradientPenalty(DX, DGz, D)
     return Ls+λ*GP
 
+
+@tf.function
+def WGANGPGeneratorLoss(DX, DGz, λ=1.0):
+    "Wasserstrain loss with Gradient Penalty"
+    Ls = WGANDiscriminatorLoss(DX, DGz)
+    # GP = GradientPenalty(X, Gz, D)
+    return λ*Ls
+
+@tf.function
 def MutualInfoLoss(c, c_given_x,raxis=1):
     """The mutual information metric we aim to minimize"""
     H_CgivenX = -tf.reduce_mean(tf.reduce_mean(tf.math.log(c_given_x+ε)*c,axis=raxis))
@@ -109,6 +135,9 @@ def MutualInfoLoss(c, c_given_x,raxis=1):
     return H_CgivenX - H_C
 
 # Info Loss for Q (GANPatch adapted)
+
+
+@tf.function
 def InfoLoss(X, Gz):
     return tf.keras.losses.CategoricalCrossentropy(X, Gz)
 
