@@ -84,7 +84,7 @@ def WGANDiscriminatorLoss(DX, DGz, D=None, λ=1.0):
 
 
 @tf.function
-def WGANGeneratorLoss(Gz, λ=1.0):
+def WGANGeneratorLoss(DGz, λ=1.0):
     """Compute standard WGAN loss (generator only)
     Logit output from D
     """
