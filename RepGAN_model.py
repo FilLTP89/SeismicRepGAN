@@ -390,7 +390,7 @@ class RepGAN(tf.keras.Model):
 
     def BuildFx(self):
         """
-            Conv1D Fx structure
+            Fx encoder structure
         """
         # To build this model using the functional API
 
@@ -399,12 +399,11 @@ class RepGAN(tf.keras.Model):
 
         # Initial CNN layer
         layer = -1
-        h = kl.Conv1D(self.nZfirst, 
-                self.kernel,1,padding="same",
+        h = kl.Conv1D(self.nZfirst,self.kernel,1,padding="same",
                 data_format="channels_last",name="FxCNN0")(X)
         h = kl.BatchNormalization(momentum=0.95)(h)
         h = kl.LeakyReLU(alpha=0.1,name="FxA0")(h)
-        h = kl.Dropout(0.2,name="FxDO0")(h)
+        h = kl.Dropout(self.dpout,name="FxDO0")(h)
 
         # Common encoder CNN layers
         for layer in range(self.nAElayers):
@@ -413,7 +412,7 @@ class RepGAN(tf.keras.Model):
                 data_format="channels_last",name="FxCNN{:>d}".format(layer+1))(h)
             h = kl.BatchNormalization(momentum=0.95)(h)
             h = kl.LeakyReLU(alpha=0.1,name="FxA{:>d}".format(layer+1))(h)
-            h = kl.Dropout(0.2,name="FxDO{:>d}".format(layer+1))(h)
+            h = kl.Dropout(self.dpout,name="FxDO{:>d}".format(layer+1))(h)
 
         # Last common CNN layer (no stride, same channels) before branching
         layer = self.nAElayers
@@ -422,7 +421,7 @@ class RepGAN(tf.keras.Model):
             data_format="channels_last",name="FxCNN{:>d}".format(layer+1))(h)
         h = kl.BatchNormalization(momentum=0.95,name="FxBN{:>d}".format(layer+1))(h)
         h = kl.LeakyReLU(alpha=0.1,name="FxA{:>d}".format(layer+1))(h)
-        z = kl.Dropout(0.2,name="FxDO{:>d}".format(layer+1))(h)
+        z = kl.Dropout(self.dpout,name="FxDO{:>d}".format(layer+1))(h)
         # z ---> Zshape = (Zsize,nZchannels)
 
         layer = 0
@@ -433,7 +432,7 @@ class RepGAN(tf.keras.Model):
             data_format="channels_last",name="FxCNNmuS{:>d}".format(layer+1))(z)
         h_μs = kl.BatchNormalization(momentum=0.95,name="FxBNmuS{:>d}".format(layer+1))(h_μs)
         h_μs = kl.LeakyReLU(alpha=0.1,name="FxAmuS{:>d}".format(layer+1))(h_μs)
-        h_μs = kl.Dropout(0.2,name="FxDOmuS{:>d}".format(layer+1))(h_μs)
+        h_μs = kl.Dropout(self.dpout,name="FxDOmuS{:>d}".format(layer+1))(h_μs)
 
         # s-log std
         h_σs2 = kl.Conv1D(self.nZchannels*self.Sstride**(layer+1),
@@ -441,7 +440,7 @@ class RepGAN(tf.keras.Model):
             data_format="channels_last",name="FxCNNlvS{:>d}".format(layer+1))(z)
         h_σs2 = kl.BatchNormalization(momentum=0.95,name="FxBNlvS{:>d}".format(layer+1))(h_σs2)
         h_σs2 = kl.LeakyReLU(alpha=0.1,name="FxAlvS{:>d}".format(layer+1))(h_σs2)
-        h_σs2 = kl.Dropout(0.2,name="FxDOlvS{:>d}".format(layer+1))(h_σs2)
+        h_σs2 = kl.Dropout(self.dpout,name="FxDOlvS{:>d}".format(layer+1))(h_σs2)
 
         # variable c
         h_c = kl.Conv1D(self.nZchannels*self.Cstride**(layer+1),
@@ -450,7 +449,7 @@ class RepGAN(tf.keras.Model):
         h_c = kl.BatchNormalization(momentum=0.95,name="FxBNC{:>d}".format(layer+1))(h_c)
         h_c = kl.LeakyReLU(alpha=0.1,name="FxAC{:>d}".format(layer+1))(h_c)
         #h_c = tfa.layers.InstanceNormalization()(h_c)
-        h_c = kl.Dropout(0.2,name="FxDOC{:>d}".format(layer+1))(h_c)
+        h_c = kl.Dropout(self.dpout,name="FxDOC{:>d}".format(layer+1))(h_c)
 
         # variable n
         h_n = kl.Conv1D(self.nZchannels*self.Nstride**(layer+1),
@@ -459,7 +458,7 @@ class RepGAN(tf.keras.Model):
         h_n = kl.BatchNormalization(momentum=0.95)(h_n)
         h_n = kl.LeakyReLU(alpha=0.1,name="FxAN{:>d}".format(layer+1))(h_n)
         #h_n = tfa.layers.InstanceNormalization()(h_n)
-        h_n = kl.Dropout(0.2,name="FxDON{:>d}".format(layer+1))(h_n)
+        h_n = kl.Dropout(self.dpout,name="FxDON{:>d}".format(layer+1))(h_n)
 
         # variable s
         for layer in range(1,self.nSlayers):
@@ -469,7 +468,7 @@ class RepGAN(tf.keras.Model):
                 data_format="channels_last",name="FxCNNmuS{:>d}".format(layer+1))(h_μs)
             h_μs = kl.BatchNormalization(momentum=0.95,name="FxBNmuS{:>d}".format(layer+1))(h_μs)
             h_μs = kl.LeakyReLU(alpha=0.1,name="FxAmuS{:>d}".format(layer+1))(h_μs)
-            h_μs = kl.Dropout(0.2,name="FxDOmuS{:>d}".format(layer+1))(h_μs)
+            h_μs = kl.Dropout(self.dpout,name="FxDOmuS{:>d}".format(layer+1))(h_μs)
 
             # s-log std
             h_σs2 = kl.Conv1D(self.nZchannels*self.Sstride**(layer+1),
@@ -477,7 +476,7 @@ class RepGAN(tf.keras.Model):
                 data_format="channels_last",name="FxCNNlvS{:>d}".format(layer+1))(h_σs2)
             h_σs2 = kl.BatchNormalization(momentum=0.95,name="FxBNlvS{:>d}".format(layer+1))(h_σs2)
             h_σs2 = kl.LeakyReLU(alpha=0.1,name="FxAlvS{:>d}".format(layer+1))(h_σs2)
-            h_σs2 = kl.Dropout(0.2,name="FxDOlvS{:>d}".format(layer+1))(h_σs2)
+            h_σs2 = kl.Dropout(self.dpout,name="FxDOlvS{:>d}".format(layer+1))(h_σs2)
 
         # variable c
         for layer in range(1,self.nClayers):
@@ -487,7 +486,7 @@ class RepGAN(tf.keras.Model):
             h_c = kl.BatchNormalization(momentum=0.95,name="FxBNC{:>d}".format(layer+1))(h_c)
             h_c = kl.LeakyReLU(alpha=0.1,name="FxAC{:>d}".format(layer+1))(h_c)
             #h_c = tfa.layers.InstanceNormalization()(h_c)
-            h_c = kl.Dropout(0.2,name="FxDOC{:>d}".format(layer+1))(h_c)
+            h_c = kl.Dropout(self.dpout,name="FxDOC{:>d}".format(layer+1))(h_c)
 
         # variable n
         for layer in range(1,self.nNlayers):
@@ -497,7 +496,7 @@ class RepGAN(tf.keras.Model):
             h_n = kl.BatchNormalization(momentum=0.95)(h_n)
             h_n = kl.LeakyReLU(alpha=0.1,name="FxAN{:>d}".format(layer+1))(h_n)
             #h_n = tfa.layers.InstanceNormalization()(h_n)
-            h_n = kl.Dropout(0.2,name="FxDON{:>d}".format(layer+1))(h_n)
+            h_n = kl.Dropout(self.dpout,name="FxDON{:>d}".format(layer+1))(h_n)
 
         # variable s
         h_μs = kl.Flatten(name="FxFLmuS{:>d}".format(layer+1))(h_μs)
@@ -544,14 +543,14 @@ class RepGAN(tf.keras.Model):
         h_n = kl.Dense(self.latentNdim,name="FxFWN")(h_n)
 
         # variable s
-        s = sampleS()([μs,σs2])
+        s = sampleS(name="sample_style")([μs,σs2])
 
         # variable c
         #c = kl.Dense(self.latentCdim,activation=tf.keras.activations.softmax)(h_c)
-        c = kl.Softmax()(h_c)
+        c = kl.Softmax(name="damage_class")(h_c)
 
         # variable n
-        n = kl.BatchNormalization(momentum=0.95)(h_n)
+        n = kl.BatchNormalization(name="bn_noise",momentum=0.95)(h_n)
         #n = tfa.layers.InstanceNormalization()(h_n)
 
         Fx = tf.keras.Model(X,[μs,σs2,s,c,n],name="Fx")
@@ -583,13 +582,13 @@ class RepGAN(tf.keras.Model):
                 data_format="channels_last"))(h_s)
             h_s = kl.LeakyReLU(alpha=0.1)(h_s)
             h_s = kl.BatchNormalization(momentum=0.95)(h_s)
-            #h_s = kl.Dropout(0.2,name="GzDOS{:>d}".format(layer))(h_s)
+            #h_s = kl.Dropout(self.dpout,name="GzDOS{:>d}".format(layer))(h_s)
         h_s = tfa.layers.SpectralNormalization(kl.Conv1DTranspose(int(self.nSchannels*self.Sstride**(-self.nSlayers)),
             self.Skernel,self.Sstride,padding="same",
             data_format="channels_last"))(h_s)
         h_s = kl.BatchNormalization(momentum=0.95,name="GzBNS{:>d}".format(self.nSlayers))(h_s)
         h_s = kl.LeakyReLU(alpha=0.1)(h_s)
-        #h_s = kl.Dropout(0.2)(h_s)
+        #h_s = kl.Dropout(self.dpout)(h_s)
         GzS = tf.keras.Model(s,h_s)
 
 
@@ -604,13 +603,13 @@ class RepGAN(tf.keras.Model):
                 data_format="channels_last"))(h_c)
             h_c = kl.BatchNormalization(momentum=0.95)(h_c)
             h_c = kl.LeakyReLU(alpha=0.1)(h_c)
-            #h_c = kl.Dropout(0.2)(h_c)
+            #h_c = kl.Dropout(self.dpout)(h_c)
         h_c = tfa.layers.SpectralNormalization(kl.Conv1DTranspose(int(self.nCchannels*self.Cstride**(-self.nClayers)),
             self.Ckernel,self.Cstride,padding="same",
             data_format="channels_last"))(h_c)
         h_c = kl.BatchNormalization(momentum=0.95)(h_c)
         h_c = kl.LeakyReLU(alpha=0.1)(h_c)
-        #h_c = kl.Dropout(0.2)(h_c)
+        #h_c = kl.Dropout(self.dpout)(h_c)
         GzC = tf.keras.Model(c,h_c)
 
         # variable n
@@ -624,13 +623,13 @@ class RepGAN(tf.keras.Model):
                 data_format="channels_last"))(h_n)
             h_n = kl.LeakyReLU(alpha=0.1)(h_n)
             h_n = kl.BatchNormalization(momentum=0.95)(h_n)
-            #h_n = kl.Dropout(0.2)(h_n)
+            #h_n = kl.Dropout(self.dpout)(h_n)
         h_n = tfa.layers.SpectralNormalization(kl.Conv1DTranspose(int(self.nNchannels*self.Nstride**(-self.nNlayers)),
             self.Nkernel,self.Nstride,padding="same",
             data_format="channels_last"))(h_n)
         h_n = kl.BatchNormalization(momentum=0.95)(h_n)
         h_n = kl.LeakyReLU(alpha=0.1)(h_n)
-        #h_n = kl.Dropout(0.2)(h_n)
+        #h_n = kl.Dropout(self.dpout)(h_n)
         GzN = tf.keras.Model(n,h_n)
 
         Gz = kl.concatenate([GzS.output,GzC.output,GzN.output])
@@ -665,29 +664,47 @@ class RepGAN(tf.keras.Model):
         """
         layer = 0
         X = kl.Input(shape=self.Xshape,name="X")
-        h = tfa.layers.SpectralNormalization(kl.Conv1D(self.Xsize*self.stride**(-(layer+1)),
-                self.kernel,self.stride,padding="same",
-                data_format="channels_last",name="DxCNN0"))(X)
-        #h = kl.LayerNormalization(axis=[1,2])(h) #temp
-        h = kl.LeakyReLU(alpha=0.1,name="DxA0")(h)
-        h = kl.Dropout(0.25)(h)
         
-        for layer in range(1,self.nDlayers):
+        if self.DxSN:
             h = tfa.layers.SpectralNormalization(kl.Conv1D(self.Xsize*self.stride**(-(layer+1)),
-                self.kernel,self.stride,padding="same",
-                data_format="channels_last",name="DxCNN{:>d}".format(layer)))(h)
-            #h = kl.LayerNormalization(axis=[1,2],name="DxLN{:>d}".format(layer))(h) #temp
-            h = kl.LeakyReLU(alpha=0.1,name="DxA{:>d}".format(layer))(h)
+                    self.kernel,self.stride,padding="same",
+                    data_format="channels_last",name="DxCNN0"))(X)
+            h = kl.LeakyReLU(alpha=0.1,name="DxA0")(h)
             h = kl.Dropout(0.25)(h)
-            
-        layer = self.nDlayers    
-        h = kl.Flatten(name="DxFL{:>d}".format(layer))(h)
-        h = tfa.layers.SpectralNormalization(kl.Dense(1024))(h)
-        #h = kl.LayerNormalization()(h)
-        h = kl.LeakyReLU(alpha=0.1)(h)
-        h = kl.Dropout(0.25)(h)
-        #Px = tfa.layers.SpectralNormalization(kl.Dense(1,activation='linear'))(h)
-        Px = tfa.layers.SpectralNormalization(kl.Dense(1,activation='sigmoid'))(h)
+
+            for layer in range(1,self.nDlayers):
+                h = tfa.layers.SpectralNormalization(kl.Conv1D(self.Xsize*self.stride**(-(layer+1)),
+                    self.kernel,self.stride,padding="same",
+                    data_format="channels_last",name="DxCNN{:>d}".format(layer)))(h)
+                h = kl.LeakyReLU(alpha=0.1,name="DxA{:>d}".format(layer))(h)
+                h = kl.Dropout(0.25)(h)
+
+            layer = self.nDlayers    
+            h = kl.Flatten(name="DxFL{:>d}".format(layer))(h)
+            h = tfa.layers.SpectralNormalization(kl.Dense(1024))(h)
+            h = kl.LeakyReLU(alpha=0.1)(h)
+            h = kl.Dropout(0.25)(h)
+            Px = tfa.layers.SpectralNormalization(kl.Dense(1))(h)
+        else:
+            h = kl.Conv1D(self.Xsize*self.stride**(-(layer+1)),
+                    self.kernel,self.stride,padding="same",
+                    data_format="channels_last",name="DxCNN0")(X)
+            h = kl.LeakyReLU(alpha=0.1,name="DxA0")(h)
+            h = kl.Dropout(0.25)(h)
+
+            for layer in range(1,self.nDlayers):
+                h = kl.Conv1D(self.Xsize*self.stride**(-(layer+1)),
+                    self.kernel,self.stride,padding="same",
+                    data_format="channels_last",name="DxCNN{:>d}".format(layer))(h)
+                h = kl.LeakyReLU(alpha=0.1,name="DxA{:>d}".format(layer))(h)
+                h = kl.Dropout(0.25)(h)
+
+            layer = self.nDlayers    
+            h = kl.Flatten(name="DxFL{:>d}".format(layer))(h)
+            h = kl.Dense(1024)(h)
+            h = kl.LeakyReLU(alpha=0.1)(h)
+            h = kl.Dropout(0.25)(h)
+            Px = kl.Dense(1)(h)
         Dx = tf.keras.Model(X,Px,name="Dx")
         return Dx
 
@@ -697,7 +714,15 @@ class RepGAN(tf.keras.Model):
             Dense discriminator structure
         """
         c = kl.Input(shape=(self.latentCdim,))
-        if 'WGAN' in self.discriminator:
+        if self.DzSN:
+            h = tfa.layers.SpectralNormalization(kl.Dense(3000))(c)
+            h = kl.LeakyReLU(alpha=0.1)(h)
+            h = kl.Dropout(0.25)(h)
+            h = tfa.layers.SpectralNormalization(kl.Dense(3000))(h)
+            h = kl.LeakyReLU(alpha=0.1)(h)
+            h = kl.Dropout(0.25)(h)
+            Pc = tfa.layers.SpectralNormalization(kl.Dense(1))(h)
+        else:    
             h = kl.Dense(3000,kernel_constraint=ClipConstraint(self.clipValue))(c)
             h = kl.LeakyReLU(alpha=0.1)(h)
             h = kl.Dropout(0.25)(h)
@@ -705,16 +730,7 @@ class RepGAN(tf.keras.Model):
             h = kl.BatchNormalization(momentum=0.95)(h)
             h = kl.LeakyReLU(alpha=0.1)(h)
             h = kl.Dropout(0.25)(h)
-            Pc = kl.Dense(1,activation=tf.keras.activations.linear,
-                                    kernel_constraint=ClipConstraint(self.clipValue))(h)
-        else:
-            h = tfa.layers.SpectralNormalization(kl.Dense(3000))(c)
-            h = kl.LeakyReLU(alpha=0.1)(h)
-            h = kl.Dropout(0.25)(h)
-            h = tfa.layers.SpectralNormalization(kl.Dense(3000))(h)
-            h = kl.LeakyReLU(alpha=0.1)(h)
-            h = kl.Dropout(0.25)(h)
-            Pc = tfa.layers.SpectralNormalization(kl.Dense(1,activation=tf.keras.activations.linear))(h)
+            Pc = kl.Dense(1,kernel_constraint=ClipConstraint(self.clipValue))(h)
         Dc = tf.keras.Model(c,Pc,name="Dc")
         return Dc
 
@@ -724,7 +740,15 @@ class RepGAN(tf.keras.Model):
             Dense discriminator structure
         """
         n = kl.Input(shape=(self.latentNdim,))
-        if 'WGAN' in self.discriminator:
+        if self.DzSN:
+            h = tfa.layers.SpectralNormalization(kl.Dense(3000))(n)
+            h = kl.LeakyReLU(alpha=0.1)(h)
+            h = kl.Dropout(0.25)(h)
+            h = tfa.layers.SpectralNormalization(kl.Dense(3000))(h)
+            h = kl.LeakyReLU(alpha=0.1)(h)
+            h = kl.Dropout(0.25)(h)
+            Pn = tfa.layers.SpectralNormalization(kl.Dense(1))(h)
+        else:
             h = kl.Dense(3000,kernel_constraint=ClipConstraint(self.clipValue))(n) 
             h = kl.LeakyReLU(alpha=0.1)(h)
             h = kl.Dropout(0.25)(h)
@@ -732,16 +756,7 @@ class RepGAN(tf.keras.Model):
             h = kl.BatchNormalization(momentum=0.95)(h)
             h = kl.LeakyReLU(alpha=0.1)(h)
             h = kl.Dropout(0.25)(h)
-            Pn = kl.Dense(1,activation=tf.keras.activations.linear,
-                                    kernel_constraint=ClipConstraint(self.clipValue))(h)
-        else:
-            h = tfa.layers.SpectralNormalization(kl.Dense(3000))(n)
-            h = kl.LeakyReLU(alpha=0.1)(h)
-            h = kl.Dropout(0.25)(h)
-            h = tfa.layers.SpectralNormalization(kl.Dense(3000))(h)
-            h = kl.LeakyReLU(alpha=0.1)(h)
-            h = kl.Dropout(0.25)(h)
-            Pn = tfa.layers.SpectralNormalization(kl.Dense(1,activation=tf.keras.activations.linear))(h)
+            Pn = kl.Dense(1,kernel_constraint=ClipConstraint(self.clipValue))(h)
         Dn = tf.keras.Model(n,Pn,name="Dn")
         return Dn
 
@@ -750,7 +765,15 @@ class RepGAN(tf.keras.Model):
             Dense discriminator structure
         """
         s = kl.Input(shape=(self.latentSdim,))
-        if 'WGAN' in self.discriminator:
+        if self.DzSN:
+            h = tfa.layers.SpectralNormalization(kl.Dense(3000))(s)
+            h = kl.LeakyReLU(alpha=0.1)(h)
+            h = kl.Dropout(0.25)(h)
+            h = tfa.layers.SpectralNormalization(kl.Dense(3000))(h)
+            h = kl.LeakyReLU(alpha=0.1)(h)
+            h = kl.Dropout(0.25)(h)
+            Ps = tfa.layers.SpectralNormalization(kl.Dense(1))(h)
+        else:
             h = kl.Dense(3000,kernel_constraint=ClipConstraint(self.clipValue))(s)
             h = kl.LeakyReLU(alpha=0.1)(h)
             h = kl.Dropout(0.25)(h)
@@ -758,15 +781,6 @@ class RepGAN(tf.keras.Model):
             h = kl.BatchNormalization(momentum=0.95)(h)
             h = kl.LeakyReLU(alpha=0.1)(h)
             h = kl.Dropout(0.25)(h)
-            Ps = kl.Dense(1,activation=tf.keras.activations.linear,
-                                    kernel_constraint=ClipConstraint(self.clipValue))(h)
-        else:
-            h = tfa.layers.SpectralNormalization(kl.Dense(3000))(s)
-            h = kl.LeakyReLU(alpha=0.1)(h)
-            h = kl.Dropout(0.25)(h)
-            h = tfa.layers.SpectralNormalization(kl.Dense(3000))(h)
-            h = kl.LeakyReLU(alpha=0.1)(h)
-            h = kl.Dropout(0.25)(h)
-            Ps = tfa.layers.SpectralNormalization(kl.Dense(1,activation=tf.keras.activations.linear))(h)
+            Ps = kl.Dense(1,kernel_constraint=ClipConstraint(self.clipValue))(h)
         Ds = tf.keras.Model(s,Ps,name="Ds")
         return Ds
