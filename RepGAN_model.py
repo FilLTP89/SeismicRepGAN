@@ -104,7 +104,7 @@ class RepGAN(tf.keras.Model):
             AdvDlossN_tracker,AdvGlossX_tracker,AdvGlossC_tracker,AdvGlossS_tracker,AdvGlossN_tracker,\
             RecGlossX_tracker,RecGlossC_tracker,RecGlossS_tracker,Qloss_tracker,FakeCloss_tracker]
 
-    def compile(self,optimizers,losses): #run_eagerly
+    def compile(self,optimizers,losses):
         super(RepGAN, self).compile()
         """
             Optimizers
@@ -117,7 +117,6 @@ class RepGAN(tf.keras.Model):
 
     @tf.function
     def train_XZX(self,X,c):
-
 
         # Sample factorial prior S
         
@@ -155,7 +154,8 @@ class RepGAN(tf.keras.Model):
     
         # Get the gradients w.r.t the generator loss
         gradFx, gradGz = tape.gradient(RecGlossX,
-        (self.Fx.trainable_variables,self.Gz.trainable_variables),unconnected_gradients=tf.UnconnectedGradients.ZERO)
+                                       (self.Fx.trainable_variables,self.Gz.trainable_variables),
+                                       unconnected_gradients=tf.UnconnectedGradients.ZERO)
 
         # Update the weights of the generator using the generator optimizer
         self.FxOpt.apply_gradients(zip(gradFx,self.Fx.trainable_variables))
@@ -351,9 +351,10 @@ class RepGAN(tf.keras.Model):
             "AdvGlossX": AdvGlossX_tracker.result(),"AdvGlossC": AdvGlossC_tracker.result(),"AdvGlossS": AdvGlossS_tracker.result(),
             "AdvGlossN": AdvGlossN_tracker.result(),"RecGlossX": RecGlossX_tracker.result(),"RecGlossC": RecGlossC_tracker.result(),
             "RecGlossS": RecGlossS_tracker.result(), "Qloss": Qloss_tracker.result(), "FakeCloss": FakeCloss_tracker.result(),
-            "fakeX":tf.math.reduce_mean(X_fakecritic),"X":tf.math.reduce_mean(X_critic),
-            "c_fake":tf.math.reduce_mean(c_fakecritic),"c":tf.math.reduce_mean(c_critic),"n_fake":tf.math.reduce_mean(n_fakecritic),
-            "n_prior":tf.math.reduce_mean(n_priorcritic),"s_fake":tf.math.reduce_mean(s_fakecritic),"s_prior":tf.math.reduce_mean(s_priorcritic)}
+            "fakeX":tf.reduce_mean(Dx_fake),"X":tf.reduce_mean(Dx_real),
+            "c_fake":tf.reduce_mean(Dc_fake),"c":tf.reduce_mean(Dc_real),
+            "n_fake":tf.reduce_mean(Dn_fake),"n_prior":tf.reduce_mean(Dn_real),
+            "s_fake":tf.reduce_mean(Ds_fake),"s_prior":tf.reduce_mean(Ds_real)}
 
     def call(self, X):
         [_,_,s_fake,c_fake,n_fake] = self.Fx(X)
