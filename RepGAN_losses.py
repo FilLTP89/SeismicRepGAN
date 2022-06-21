@@ -174,28 +174,28 @@ def getLosses(**kwargs):
     losses['PenRecCloss'] = 1.
     losses['PenRecSloss'] = 1.
     
-    if DzTrainType.upper() == "WGAN":
-        losses['AdvDlossDz'] = WassersteinLoss 
-        losses['AdvGlossDz'] = WassersteinLoss 
+    if DzTrainType.upper() == "WGAN" or DzTrainType.upper() == "WGANSN":
+        losses['AdvDlossDz'] = WGANDiscriminatorLoss
+        losses['AdvGlossDz'] = WGANGeneratorLoss
     elif DzTrainType.upper() == "WGANGP":
-        losses['AdvDlossDz'] = WassersteinLoss
-        losses['AdvGlossDz'] = WassersteinLoss
+        losses['AdvDlossDz'] = WGANGPDiscriminatorLoss
+        losses['AdvGlossDz'] = WGANGPGeneratorLoss
     elif DzTrainType.upper() == "GAN":
-        losses['AdvDlossDz'] = tf.keras.losses.BinaryCrossentropy()
-        losses['AdvGlossDz'] = tf.keras.losses.BinaryCrossentropy()
+        losses['AdvDlossDz'] = GANDiscriminatorLoss
+        losses['AdvGlossDz'] = GANGeneratorLoss
     elif DzTrainType.upper() == "HINGE":
         losses['AdvDlossDz'] = HingeDGANLoss
-        losses['AdvGlossDz'] = GGANLoss
+        losses['AdvGlossDz'] = GANGeneratorLoss
 
-    if DxTrainType.upper() == "WGAN":
-        losses['AdvDlossDx'] = WassersteinLoss
-        losses['AdvGlossDx'] = WassersteinLoss
+    if DxTrainType.upper() == "WGAN" or DxTrainType.upper() == "WGANSN":
+        losses['AdvDlossDx'] = WGANDiscriminatorLoss
+        losses['AdvGlossDx'] = WGANGeneratorLoss
     elif DxTrainType.upper() == "WGANGP":
-        losses['AdvDlossDx'] = WassersteinLoss
-        losses['AdvGlossDx'] = WassersteinLoss
+        losses['AdvDlossDx'] = WGANGPDiscriminatorLoss
+        losses['AdvGlossDx'] = WGANGPGeneratorLoss
     elif DxTrainType.upper() == 'GAN':
-        losses['AdvDlossDx'] = tf.keras.losses.BinaryCrossentropy()
-        losses['AdvGlossDx'] = tf.keras.losses.BinaryCrossentropy()
+        losses['AdvDlossDx'] = GANDiscriminatorLoss
+        losses['AdvGlossDx'] = GANGeneratorLoss
     elif DxTrainType.upper() == "HINGE":
         raise Exception("Hinge loss not implemented for Dx")
 
