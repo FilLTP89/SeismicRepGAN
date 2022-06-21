@@ -70,6 +70,10 @@ class RepGAN(tf.keras.Model):
         # define the constraint
         self.ClipD = ClipConstraint(0.01)
         
+        self.ps = tfp.distributions.MultivariateNormalDiag(loc=tf.zeros(shape=(self.latentSdim,),dtype=tf.float32),
+                       scale_diag=tf.ones(shape=(self.latentSdim,),dtype=tf.float32))
+        self.pn = tfp.distributions.MultivariateNormalDiag(loc=tf.zeros(shape=(self.latentNdim,),dtype=tf.float32),
+                       scale_diag=tf.ones(shape=(self.latentNdim,),dtype=tf.float32))
         self.BuildModels()
         
     def BuildModels(self):
@@ -116,10 +120,11 @@ class RepGAN(tf.keras.Model):
 
 
         # Sample factorial prior S
-        s_prior = tf.random.normal(mean=0.0,stddev=1.0,shape=[self.batchSize,self.latentSdim],dtype=tf.float32)
+        
+        s_prior = self.ps.sample(self.batchSize)
 
         # Sample factorial prior N
-        n_prior = tf.random.normal(mean=0.0,stddev=1.0,shape=[self.batchSize,self.latentNdim],dtype=tf.float32)
+        n_prior = self.pn.sample(self.batchSize)
 
         # Train generators
         # Train nGenerator times the generators
@@ -228,10 +233,10 @@ class RepGAN(tf.keras.Model):
     def train_ZXZ(self,X,c):
 
         # Sample factorial prior S
-        s_prior = tf.random.normal(mean=0.0,stddev=1.0,shape=[self.batchSize,self.latentSdim],dtype=tf.float32)
+        s_prior = self.ps.sample(self.batchSize)
 
         # Sample factorial prior N
-        n_prior = tf.random.normal(mean=0.0,stddev=1.0,shape=[self.batchSize,self.latentNdim],dtype=tf.float32)
+        n_prior = self.pn.sample(self.batchSize)
 
         for _ in range(self.nCritic):
 
@@ -357,24 +362,24 @@ class RepGAN(tf.keras.Model):
 
     def plot(self,X,c):
         [_,_,s_fake,c_fake,n_fake] = self.Fx(X,training=False)
-        s_prior = tf.random.normal(mean=0.0,stddev=1.0,shape=[X.shape[0],self.latentSdim])
-        n_prior = tf.random.normal(mean=0.0,stddev=1.0,shape=[X.shape[0],self.latentNdim])
+        s_prior = self.ps.sample(X.shape[0])
+        n_prior = self.pn.sample(X.shape[0])
         fakeX = self.Gz((s_prior,c,n_prior),training=False)
         X_rec = self.Gz((s_fake,c_fake,n_fake),training=False)
         return X_rec, c_fake, s_fake, n_fake, fakeX
 
     def label_predictor(self, X, c):
         [_,_,s_fake,c_fake,n_fake] = self.Fx(X)
-        s_prior = tf.random.normal(mean=0.0,stddev=1.0,shape=[s_fake.shape[0],self.latentSdim])
-        n_prior = tf.random.normal(mean=0.0,stddev=1.0,shape=[n_fake.shape[0],self.latentNdim])
+        s_prior = self.ps.sample(s_fake.shape[0])
+        n_prior = self.pn.sample(n_fake.shape[0])
         fakeX = self.Gz((s_prior,c,n_prior),training=False)
         [_,_,_,c_rec,_] = self.Fx(fakeX,training=False)
         return c_fake, c_rec
     
     def distribution(self,X,c):
         [μs_fake,σs2_fake,s_fake,c_fake,n_fake] = self.Fx(X,training=False)
-        s_prior = tf.random.normal(mean=0.0,stddev=1.0,shape=[X.shape[0],self.latentSdim])
-        n_prior = tf.random.normal(mean=0.0,stddev=1.0,shape=[X.shape[0],self.latentNdim])
+        s_prior = self.ps.sample(X.shape[0])
+        n_prior = self.pn.sample(X.shape[0])
         fakeX = self.Gz((s_prior,c,n_prior),training=False)
         [μs_rec,σs2_rec,s_rec,c_rec,n_rec] = self.Fx(fakeX,training=False)
         return s_prior, n_prior, s_fake, n_fake, s_rec, n_rec, μs_fake, σs2_fake, μs_rec, σs2_rec
