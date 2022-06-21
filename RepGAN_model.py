@@ -20,23 +20,22 @@ import tensorflow.keras.constraints as kc
 
 from RepGAN_losses import GradientPenalty as GP
 
-AdvDLoss_tracker = keras.metrics.Mean(name="loss")
-AdvDlossX_tracker = keras.metrics.Mean(name="loss")
-AdvDlossC_tracker = keras.metrics.Mean(name="loss")
-AdvDlossS_tracker = keras.metrics.Mean(name="loss")
-AdvDlossN_tracker = keras.metrics.Mean(name="loss")
-AdvGLoss_tracker = keras.metrics.Mean(name="loss")
-AdvGlossX_tracker = keras.metrics.Mean(name="loss")
-AdvGlossC_tracker = keras.metrics.Mean(name="loss")
-AdvGlossS_tracker = keras.metrics.Mean(name="loss")
-AdvGlossN_tracker = keras.metrics.Mean(name="loss")
-RecGlossX_tracker = keras.metrics.Mean(name="loss")
-RecGlossC_tracker = keras.metrics.Mean(name="loss")
-RecGlossS_tracker = keras.metrics.Mean(name="loss")
-Qloss_tracker = keras.metrics.Mean(name="loss")
-FakeCloss_tracker = keras.metrics.Mean(name="loss")
-
-class ClipConstraint(tf.keras.constraints.Constraint):
+# Create Metric instances to track the losses
+AdvDLoss_tracker = km.Mean(name="Dloss")
+AdvDlossX_tracker = km.Mean(name="DlossX")
+AdvDlossC_tracker = km.Mean(name="DlossC")
+AdvDlossS_tracker = km.Mean(name="DlossS")
+AdvDlossN_tracker = km.Mean(name="DlossN")
+AdvGLoss_tracker = km.Mean(name="Gloss")
+AdvGlossX_tracker = km.Mean(name="GlossX")
+AdvGlossC_tracker = km.Mean(name="GlossC")
+AdvGlossS_tracker = km.Mean(name="GlossS")
+AdvGlossN_tracker = km.Mean(name="GlossN")
+RecGlossX_tracker = km.Mean(name="RecGlossX")
+RecGlossC_tracker = km.Mean(name="RecGlossC")
+RecGlossS_tracker = km.Mean(name="RecGlossN")
+Qloss_tracker = km.Mean(name="Qloss")
+FakeCloss_tracker = km.Mean(name="FakeCloss")
     # set clip value when initialized
     def __init__(self, clip_value):
         self.clip_value = clip_value
