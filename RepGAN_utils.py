@@ -42,8 +42,12 @@ def ParseOptions():
     parser.add_argument("--Cstride",type=int,default=2,help='CNN stride of C-branch branch')
     parser.add_argument("--Nstride",type=int,default=2,help='CNN stride of N-branch branch')
     parser.add_argument("--batchSize",type=int,default=50,help='input batch size')    
-    parser.add_argument("--DxTrainType", type=str, default='GAN',help='Train Dx with GAN, WGAN or WGANGP')
-    parser.add_argument("--DzTrainType", type=str, default='GAN',help='Train Ds with GAN, WGAN or WGANGP')
+    parser.add_argument("--DxTrainType", type=str, default='WGAN',help='Train Dx with GAN, WGAN or WGANGP')
+    parser.add_argument("--DzTrainType", type=str, default='WGAN',help='Train Ds with GAN, WGAN or WGANGP')
+    parser.add_argument("--DxSN", action='store_true',default=False, help='Spectral normalization in Dx')
+    parser.add_argument("--DzSN", action='store_true',default=False, help='Spectral normalization in Dz')
+    parser.add_argument("--FxSN", action='store_true',default=False, help='Spectral normalization in Fx')
+    parser.add_argument("--GzSN", action='store_true',default=False, help='Spectral normalization in Gz')
     parser.add_argument("--DxLR", type=float, default=0.0002,help='Learning rate for Dx [GAN=0.0002/WGAN=0.001]')
     parser.add_argument("--DsLR", type=float, default=0.0002,help='Learning rate for Ds [GAN=0.0002/WGAN=0.001]')
     parser.add_argument("--DnLR", type=float, default=0.0002,help='Learning rate for Dn [GAN=0.0002/WGAN=0.001]')
@@ -58,10 +62,10 @@ def ParseOptions():
     parser.add_argument("--nXRepX",type=int,default=1,help='number of discriminator training steps')
     parser.add_argument("--nRepXRep",type=int,default=5,help='number of discriminator training steps')
     parser.add_argument("--clipValue",type=float,default=0.01,help='clip weight for WGAN')
-    
+    parser.add_argument("--dpout",type=float,default=0.25,help='Dropout ratio')
     parser.add_argument("--CreateData", action='store_true',default=False, help='Create data flag')
     parser.add_argument("--rawdata_dir", nargs="+", default=["PortiqueElasPlas_N_2000_index","PortiqueElasPlas_E_2000_index"],help="Data root folder") 
-    parser.add_argument("--store_dir", default=["input_data"], help="Data root folder")
+    parser.add_argument("--store_dir", default="input_data", help="Data root folder")
     parser.add_argument("--checkpoint_dir",default='checkpoint',help="Checkpoint")
     parser.add_argument("--results_dir",default='results',help="Checkpoint")
     parser.add_argument("--idChannels", type=int, nargs='+', default=[1, 2, 3, 4], help="Channel 1")
@@ -70,7 +74,6 @@ def ParseOptions():
     parser.add_argument("--avu", type=str, nargs='+',default="U", help="case avu")
     parser.add_argument("--pb", type=str, default="DC", help="case pb")  # DC
     parser.add_argument('--dtm', type=float, default=0.04,help='time-step [s]')
-    parser.add_argument("--discriminator", default='WGAN', help="Type of Dz")
     parser.add_argument("--sigmas2",default='sigmoid',help="Last sigmas2 activation layer")
     options = parser.parse_args().__dict__
 
