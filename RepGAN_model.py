@@ -114,13 +114,6 @@ class RepGAN(tf.keras.Model):
     @tf.function
     def train_XZX(self,X,c):
 
-        # Create labels for BCE in GAN loss
-        realBCE_C = tf.ones((self.batchSize,1), dtype=tf.float32)
-        fakeBCE_C = -tf.ones((self.batchSize,1), dtype=tf.float32)
-        realBCE_S = tf.ones((self.batchSize,1), dtype=tf.float32)
-        fakeBCE_S = -tf.ones((self.batchSize,1), dtype=tf.float32)
-        realBCE_N = tf.ones((self.batchSize,1), dtype=tf.float32)
-        fakeBCE_N = -tf.ones((self.batchSize,1), dtype=tf.float32)
 
         # Sample factorial prior S
         s_prior = tf.random.normal(mean=0.0,stddev=1.0,shape=[self.batchSize,self.latentSdim],dtype=tf.float32)
@@ -233,10 +226,6 @@ class RepGAN(tf.keras.Model):
 
     @tf.function
     def train_ZXZ(self,X,c):
-
-        # Create labels for BCE in GAN loss
-        realBCE_X = tf.ones((self.batchSize,1), dtype=tf.float32)
-        fakeBCE_X = tf.zeros((self.batchSize,1), dtype=tf.float32)
 
         # Sample factorial prior S
         s_prior = tf.random.normal(mean=0.0,stddev=1.0,shape=[self.batchSize,self.latentSdim],dtype=tf.float32)
