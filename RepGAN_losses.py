@@ -144,15 +144,20 @@ def InfoLoss(X, Gz):
 def getOptimizers(**kwargs):
     getOptimizers.__globals__.update(kwargs)
     optimizers = {}
-    optimizers['DxOpt'] = Adam(learning_rate=0.002, beta_1=0.5, beta_2=0.9999)
-    if 'WGAN' in discriminator:
-        optimizers['DcOpt'] = RMSprop(learning_rate=0.002)
-        optimizers['DsOpt'] = RMSprop(learning_rate=0.002)
-        optimizers['DnOpt'] = RMSprop(learning_rate=0.002)
+    
+    if DxTrainType.upper() == "WGAN" or DxTrainType.upper() == "WGANSN":
+        optimizers['DxOpt'] = RMSprop(learning_rate=DxLR)
     else:
-        optimizers['DcOpt'] = Adam(learning_rate=0.002, beta_1=0.5, beta_2=0.9999)
-        optimizers['DsOpt'] = Adam(learning_rate=0.002, beta_1=0.5, beta_2=0.9999)
-        optimizers['DnOpt'] = Adam(learning_rate=0.002, beta_1=0.5, beta_2=0.9999) 
+        optimizers['DxOpt'] = Adam(learning_rate=DxLR, beta_1=0.5, beta_2=0.9999)
+        
+    if DzTrainType.upper() == "WGAN" or DzTrainType.upper() == "WGANSN":
+        optimizers['DcOpt'] = RMSprop(learning_rate=DcLR)
+        optimizers['DsOpt'] = RMSprop(learning_rate=DsLR)
+        optimizers['DnOpt'] = RMSprop(learning_rate=DnLR)
+    else:
+        optimizers['DcOpt'] = Adam(learning_rate=DcLR, beta_1=0.5, beta_2=0.9999)
+        optimizers['DsOpt'] = Adam(learning_rate=DsLR, beta_1=0.5, beta_2=0.9999)
+        optimizers['DnOpt'] = Adam(learning_rate=DnLR, beta_1=0.5, beta_2=0.9999)
     optimizers['FxOpt'] = Adam(learning_rate=0.001, beta_1=0.5, beta_2=0.9999)
     optimizers['GzOpt'] = Adam(learning_rate=0.001, beta_1=0.5, beta_2=0.9999)
     return optimizers
