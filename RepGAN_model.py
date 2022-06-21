@@ -11,11 +11,12 @@ __email__ = "filippo.gatti@centralesupelec.fr"
 __status__ = "Beta"
 
 import tensorflow as tf
+import tensorflow_addons as tfa
+import tensorflow_probability as tfp
 from tensorflow import keras
 import tensorflow.keras.layers as kl
-import tensorflow_addons as tfa
-from tensorflow.keras.constraints import Constraint
-import tensorflow_probability as tfp
+import tensorflow.keras.metrics as km
+import tensorflow.keras.constraints as kc
 
 from RepGAN_losses import GradientPenalty as GP
 
