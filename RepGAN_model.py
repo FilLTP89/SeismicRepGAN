@@ -36,15 +36,17 @@ RecGlossC_tracker = km.Mean(name="RecGlossC")
 RecGlossS_tracker = km.Mean(name="RecGlossN")
 Qloss_tracker = km.Mean(name="Qloss")
 FakeCloss_tracker = km.Mean(name="FakeCloss")
+
+class ClipConstraint(kc.Constraint):
     # set clip value when initialized
     def __init__(self, clip_value):
         self.clip_value = clip_value
     # clip model weights to hypercube
     def __call__(self, weights):
         if self.clip_value is not None:
-            return tf.keras.backend.clip(weights, -self.clip_value, self.clip_value)
+            return tf.clip_by_value(weights, -self.clip_value, self.clip_value)
         else:             
-            return tf.keras.backend.clip(weights, None, None)
+            return tf.clip_by_value(weights, None, None)
     # get the config
     def get_config(self):
         return {'clip_value': self.clip_value}
