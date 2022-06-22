@@ -71,7 +71,6 @@ def Train(DeviceName):
             # Load the dataset
             Xtrn, Xvld, _ = mdof.LoadData(**options)
 
-        #validation_data=Xvld
         history = GiorgiaGAN.fit(Xtrn,epochs=options["epochs"],
             callbacks=[tf.keras.callbacks.ModelCheckpoint(filepath=options['checkpoint_dir'] + "/ckpt-{epoch}.ckpt", save_freq='epoch',period=500)]) #CustomLearningRateScheduler(schedule), NewCallback(p,epochs)
 

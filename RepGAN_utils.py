@@ -105,4 +105,5 @@ def DumpModels(models, results_dir):
     for m in models:
         m.save(os.path.join(results_dir,m.name),
             save_format="tf")
+        tf.keras.utils.plot_model(m,to_file="{:>s}.png".format(os.path.join(results_dir,m.name)))
     return
