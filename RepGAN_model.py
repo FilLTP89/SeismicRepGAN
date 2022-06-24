@@ -81,9 +81,9 @@ class RepGAN(tf.keras.Model):
         # define the constraint
         self.ClipD = ClipConstraint(0.01)
         
-        self.ps = tfp.distributions.MultivariateNormalDiag(loc=tf.zeros(shape=(self.latentSdim,),dtype=tf.float32),
+        self.ps = tfd.MultivariateNormalDiag(loc=tf.zeros(shape=(self.latentSdim,),dtype=tf.float32),
                        scale_diag=tf.ones(shape=(self.latentSdim,),dtype=tf.float32))
-        self.pn = tfp.distributions.MultivariateNormalDiag(loc=tf.zeros(shape=(self.latentNdim,),dtype=tf.float32),
+        self.pn = tfd.MultivariateNormalDiag(loc=tf.zeros(shape=(self.latentNdim,),dtype=tf.float32),
                        scale_diag=tf.ones(shape=(self.latentNdim,),dtype=tf.float32))
         self.BuildModels()
         
@@ -142,12 +142,13 @@ class RepGAN(tf.keras.Model):
         with tf.GradientTape(persistent=True) as tape:
 
             # Encode real signals
-            _,_,s_fake,c_fake,n_fake = self.Fx(X,training=True)
+            _,s_fake,c_fake,n_fake = self.Fx(X,training=True)
 
             FakeCloss = self.FakeCloss(c,c_fake)
         
         # Get the gradients w.r.t the generator loss
-        gradFx = tape.gradient(FakeCloss,(self.Fx.trainable_variables),unconnected_gradients=tf.UnconnectedGradients.ZERO)
+        gradFx = tape.gradient(FakeCloss,(self.Fx.trainable_variables),
+                               unconnected_gradients=tf.UnconnectedGradients.ZERO)
 
         # Update the weights of the generator using the generator optimizer
         self.FxOpt.apply_gradients(zip(gradFx,self.Fx.trainable_variables))
@@ -155,13 +156,13 @@ class RepGAN(tf.keras.Model):
         with tf.GradientTape(persistent=True) as tape:
 
             # Encode real signals
-            _,_,s_fake,c_fake,n_fake = self.Fx(X,training=True)
+            _,s_fake,c_fake,n_fake = self.Fx(X,training=True)
 
             # Reconstruct real signals
             X_rec = self.Gz((s_fake,c_fake,n_fake),training=True)
 
             # Compute reconstruction loss
-            RecGlossX = self.RecXloss(X,X_rec)*self.PenRecXloss #-tf.reduce_mean(logpz - logqz_x)
+            RecGlossX = self.RecXloss(X,X_rec)
     
         # Get the gradients w.r.t the generator loss
         gradFx, gradGz = tape.gradient(RecGlossX,
@@ -179,7 +180,7 @@ class RepGAN(tf.keras.Model):
             with tf.GradientTape(persistent=True) as tape:
 
                 # Encode real signals X
-                [_,_,s_fake,c_fake,n_fake] = self.Fx(X,training=True)
+                [_,s_fake,c_fake,n_fake] = self.Fx(X,training=True)
 
                 # Discriminates real and fake S
                 Ds_fake = self.Ds(s_fake,training=True)
@@ -194,9 +195,9 @@ class RepGAN(tf.keras.Model):
                 Dc_real = self.Dc(c,training=True)
 
                 # Compute XZX adversarial loss (JS(s),JS(n),JS(c))
-                AdvDlossC = self.AdvDlossDz(Dc_real, Dc_fake, D=self.Dc, λ=self.PenAdvCloss)
-                AdvDlossS = self.AdvDlossDz(Ds_real, Ds_fake, D=self.Ds, λ=self.PenAdvSloss)
-                AdvDlossN = self.AdvDlossDz(Dn_real, Dn_fake, D=self.Dn, λ=self.PenAdvNloss)
+                AdvDlossC = self.AdvDlossDc(Dc_real, Dc_fake)
+                AdvDlossS = self.AdvDlossDs(Ds_real, Ds_fake)
+                AdvDlossN = self.AdvDlossDn(Dn_real, Dn_fake)
                 
                 AdvDloss = AdvDlossC + AdvDlossS + AdvDlossN
 
@@ -213,7 +214,7 @@ class RepGAN(tf.keras.Model):
         with tf.GradientTape(persistent=True) as tape:
 
             # Encode real signals
-            _,_,s_fake,c_fake,n_fake = self.Fx(X,training=True)
+            _,s_fake,c_fake,n_fake = self.Fx(X,training=True)
 
             # Discriminate fake latent space
             Ds_fake = self.Ds(s_fake,training=True)
@@ -221,9 +222,9 @@ class RepGAN(tf.keras.Model):
             Dn_fake = self.Dn(n_fake,training=True)
 
             # Compute adversarial loss for generator
-            AdvGlossC = self.AdvGlossDz(Dc_fake, λ=self.PenAdvCloss)
-            AdvGlossS = self.AdvGlossDz(Ds_fake, λ=self.PenAdvSloss)
-            AdvGlossN = self.AdvGlossDz(Dn_fake, λ=self.PenAdvNloss)
+            AdvGlossC = self.AdvGlossDc(Dc_fake)
+            AdvGlossS = self.AdvGlossDs(Ds_fake)
+            AdvGlossN = self.AdvGlossDn(Dn_fake)
 
             # Compute total generator loss
             AdvGloss = AdvGlossC + AdvGlossS + AdvGlossN
@@ -259,7 +260,7 @@ class RepGAN(tf.keras.Model):
                 Dx_real = self.Dx(X,training=True)
 
                 # Compute the discriminator loss GAN loss (penalized)
-                AdvDlossX = self.AdvDlossDx(Dx_real, Dx_fake, λ=self.PenAdvXloss)
+                AdvDlossX = self.AdvDlossDx(Dx_real, Dx_fake)
             # Compute the discriminator gradient
             gradDx = tape.gradient(AdvDlossX,self.Dx.trainable_variables,unconnected_gradients=tf.UnconnectedGradients.ZERO)
             # Update the weights of the discriminator using the discriminator optimizer
@@ -290,12 +291,11 @@ class RepGAN(tf.keras.Model):
             with tf.GradientTape(persistent=True) as tape:
                 
                 # Encode fake signals
-                [μs_rec,σs2_rec,s_rec,c_rec,_] = self.Fx(X_fake,training=True)
-
-                #Q_cont_distribution = tfp.distributions.MultivariateNormalDiag(loc=μs_rec, scale_diag=σs2_rec)
+                [hs,s_rec,c_rec,_] = self.Fx(X_fake,training=True)
+                #Q_cont_distribution = tfp.distributions.MultivariateNormalDiag(loc=μs_rec, scale_diag=logΣs_rec)
                 #RecGlossS = -tf.reduce_mean(Q_cont_distribution.log_prob(s_rec))
-                RecGlossS = self.RecSloss(s_prior,μs_rec,σs2_rec)*self.PenRecSloss
-                RecGlossC = self.RecCloss(c,c_rec)*self.PenRecCloss #+ self.RecCloss(c,c_fake)*self.PenRecCloss
+                RecGlossS = self.RecSloss(s_prior,hs)
+                RecGlossC = self.RecCloss(c,c_rec)
 
                 # Compute InfoGAN Q loos
                 Qloss = RecGlossS + RecGlossC
@@ -364,12 +364,12 @@ class RepGAN(tf.keras.Model):
             "s_fake":tf.reduce_mean(Ds_fake),"s_prior":tf.reduce_mean(Ds_real)}
 
     def call(self, X):
-        [_,_,s_fake,c_fake,n_fake] = self.Fx(X)
+        [_,s_fake,c_fake,n_fake] = self.Fx(X)
         X_rec = self.Gz((s_fake,c_fake,n_fake))
         return X_rec, c_fake, s_fake, n_fake
 
     def plot(self,X,c):
-        [_,_,s_fake,c_fake,n_fake] = self.Fx(X,training=False)
+        [_,s_fake,c_fake,n_fake] = self.Fx(X,training=False)
         s_prior = self.ps.sample(X.shape[0])
         n_prior = self.pn.sample(X.shape[0])
         fakeX = self.Gz((s_prior,c,n_prior),training=False)
@@ -377,28 +377,29 @@ class RepGAN(tf.keras.Model):
         return X_rec, c_fake, s_fake, n_fake, fakeX
 
     def label_predictor(self, X, c):
-        [_,_,s_fake,c_fake,n_fake] = self.Fx(X)
+        [_,s_fake,c_fake,n_fake] = self.Fx(X)
         s_prior = self.ps.sample(s_fake.shape[0])
         n_prior = self.pn.sample(n_fake.shape[0])
         fakeX = self.Gz((s_prior,c,n_prior),training=False)
-        [_,_,_,c_rec,_] = self.Fx(fakeX,training=False)
+        [_,_,c_rec,_] = self.Fx(fakeX,training=False)
         return c_fake, c_rec
     
     def distribution(self,X,c):
-        [μs_fake,σs2_fake,s_fake,c_fake,n_fake] = self.Fx(X,training=False)
+        [hs_fake,s_fake,c_fake,n_fake] = self.Fx(X,training=False)
+        μs_fake,logΣs_fake = tf.split(hs_fake,num_or_size_splits=2, axis=1)
         s_prior = self.ps.sample(X.shape[0])
         n_prior = self.pn.sample(X.shape[0])
         fakeX = self.Gz((s_prior,c,n_prior),training=False)
-        [μs_rec,σs2_rec,s_rec,c_rec,n_rec] = self.Fx(fakeX,training=False)
-        return s_prior, n_prior, s_fake, n_fake, s_rec, n_rec, μs_fake, σs2_fake, μs_rec, σs2_rec
+        [hs_rec,s_rec,c_rec,n_rec] = self.Fx(fakeX,training=False)
+        μs_rec, logΣs_rec = tf.split(hs_fake,num_or_size_splits=2, axis=1)
+        return s_prior, n_prior, s_fake, n_fake, s_rec, n_rec, μs_fake, logΣs_fake, μs_rec, logΣs_rec
 
     def generate(self, X, c_fake_new):
-        [_,_,s_fake,c_fake,n_fake] = self.Fx(X)
+        [_,s_fake,c_fake,n_fake] = self.Fx(X)
         X_rec_new = self.Gz((s_fake,c_fake_new,n_fake),training=False)
         return X_rec_new
 
     # BN : do not apply batchnorm to the generator output layer and the discriminator input layer
-
     def BuildFx(self):
         """
             Fx encoder structure
