@@ -405,7 +405,7 @@ class RepGAN(tf.keras.Model):
         """
         # To build this model using the functional API
 
-        # kl.Input layer
+        # Input layer
         X = kl.Input(shape=self.Xshape,name="X")
 
         # Initial CNN layer
@@ -435,8 +435,8 @@ class RepGAN(tf.keras.Model):
         z = kl.Dropout(self.dpout,name="FxDO{:>d}".format(layer+1))(h)
         # z ---> Zshape = (Zsize,nZchannels)
 
-        layer = 0
         # variable s
+        layer = 0
         # s-average
         h_μs = kl.Conv1D(self.nZchannels*self.Sstride**(layer+1),
             self.Skernel,self.Sstride,padding="same",
@@ -444,15 +444,15 @@ class RepGAN(tf.keras.Model):
         h_μs = kl.BatchNormalization(momentum=0.95,name="FxBNmuS{:>d}".format(layer+1))(h_μs)
         h_μs = kl.LeakyReLU(alpha=0.1,name="FxAmuS{:>d}".format(layer+1))(h_μs)
         h_μs = kl.Dropout(self.dpout,name="FxDOmuS{:>d}".format(layer+1))(h_μs)
-
-        # s-log std
-        h_σs2 = kl.Conv1D(self.nZchannels*self.Sstride**(layer+1),
-            self.Skernel,self.Sstride,padding="same",
-            data_format="channels_last",name="FxCNNlvS{:>d}".format(layer+1))(z)
-        h_σs2 = kl.BatchNormalization(momentum=0.95,name="FxBNlvS{:>d}".format(layer+1))(h_σs2)
-        h_σs2 = kl.LeakyReLU(alpha=0.1,name="FxAlvS{:>d}".format(layer+1))(h_σs2)
-        h_σs2 = kl.Dropout(self.dpout,name="FxDOlvS{:>d}".format(layer+1))(h_σs2)
-
+        if self.sdouble_branch:
+            # s-logvar
+            h_logDiagΣs = kl.Conv1D(self.nZchannels*self.Sstride**(layer+1),
+                self.Skernel,self.Sstride,padding="same",
+                data_format="channels_last",name="FxCNNlvS{:>d}".format(layer+1))(z)
+            h_logDiagΣs = kl.BatchNormalization(momentum=0.95,name="FxBNlvS{:>d}".format(layer+1))(h_logDiagΣs)
+            h_logDiagΣs = kl.LeakyReLU(alpha=0.1,name="FxAlvS{:>d}".format(layer+1))(h_logDiagΣs)
+            h_logDiagΣs = kl.Dropout(self.dpout,name="FxDOlvS{:>d}".format(layer+1))(h_logDiagΣs)
+            
         # variable c
         h_c = kl.Conv1D(self.nZchannels*self.Cstride**(layer+1),
                 self.Ckernel,self.Cstride,padding="same",
@@ -481,13 +481,15 @@ class RepGAN(tf.keras.Model):
             h_μs = kl.LeakyReLU(alpha=0.1,name="FxAmuS{:>d}".format(layer+1))(h_μs)
             h_μs = kl.Dropout(self.dpout,name="FxDOmuS{:>d}".format(layer+1))(h_μs)
 
-            # s-log std
-            h_σs2 = kl.Conv1D(self.nZchannels*self.Sstride**(layer+1),
-                self.Skernel,self.Sstride,padding="same",
-                data_format="channels_last",name="FxCNNlvS{:>d}".format(layer+1))(h_σs2)
-            h_σs2 = kl.BatchNormalization(momentum=0.95,name="FxBNlvS{:>d}".format(layer+1))(h_σs2)
-            h_σs2 = kl.LeakyReLU(alpha=0.1,name="FxAlvS{:>d}".format(layer+1))(h_σs2)
-            h_σs2 = kl.Dropout(self.dpout,name="FxDOlvS{:>d}".format(layer+1))(h_σs2)
+        if self.sdouble_branch:
+            for layer in range(1, self.nSlayers):
+                # s-logvar
+                h_logDiagΣs = kl.Conv1D(self.nZchannels*self.Sstride**(layer+1),
+                    self.Skernel,self.Sstride,padding="same",
+                    data_format="channels_last",name="FxCNNlvS{:>d}".format(layer+1))(h_logDiagΣs)
+                h_logDiagΣs = kl.BatchNormalization(momentum=0.95,name="FxBNlvS{:>d}".format(layer+1))(h_logDiagΣs)
+                h_logDiagΣs = kl.LeakyReLU(alpha=0.1,name="FxAlvS{:>d}".format(layer+1))(h_logDiagΣs)
+                h_logDiagΣs = kl.Dropout(self.dpout,name="FxDOlvS{:>d}".format(layer+1))(h_logDiagΣs)
 
         # variable c
         for layer in range(1,self.nClayers):
@@ -510,31 +512,40 @@ class RepGAN(tf.keras.Model):
             h_n = kl.Dropout(self.dpout,name="FxDON{:>d}".format(layer+1))(h_n)
 
         # variable s
+        # s-average
         h_μs = kl.Flatten(name="FxFLmuS{:>d}".format(layer+1))(h_μs)
         h_μs = kl.Dense(1024)(h_μs)
         h_μs = kl.BatchNormalization(momentum=0.95)(h_μs)
         h_μs = kl.LeakyReLU(alpha=0.1)(h_μs)
-        h_μs = kl.Dense(self.latentSdim,name="FxFWmuS")(h_μs)
-        μs = kl.BatchNormalization(momentum=0.95,name="FxBNmuS")(h_μs)
-        #h_μs = kl.BatchNormalization(momentum=0.95,name="FxBNmuS")(h_μs)
-        #μs = kl.LeakyReLU(alpha=0.1)(h_μs)
-
-        # s-sigma
-        h_σs2 = kl.Flatten(name="FxFLlvS{:>d}".format(layer+1))(h_σs2)
-        h_σs2 = kl.Dense(1024)(h_σs2)
-        h_σs2 = kl.BatchNormalization(momentum=0.95)(h_σs2)
-        h_σs2 = kl.LeakyReLU(alpha=0.1)(h_σs2)
-        h_σs2 = kl.Dense(self.latentSdim,name="FxFWlvS")(h_σs2)
-        h_σs2 = kl.BatchNormalization(momentum=0.95,axis=-1,name="FxBNlvS")(h_σs2)
-        #h_σs2 = kl.LeakyReLU(alpha=0.1,name="FxAlvS{:>d}".format(layer+2))(h_σs2)
-        if 'sigmoid' in self.sigmas2:
-            σs2 = tf.keras.activations.sigmoid(h_σs2)
-        elif 'softplus' in self.sigmas2:
-            σs2 = tf.keras.activations.softplus(h_σs2)
-        else:
-            σs2
         
-
+        if self.sdouble_branch:
+            # s-average
+            h_μs = kl.Dense(self.latentSdim,name="FxFWmuS")(h_μs)
+            
+            # s-logvar
+            h_logDiagΣs = kl.Flatten(name="FxFLlvS{:>d}".format(layer+1))(h_logDiagΣs)
+            h_logDiagΣs = kl.Dense(1024)(h_logDiagΣs)
+            h_logDiagΣs = kl.BatchNormalization(momentum=0.95)(h_logDiagΣs)
+            h_logDiagΣs = kl.LeakyReLU(alpha=0.1)(h_logDiagΣs)
+            h_logDiagΣs = kl.Dense(self.latentSdim,name="FxFWlvS")(h_logDiagΣs)
+            
+            if 'sigmoid' in self.sigmas2:
+                logΣs = tf.keras.activations.sigmoid(h_logDiagΣs)
+            elif 'softplus' in self.sigmas2:
+                logΣs = tf.keras.activations.softplus(h_logDiagΣs)
+            else:
+                logΣs = h_logDiagΣs
+            
+            hs = kl.Concatenate([h_μs,h_logDiagΣs],axis=-1,name="FxFWS")
+            
+        else:
+            # s-average & s-logvar
+            hs = kl.Dense(self.latentSdim+self.latentSdim,name="FxFWS")(h_μs)
+            if 'sigmoid' in self.sigmas2:
+                hs = tf.keras.activations.sigmoid(hs)
+            elif 'softplus' in self.sigmas2:
+                hs = tf.keras.activations.softplus(hs)
+        
         # variable c
         layer = self.nClayers
         h_c = kl.Flatten(name="FxFLC{:>d}".format(layer+1))(h_c)
@@ -554,7 +565,7 @@ class RepGAN(tf.keras.Model):
         h_n = kl.Dense(self.latentNdim,name="FxFWN")(h_n)
 
         # variable s
-        s = sampleS(name="sample_style")([μs,σs2])
+        s = sampleS(hs,self.latentSdim)
 
         # variable c
         #c = kl.Dense(self.latentCdim,activation=tf.keras.activations.softmax)(h_c)
@@ -564,7 +575,7 @@ class RepGAN(tf.keras.Model):
         n = kl.BatchNormalization(name="bn_noise",momentum=0.95)(h_n)
         #n = tfa.layers.InstanceNormalization()(h_n)
 
-        Fx = tf.keras.Model(X,[μs,σs2,s,c,n],name="Fx")
+        Fx = tf.keras.Model(X,[hs,s,c,n],name="Fx")
 
         return Fx
 
