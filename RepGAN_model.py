@@ -20,6 +20,8 @@ import tensorflow.keras.constraints as kc
 
 from RepGAN_losses import GradientPenalty as GP
 
+tfd = tfp.distributions
+
 # Create Metric instances to track the losses
 AdvDLoss_tracker = km.Mean(name="Dloss")
 AdvDlossX_tracker = km.Mean(name="DlossX")
@@ -51,12 +53,21 @@ class ClipConstraint(kc.Constraint):
     def get_config(self):
         return {'clip_value': self.clip_value}
 
-class sampleS(kl.Layer):
-    def call(self, inputs):
-        μ,σ2 = inputs
-        ε = tf.random.normal(shape=tf.shape(μ),mean=0.0,stddev=1.0)
-        return μ + tf.multiply(tf.sqrt(σ2),ε)
-        #return μ + tf.multiply(σ2,ε)
+class sampleSlayer(kl.Layer):
+    def __init__(self,latentSdim=1):
+        super(sampleS, self).__init__()
+        self.latentSdim = latentSdim
+    def call(self,hs):
+        μs, logΣs = tf.split(hs,num_or_size_splits=2, axis=1)
+        Σs = tf.math.exp(0.5*logΣs)
+        ε = tf.random.normal(shape=self.latentSdim, mean=0.0, stddev=1.0)
+        return μs + tf.exp(0.5*Σs)*ε
+
+
+def sampleS(hs,latentSdim):
+    μs, logΣs = tf.split(hs,num_or_size_splits=2, axis=1)
+    ε = tf.random.normal(shape=tf.shape(μs), mean=0.0, stddev=1.0)
+    return μs + tf.math.exp(0.5*logΣs)*ε
 
 class RepGAN(tf.keras.Model):
 
