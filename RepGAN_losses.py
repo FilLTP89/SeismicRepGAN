@@ -15,50 +15,84 @@ import tensorflow.keras.losses as kl
 import numpy as np
 from tensorflow.keras.optimizers import Adam, RMSprop
 
-bce_loss = kl.BinaryCrossentropy(from_logits=True)
-
 ε = 1e-8
 
-
-@tf.function
-def GaussianNLL(x,μ,Σ,mod='var',raxis=None):
+class GaussianNLL(kl.Loss):
     """
         Gaussian negative loglikelihood loss function
     """
-    n_dims = int(x.shape[1])
+    def __init__(self, mod='var', raxis=None, λ=1.0):
+        super(GaussianNLL,self).__init__()
 
-    if not raxis:
-        raxis = [i for i in range(1,len(x.shape))]
+        self.mod = mod
+        self.raxis = raxis
+        self.λ = λ
+    
+    @tf.function
+    def call(self, x, μlogΣ):
+                
+        μ, logΣ = tf.split(μlogΣ,num_or_size_splits=2, axis=1)
 
-    log2pi = 0.5*n_dims*tf.math.log(2.*np.pi)
+        n_dims = int(x.shape[1])
 
-    if 'var' in mod:
-      Σ = tf.math.log(Σ+ε)
+        if not self.raxis:
+            raxis = [i for i in range(1,len(x.shape))]
+        else:
+            raxis = self.raxis
 
-    mse = 0.5*tf.square(x-μ)*tf.exp(-Σ)
-    traceΣ = tf.reduce_sum(Σ,axis=raxis)
-    NLL = tf.reduce_sum(mse,axis=raxis)+traceΣ+log2pi
+        log2pi = 0.5*n_dims*tf.math.log(2.*np.pi)
 
-    # mse = -0.5*tf.reduce_sum(tf.keras.backend.square((x-μ))/sigma,axis=raxis) 
-    # sigma_trace = -0.5*tf.reduce_sum(tf.math.log(sigma), axis=raxis)
-    # NLL = mse+sigma_trace+log2pi
+        mse = tf.reduce_sum(0.5*tf.math.square(x-μ)*tf.math.exp(-logΣ),axis=raxis)
+        traceΣ = tf.reduce_sum(tf.math.exp(logΣ), axis=raxis)
+        NLL = mse+traceΣ+log2pi
 
-    return tf.reduce_mean(NLL)
+        return self.λ*tf.reduce_mean(NLL)
 
+class GANDiscriminatorLoss(kl.Loss):
+    """
+         General GAN Loss (for real and fake) with labels: {0,1}. 
+         Logit output from D
+    """
+    def __init__(self, raxis=1, λ=1.0):
+        super(GANDiscriminatorLoss,self).__init__()
 
-@tf.function
-def GANDiscriminatorLoss(DX, DGz, D=None, λ=1.0):
-    # General GAN Loss (for real and fake) with labels: {0,1}. Sigmoid output from D
-    real_loss = bce_loss(tf.ones_like(DX), DX)
-    fake_loss = bce_loss(tf.zeros_like(DGz), DGz)
-    return λ*(real_loss + fake_loss)
+        self.raxis = raxis
+        self.λ = λ
+    
+    @tf.function
+    def call(self,DX,DGz):
+        
+        if not self.raxis:
+            raxis = [i for i in range(1, len(DGz.shape))]
+        else:
+            raxis = self.raxis
+            
+        real_loss = kl.BinaryCrossentropy(from_logits=True, axis=raxis)(tf.ones_like(DX), DX)
+        fake_loss = kl.BinaryCrossentropy(from_logits=True, axis=raxis)(tf.zeros_like(DGz), DGz)
+        
+        return self.λ*(real_loss + fake_loss)
 
+class GANGeneratorLoss(kl.Loss):
+    """
+        Generator GAN Loss for generator
+        Logit output from D    
+    """
+    def __init__(self, raxis=1, λ=1.0):
+        super(GANGeneratorLoss,self).__init__()
 
-@tf.function
-def GANGeneratorLoss(DGz, λ=1.0):
-    """Generator GAN Loss for generator"""
-    real_loss = bce_loss(tf.ones_like(DGz), DGz)
-    return λ*real_loss
+        self.raxis = raxis
+        self.λ = λ
+        
+    @tf.function
+    def call(self, DX, DGz):
+
+        if not self.raxis:
+            raxis = [i for i in range(1, len(DGz.shape))]
+        else:
+            raxis = self.raxis
+        
+        real_loss = kl.BinaryCrossentropy(from_logits=True, axis=raxis)(tf.ones_like(DGz), DGz)
+        return self.λ*real_loss
 
 @tf.function
 def HingeDGANLoss(logitsDX, logitsDGz):
@@ -66,29 +100,50 @@ def HingeDGANLoss(logitsDX, logitsDGz):
     fake_loss = tf.reduce_mean(tf.nn.relu(1. + logitsDGz))
     return λ*(real_loss + fake_loss)
 
-@tf.function
-def WGANLoss(s, Gz):
-    """General WGAN Loss (for real and fake) with labels s:={-1,1}. 
-    Logit output from D
-    Adapted to work with multiple output discriminator (e.g.: PatchGAN Discriminator)
-    get axis to reduce (reduce for output sample) [b,a,b,c,..] -> [b,1]"""
-    raxis = [i for i in range(1,len(Gz.shape))]
-    # reduce to average for global batch (reduce for output sample) [b,1] -> [b,1]
-    return s*tf.reduce_mean(Gz,axis=raxis)
-
-
-@tf.function
-def WGANDiscriminatorLoss(DX, DGz, D=None, λ=1.0):
-    """Compute standard WGAN loss (complete)"""
-    return λ*WGANLoss(1.0, DGz)+λ*WGANLoss(-1.0, DX)
-
-
-@tf.function
-def WGANGeneratorLoss(DGz, λ=1.0):
-    """Compute standard WGAN loss (generator only)
-    Logit output from D
+class WGANDiscriminatorLoss(kl.Loss):
     """
-    return λ*WGANLoss(-1.0, DGz)
+        Compute standard WGAN loss (complete)
+    """
+    def __init__(self, raxis=1, λ=1.0):
+        super(WGANDiscriminatorLoss,self).__init__()
+
+        self.raxis = raxis
+        self.λ = λ
+        
+    @tf.function
+    def call(self, DX, DGz):
+        
+        if not self.raxis:
+            raxis = [i for i in range(1, len(DGz.shape))]
+        else:
+            raxis = self.raxis
+        
+        EDX  = tf.reduce_mean(DX,axis=raxis)
+        EDGz = tf.reduce_mean(DGz,axis=raxis)
+        return self.λ*(EDGz-EDX)
+
+
+class WGANGeneratorLoss(kl.Loss):
+    """
+        Compute standard WGAN loss (generator only)
+    """
+
+    def __init__(self, raxis=1, λ=1.0):
+        super(WGANGeneratorLoss,self).__init__()
+
+        self.raxis = raxis
+        self.λ = λ
+
+    @tf.function
+    def call(self, DX, DGz):
+
+        if not self.raxis:
+            raxis = [i for i in range(1, len(DGz.shape))]
+        else:
+            raxis = self.raxis
+
+        EDGz = tf.reduce_mean(DGz, axis=raxis)
+        return -self.λ*EDGz
 
 @tf.function
 def GradientPenalty(X, Gz, D):
@@ -113,33 +168,57 @@ def GradientPenalty(X, Gz, D):
 
 
 @tf.function
-def WGANGPDiscriminatorLoss(DX, DGz, D, λ=1.0):
+def WGANGPDiscriminatorLoss(DX, DGz, D, λ=1.0, λGP=1.0):
     "Wasserstrain loss with Gradient Penalty"
     Ls = WGANDiscriminatorLoss(DX, DGz)
     GP = GradientPenalty(DX, DGz, D)
-    return Ls+λ*GP
+    return λ*Ls+λGP*GP
 
 
 @tf.function
 def WGANGPGeneratorLoss(DX, DGz, λ=1.0):
     "Wasserstrain loss with Gradient Penalty"
-    Ls = WGANDiscriminatorLoss(DX, DGz)
-    # GP = GradientPenalty(X, Gz, D)
+    Ls = WGANGeneratorLoss(DX, DGz)
     return λ*Ls
 
-@tf.function
-def MutualInfoLoss(c, c_given_x,raxis=1):
-    """The mutual information metric we aim to minimize"""
-    H_CgivenX = -tf.reduce_mean(tf.reduce_mean(tf.math.log(c_given_x+ε)*c,axis=raxis))
-    H_C = -tf.reduce_mean(tf.reduce_mean(tf.math.log(c+ε)*c,axis=raxis))
-    return H_CgivenX - H_C
+class MutualInfoLoss(kl.Loss):
+    """
+        Mutual Information loss (InfoGAN)
+    """
+    def __init__(self, raxis=1, λ=1.0):
+        super(MutualInfoLoss,self).__init__()
 
-# Info Loss for Q (GANPatch adapted)
+        self.raxis = raxis
+        self.λ = λ
+    
+    @tf.function
+    def call(self, c, c_given_x):
+        
+        if not self.raxis:
+            raxis = [i for i in range(1, len(c_given_x.shape))]
+        else:
+            raxis = self.raxis
+        
+        # H_CgivenX = kl.
+        H_CgivenX = -tf.reduce_mean(tf.reduce_mean(tf.math.log(c_given_x+ε)*c,axis=raxis))
+        H_C = -tf.reduce_mean(tf.reduce_mean(tf.math.log(c+ε)*c,axis=raxis))
+        
+        return self.λ*(H_CgivenX - H_C)
 
 
-@tf.function
-def InfoLoss(X, Gz):
-    return tf.keras.losses.CategoricalCrossentropy(X, Gz)
+class InfoLoss(kl.Loss):
+    """
+        Categorical cross entropy loss as Information loss (InfoGAN)
+    """
+    def __init__(from_logits=False, λ=1.0):
+        super(InfoLoss,self).__init__()
+
+        self.from_logits = from_logits
+        self.λ = λ
+        
+    @tf.function
+    def call(self, DX, DGz):
+        return self.λ*kl.CategoricalCrossentropy(from_logits=self.from_logits)(DX, DGz)
 
 def getOptimizers(**kwargs):
     getOptimizers.__globals__.update(kwargs)
@@ -150,58 +229,71 @@ def getOptimizers(**kwargs):
     else:
         optimizers['DxOpt'] = Adam(learning_rate=DxLR, beta_1=0.5, beta_2=0.9999)
         
-    if DzTrainType.upper() == "WGAN" or DzTrainType.upper() == "WGANSN":
-        optimizers['DcOpt'] = RMSprop(learning_rate=DcLR)
-        optimizers['DsOpt'] = RMSprop(learning_rate=DsLR)
-        optimizers['DnOpt'] = RMSprop(learning_rate=DnLR)
+    if DcTrainType.upper() == "WGAN" or DcTrainType.upper() == "WGANSN":
+        optimizers['DcOpt'] = RMSprop(learning_rate=DcLR)        
     else:
         optimizers['DcOpt'] = Adam(learning_rate=DcLR, beta_1=0.5, beta_2=0.9999)
+        
+    if DsTrainType.upper() == "WGAN" or DsTrainType.upper() == "WGANSN":    
+        optimizers['DsOpt'] = RMSprop(learning_rate=DsLR)
+    else:
         optimizers['DsOpt'] = Adam(learning_rate=DsLR, beta_1=0.5, beta_2=0.9999)
+        
+    if DnTrainType.upper() == "WGAN" or DnTrainType.upper() == "WGANSN":
+        optimizers['DnOpt'] = RMSprop(learning_rate=DnLR)
+    else:
         optimizers['DnOpt'] = Adam(learning_rate=DnLR, beta_1=0.5, beta_2=0.9999)
-    optimizers['FxOpt'] = Adam(learning_rate=0.001, beta_1=0.5, beta_2=0.9999)
-    optimizers['GzOpt'] = Adam(learning_rate=0.001, beta_1=0.5, beta_2=0.9999)
+
+        
+    optimizers['FxOpt'] = Adam(learning_rate=FxLR, beta_1=0.5, beta_2=0.9999)
+    optimizers['GzOpt'] = Adam(learning_rate=GzLR, beta_1=0.5, beta_2=0.9999)
     return optimizers
 
 def getLosses(**kwargs):
     getLosses.__globals__.update(kwargs)
     losses = {}
     
-    losses['PenAdvXloss'] = 1.
-    losses['PenAdvCloss'] = 1.
-    losses['PenAdvSloss'] = 1.
-    losses['PenAdvNloss'] = 1.
-    losses['PenRecXloss'] = 1.
-    losses['PenRecCloss'] = 1.
-    losses['PenRecSloss'] = 1.
-    
-    if DzTrainType.upper() == "WGAN" or DzTrainType.upper() == "WGANSN":
-        losses['AdvDlossDz'] = WGANDiscriminatorLoss
-        losses['AdvGlossDz'] = WGANGeneratorLoss
-    elif DzTrainType.upper() == "WGANGP":
-        losses['AdvDlossDz'] = WGANGPDiscriminatorLoss
-        losses['AdvGlossDz'] = WGANGPGeneratorLoss
-    elif DzTrainType.upper() == "GAN":
-        losses['AdvDlossDz'] = GANDiscriminatorLoss
-        losses['AdvGlossDz'] = GANGeneratorLoss
-    elif DzTrainType.upper() == "HINGE":
-        losses['AdvDlossDz'] = HingeDGANLoss
-        losses['AdvGlossDz'] = GANGeneratorLoss
+    if DsTrainType.upper() == "WGAN":
+        losses['AdvDlossDs'] = WGANDiscriminatorLoss(λ=PenAdvSloss)
+        losses['AdvGlossDs'] = WGANGeneratorLoss(λ=PenAdvSloss)
+    elif DsTrainType.upper() == "WGANGP":
+        losses['AdvDlossDs'] = WGANGPDiscriminatorLoss(λ=PenAdvSloss)
+        losses['AdvGlossDs'] = WGANGPGeneratorLoss(λ=PenAdvSloss)
+    elif DsTrainType.upper() == "GAN":
+        losses['AdvDlossDs'] = GANDiscriminatorLoss(λ=PenAdvSloss)
+        losses['AdvGlossDs'] = GANGeneratorLoss(λ=PenAdvSloss)
+    elif DsTrainType.upper() == "HINGE":
+        losses['AdvDlossDs'] = HingeDGANLoss(λ=PenAdvSloss)
+        losses['AdvGlossDs'] = GANGeneratorLoss(λ=PenAdvSloss)
+        
+    if DnTrainType.upper() == "WGAN":
+        losses['AdvDlossDn'] = WGANDiscriminatorLoss(λ=PenAdvNloss)
+        losses['AdvGlossDn'] = WGANGeneratorLoss(λ=PenAdvNloss)
+    elif DnTrainType.upper() == "WGANGP":
+        losses['AdvDlossDn'] = WGANGPDiscriminatorLoss(λ=PenAdvNloss)
+        losses['AdvGlossDn'] = WGANGPGeneratorLoss(λ=PenAdvNloss)
+    elif DnTrainType.upper() == "GAN":
+        losses['AdvDlossDn'] = GANDiscriminatorLoss(λ=PenAdvNloss)
+        losses['AdvGlossDn'] = GANGeneratorLoss(λ=PenAdvNloss)
+    elif DnTrainType.upper() == "HINGE":
+        losses['AdvDlossDn'] = HingeDGANLoss(λ=PenAdvNloss)
+        losses['AdvGlossDn'] = GANGeneratorLoss(λ=PenAdvNloss)
 
-    if DxTrainType.upper() == "WGAN" or DxTrainType.upper() == "WGANSN":
-        losses['AdvDlossDx'] = WGANDiscriminatorLoss
-        losses['AdvGlossDx'] = WGANGeneratorLoss
+    if DxTrainType.upper() == "WGAN":
+        losses['AdvDlossDx'] = WGANDiscriminatorLoss(λ=PenAdvXloss)
+        losses['AdvGlossDx'] = WGANGeneratorLoss(λ=PenAdvXloss)
     elif DxTrainType.upper() == "WGANGP":
-        losses['AdvDlossDx'] = WGANGPDiscriminatorLoss
-        losses['AdvGlossDx'] = WGANGPGeneratorLoss
+        losses['AdvDlossDx'] = WGANGPDiscriminatorLoss(λ=PenAdvXloss)
+        losses['AdvGlossDx'] = WGANGPGeneratorLoss(λ=PenAdvXloss)
     elif DxTrainType.upper() == 'GAN':
-        losses['AdvDlossDx'] = GANDiscriminatorLoss
-        losses['AdvGlossDx'] = GANGeneratorLoss
+        losses['AdvDlossDx'] = GANDiscriminatorLoss(λ=PenAdvXloss)
+        losses['AdvGlossDx'] = GANGeneratorLoss(λ=PenAdvXloss)
     elif DxTrainType.upper() == "HINGE":
         raise Exception("Hinge loss not implemented for Dx")
 
-    losses['RecSloss'] = GaussianNLL
-    losses['RecXloss'] = tf.keras.losses.MeanSquaredError()
-    losses['RecCloss'] = MutualInfoLoss
-    losses['FakeCloss'] = tf.keras.losses.CategoricalCrossentropy()
+    losses['RecSloss']  = GaussianNLL(λ=PenRecSloss)
+    losses['RecXloss']  = kl.MeanSquaredError()
+    losses['RecCloss']  = MutualInfoLoss(λ=PenRecCloss)
+    losses['FakeCloss'] = kl.CategoricalCrossentropy()
 
     return losses
