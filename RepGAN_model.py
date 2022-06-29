@@ -20,6 +20,8 @@ import tensorflow.keras.constraints as kc
 
 from RepGAN_losses import GradientPenalty as GP
 
+tfd = tfp.distributions
+
 # Create Metric instances to track the losses
 AdvDLoss_tracker = km.Mean(name="Dloss")
 AdvDlossX_tracker = km.Mean(name="DlossX")
@@ -51,14 +53,20 @@ class ClipConstraint(kc.Constraint):
     def get_config(self):
         return {'clip_value': self.clip_value}
 
-class sampleS(kl.Layer):
-    def call(self, inputs):
-        #μ,σ2 = inputs
-        μ,logσ2 = inputs
-        σ2 = tf.exp(logσ2)
-        ε = tf.random.normal(shape=tf.shape(μ),mean=0.0,stddev=1.0)
-        return μ + tf.multiply(tf.sqrt(σ2),ε)
-        #return μ + tf.multiply(σ2,ε)
+class sampleSlayer(kl.Layer):
+    def __init__(self,latentSdim=1):
+        super(sampleS, self).__init__()
+        self.latentSdim = latentSdim
+    def call(self,hs):
+        μs, logΣs = tf.split(hs,num_or_size_splits=2, axis=1)
+        ε = tf.random.normal(shape=self.latentSdim, mean=0.0, stddev=1.0)
+        return μs + tf.exp(0.5*logΣs)*ε
+
+
+def sampleS(hs,latentSdim):
+    μs, logΣs = tf.split(hs,num_or_size_splits=2, axis=1)
+    ε = tf.random.normal(shape=tf.shape(μs), mean=0.0, stddev=1.0)
+    return μs + tf.math.exp(0.5*logΣs)*ε
 
 class RepGAN(tf.keras.Model):
 
@@ -72,9 +80,9 @@ class RepGAN(tf.keras.Model):
         # define the constraint
         self.ClipD = ClipConstraint(0.01)
         
-        self.ps = tfp.distributions.MultivariateNormalDiag(loc=tf.zeros(shape=(self.latentSdim,),dtype=tf.float32),
+        self.ps = tfd.MultivariateNormalDiag(loc=tf.zeros(shape=(self.latentSdim,),dtype=tf.float32),
                        scale_diag=tf.ones(shape=(self.latentSdim,),dtype=tf.float32))
-        self.pn = tfp.distributions.MultivariateNormalDiag(loc=tf.zeros(shape=(self.latentNdim,),dtype=tf.float32),
+        self.pn = tfd.MultivariateNormalDiag(loc=tf.zeros(shape=(self.latentNdim,),dtype=tf.float32),
                        scale_diag=tf.ones(shape=(self.latentNdim,),dtype=tf.float32))
         self.BuildModels()
         
@@ -117,7 +125,7 @@ class RepGAN(tf.keras.Model):
         """
         self.__dict__.update(losses)
 
-    #@tf.function
+    @tf.function
     def train_XZX(self,X,c):
 
         # Sample factorial prior S
@@ -133,12 +141,13 @@ class RepGAN(tf.keras.Model):
         with tf.GradientTape(persistent=True) as tape:
 
             # Encode real signals
-            _,_,s_fake,c_fake,n_fake = self.Fx(X,training=True)
+            _,s_fake,c_fake,n_fake = self.Fx(X,training=True)
 
             FakeCloss = self.FakeCloss(c,c_fake)
         
         # Get the gradients w.r.t the generator loss
-        gradFx = tape.gradient(FakeCloss,(self.Fx.trainable_variables),unconnected_gradients=tf.UnconnectedGradients.ZERO)
+        gradFx = tape.gradient(FakeCloss,(self.Fx.trainable_variables),
+                               unconnected_gradients=tf.UnconnectedGradients.ZERO)
 
         # Update the weights of the generator using the generator optimizer
         self.FxOpt.apply_gradients(zip(gradFx,self.Fx.trainable_variables))
@@ -149,17 +158,17 @@ class RepGAN(tf.keras.Model):
             with tf.GradientTape(persistent=True) as tape:
 
                 # Encode real signals
-                _,_,s_fake,c_fake,n_fake = self.Fx(X,training=True)
+                _,s_fake,c_fake,n_fake = self.Fx(X,training=True)
 
                 # Reconstruct real signals
                 X_rec = self.Gz((s_fake,c_fake,n_fake),training=True)
 
                 # Compute reconstruction loss
-                RecGlossX = self.RecXloss(X,X_rec)*self.PenRecXloss #-tf.reduce_mean(logpz - logqz_x)
+                RecGlossX = self.RecXloss(X,X_rec)
     
             # Get the gradients w.r.t the generator loss
             gradFx, gradGz = tape.gradient(RecGlossX,(self.Fx.trainable_variables,self.Gz.trainable_variables),
-                                       unconnected_gradients=tf.UnconnectedGradients.ZERO)
+                                           unconnected_gradients=tf.UnconnectedGradients.ZERO)
 
             # Update the weights of the generator using the generator optimizer
             self.FxOpt.apply_gradients(zip(gradFx,self.Fx.trainable_variables))
@@ -172,7 +181,7 @@ class RepGAN(tf.keras.Model):
             with tf.GradientTape(persistent=True) as tape:
 
                 # Encode real signals X
-                [_,_,s_fake,c_fake,n_fake] = self.Fx(X,training=True)
+                [_,s_fake,c_fake,n_fake] = self.Fx(X,training=True)
 
                 # Discriminates real and fake S
                 Ds_fake = self.Ds(s_fake,training=True)
@@ -187,9 +196,9 @@ class RepGAN(tf.keras.Model):
                 Dc_real = self.Dc(c,training=True)
 
                 # Compute XZX adversarial loss (JS(s),JS(n),JS(c))
-                AdvDlossC = self.AdvDlossDz(Dc_real, Dc_fake, D=self.Dc, λ=self.PenAdvCloss)
-                AdvDlossS = self.AdvDlossDz(Ds_real, Ds_fake, D=self.Ds, λ=self.PenAdvSloss)
-                AdvDlossN = self.AdvDlossDz(Dn_real, Dn_fake, D=self.Dn, λ=self.PenAdvNloss)
+                AdvDlossC = self.AdvDlossDc(Dc_real, Dc_fake)
+                AdvDlossS = self.AdvDlossDs(Ds_real, Ds_fake)
+                AdvDlossN = self.AdvDlossDn(Dn_real, Dn_fake)
                 
                 AdvDloss = AdvDlossC + AdvDlossS + AdvDlossN
 
@@ -206,7 +215,7 @@ class RepGAN(tf.keras.Model):
         with tf.GradientTape(persistent=True) as tape:
 
             # Encode real signals
-            _,_,s_fake,c_fake,n_fake = self.Fx(X,training=True)
+            _,s_fake,c_fake,n_fake = self.Fx(X,training=True)
 
             # Discriminate fake latent space
             Ds_fake = self.Ds(s_fake,training=True)
@@ -214,9 +223,9 @@ class RepGAN(tf.keras.Model):
             Dn_fake = self.Dn(n_fake,training=True)
 
             # Compute adversarial loss for generator
-            AdvGlossC = self.AdvGlossDz(Dc_fake, λ=self.PenAdvCloss)
-            AdvGlossS = self.AdvGlossDz(Ds_fake, λ=self.PenAdvSloss)
-            AdvGlossN = self.AdvGlossDz(Dn_fake, λ=self.PenAdvNloss)
+            AdvGlossC = self.AdvGlossDc(Dc_fake)
+            AdvGlossS = self.AdvGlossDs(Ds_fake)
+            AdvGlossN = self.AdvGlossDn(Dn_fake)
 
             # Compute total generator loss
             AdvGloss = AdvGlossC + AdvGlossS + AdvGlossN
@@ -233,7 +242,7 @@ class RepGAN(tf.keras.Model):
             AdvGloss,AdvGlossC,AdvGlossS,AdvGlossN,\
             Dc_fake,Ds_fake,Dn_fake,Dc_real,Ds_real,Dn_real
 
-    #@tf.function
+    @tf.function
     def train_ZXZ(self,X,c):
 
         # Sample factorial prior S
@@ -255,7 +264,7 @@ class RepGAN(tf.keras.Model):
                 Dx_real = self.Dx(X,training=True)
 
                 # Compute the discriminator loss GAN loss (penalized)
-                AdvDlossX = self.AdvDlossDx(Dx_real, Dx_fake, λ=self.PenAdvXloss)
+                AdvDlossX = self.AdvDlossDx(Dx_real, Dx_fake)
             # Compute the discriminator gradient
             gradDx = tape.gradient(AdvDlossX,self.Dx.trainable_variables,unconnected_gradients=tf.UnconnectedGradients.ZERO)
             # Update the weights of the discriminator using the discriminator optimizer
@@ -287,12 +296,11 @@ class RepGAN(tf.keras.Model):
             with tf.GradientTape(persistent=True) as tape:
                 
                 # Encode fake signals
-                [μs_rec,logσs2_rec,s_rec,c_rec,_] = self.Fx(X_fake,training=True)
-
-                #Q_cont_distribution = tfp.distributions.MultivariateNormalDiag(loc=μs_rec, scale_diag=σs2_rec)
+                [hs,s_rec,c_rec,_] = self.Fx(X_fake,training=True)
+                #Q_cont_distribution = tfp.distributions.MultivariateNormalDiag(loc=μs_rec, scale_diag=logΣs_rec)
                 #RecGlossS = -tf.reduce_mean(Q_cont_distribution.log_prob(s_rec))
-                RecGlossS = self.RecSloss(s_prior,μs_rec,logσs2_rec)*self.PenRecSloss
-                RecGlossC = self.RecCloss(c,c_rec)*self.PenRecCloss
+                RecGlossS = self.RecSloss(s_prior,hs)
+                RecGlossC = self.RecCloss(c,c_rec)
 
                 # Compute InfoGAN Q loos
                 Qloss = RecGlossS + RecGlossC
@@ -361,12 +369,12 @@ class RepGAN(tf.keras.Model):
             "s_fake":tf.reduce_mean(Ds_fake),"s_prior":tf.reduce_mean(Ds_real)}
 
     def call(self, X):
-        [_,_,s_fake,c_fake,n_fake] = self.Fx(X)
+        [_,s_fake,c_fake,n_fake] = self.Fx(X)
         X_rec = self.Gz((s_fake,c_fake,n_fake))
         return X_rec, c_fake, s_fake, n_fake
 
     def plot(self,X,c):
-        [_,_,s_fake,c_fake,n_fake] = self.Fx(X,training=False)
+        [_,s_fake,c_fake,n_fake] = self.Fx(X,training=False)
         s_prior = self.ps.sample(X.shape[0])
         n_prior = self.pn.sample(X.shape[0])
         fakeX = self.Gz((s_prior,c,n_prior),training=False)
@@ -374,35 +382,36 @@ class RepGAN(tf.keras.Model):
         return X_rec, c_fake, s_fake, n_fake, fakeX
 
     def label_predictor(self, X, c):
-        [_,_,s_fake,c_fake,n_fake] = self.Fx(X)
+        [_,s_fake,c_fake,n_fake] = self.Fx(X)
         s_prior = self.ps.sample(s_fake.shape[0])
         n_prior = self.pn.sample(n_fake.shape[0])
         fakeX = self.Gz((s_prior,c,n_prior),training=False)
-        [_,_,_,c_rec,_] = self.Fx(fakeX,training=False)
+        [_,_,c_rec,_] = self.Fx(fakeX,training=False)
         return c_fake, c_rec
     
     def distribution(self,X,c):
-        [μs_fake, logσs2_fake, s_fake, c_fake, n_fake] = self.Fx(X, training=False)
+        [hs_fake,s_fake,c_fake,n_fake] = self.Fx(X,training=False)
+        μs_fake,logΣs_fake = tf.split(hs_fake,num_or_size_splits=2, axis=1)
         s_prior = self.ps.sample(X.shape[0])
         n_prior = self.pn.sample(X.shape[0])
         fakeX = self.Gz((s_prior,c,n_prior),training=False)
-        [μs_rec,logσs2_rec,s_rec,c_rec,n_rec] = self.Fx(fakeX,training=False)
-        return s_prior, n_prior, s_fake, n_fake, s_rec, n_rec, μs_fake, logσs2_fake, μs_rec, logσs2_rec
+        [hs_rec,s_rec,c_rec,n_rec] = self.Fx(fakeX,training=False)
+        μs_rec, logΣs_rec = tf.split(hs_fake,num_or_size_splits=2, axis=1)
+        return s_prior, n_prior, s_fake, n_fake, s_rec, n_rec, μs_fake, logΣs_fake, μs_rec, logΣs_rec
 
     def generate(self, X, c_fake_new):
-        [_,_,s_fake,c_fake,n_fake] = self.Fx(X)
+        [_,s_fake,c_fake,n_fake] = self.Fx(X)
         X_rec_new = self.Gz((s_fake,c_fake_new,n_fake),training=False)
         return X_rec_new
 
     # BN : do not apply batchnorm to the generator output layer and the discriminator input layer
-
     def BuildFx(self):
         """
             Fx encoder structure
         """
         # To build this model using the functional API
 
-        # kl.Input layer
+        # Input layer
         X = kl.Input(shape=self.Xshape,name="X")
 
         # Initial CNN layer
@@ -432,31 +441,24 @@ class RepGAN(tf.keras.Model):
         z = kl.Dropout(self.dpout,name="FxDO{:>d}".format(layer+1))(h)
         # z ---> Zshape = (Zsize,nZchannels)
 
-        layer = 0
         # variable s
-        # # s-average
-        # h_μs = kl.Conv1D(self.nZchannels*self.Sstride**(layer+1),
-        #     self.Skernel,self.Sstride,padding="same",
-        #     data_format="channels_last",name="FxCNNmuS{:>d}".format(layer+1))(z)
-        # h_μs = kl.BatchNormalization(momentum=0.95,name="FxBNmuS{:>d}".format(layer+1))(h_μs)
-        # h_μs = kl.LeakyReLU(alpha=0.1,name="FxAmuS{:>d}".format(layer+1))(h_μs)
-        # h_μs = kl.Dropout(0.2,name="FxDOmuS{:>d}".format(layer+1))(h_μs)
-
-        # # s-log std
-        # h_σs2 = kl.Conv1D(self.nZchannels*self.Sstride**(layer+1),
-        #     self.Skernel,self.Sstride,padding="same",
-        #     data_format="channels_last",name="FxCNNlvS{:>d}".format(layer+1))(z)
-        # h_σs2 = kl.BatchNormalization(momentum=0.95,name="FxBNlvS{:>d}".format(layer+1))(h_σs2)
-        # h_σs2 = kl.LeakyReLU(alpha=0.1,name="FxAlvS{:>d}".format(layer+1))(h_σs2)
-        # h_σs2 = kl.Dropout(0.2,name="FxDOlvS{:>d}".format(layer+1))(h_σs2)
-
-        h_s = kl.Conv1D(self.nZchannels*self.Sstride**(layer+1),
-             self.Skernel,self.Sstride,padding="same",
-             data_format="channels_last",name="FxCNNmuS{:>d}".format(layer+1))(z)
-        h_s = kl.BatchNormalization(momentum=0.95,name="FxBNmuS{:>d}".format(layer+1))(h_s)
-        h_s = kl.LeakyReLU(alpha=0.1,name="FxAmuS{:>d}".format(layer+1))(h_s)
-        h_s = kl.Dropout(0.2,name="FxDOmuS{:>d}".format(layer+1))(h_s)
-
+        layer = 0
+        # s-average
+        h_μs = kl.Conv1D(self.nZchannels*self.Sstride**(layer+1),
+            self.Skernel,self.Sstride,padding="same",
+            data_format="channels_last",name="FxCNNmuS{:>d}".format(layer+1))(z)
+        h_μs = kl.BatchNormalization(momentum=0.95,name="FxBNmuS{:>d}".format(layer+1))(h_μs)
+        h_μs = kl.LeakyReLU(alpha=0.1,name="FxAmuS{:>d}".format(layer+1))(h_μs)
+        h_μs = kl.Dropout(self.dpout,name="FxDOmuS{:>d}".format(layer+1))(h_μs)
+        if self.sdouble_branch:
+            # s-logvar
+            h_logDiagΣs = kl.Conv1D(self.nZchannels*self.Sstride**(layer+1),
+                self.Skernel,self.Sstride,padding="same",
+                data_format="channels_last",name="FxCNNlvS{:>d}".format(layer+1))(z)
+            h_logDiagΣs = kl.BatchNormalization(momentum=0.95,name="FxBNlvS{:>d}".format(layer+1))(h_logDiagΣs)
+            h_logDiagΣs = kl.LeakyReLU(alpha=0.1,name="FxAlvS{:>d}".format(layer+1))(h_logDiagΣs)
+            h_logDiagΣs = kl.Dropout(self.dpout,name="FxDOlvS{:>d}".format(layer+1))(h_logDiagΣs)
+            
         # variable c
         h_c = kl.Conv1D(self.nZchannels*self.Cstride**(layer+1),
                 self.Ckernel,self.Cstride,padding="same",
@@ -477,28 +479,23 @@ class RepGAN(tf.keras.Model):
 
         # variable s
         for layer in range(1,self.nSlayers):
-            # # s-average
-            # h_μs = kl.Conv1D(self.nZchannels*self.Sstride**(layer+1),
-            #     self.Skernel,self.Sstride,padding="same",
-            #     data_format="channels_last",name="FxCNNmuS{:>d}".format(layer+1))(h_μs)
-            # h_μs = kl.BatchNormalization(momentum=0.95,name="FxBNmuS{:>d}".format(layer+1))(h_μs)
-            # h_μs = kl.LeakyReLU(alpha=0.1,name="FxAmuS{:>d}".format(layer+1))(h_μs)
-            # h_μs = kl.Dropout(0.2,name="FxDOmuS{:>d}".format(layer+1))(h_μs)
-
-            # # s-log std
-            # h_σs2 = kl.Conv1D(self.nZchannels*self.Sstride**(layer+1),
-            #     self.Skernel,self.Sstride,padding="same",
-            #     data_format="channels_last",name="FxCNNlvS{:>d}".format(layer+1))(h_σs2)
-            # h_σs2 = kl.BatchNormalization(momentum=0.95,name="FxBNlvS{:>d}".format(layer+1))(h_σs2)
-            # h_σs2 = kl.LeakyReLU(alpha=0.1,name="FxAlvS{:>d}".format(layer+1))(h_σs2)
-            # h_σs2 = kl.Dropout(0.2,name="FxDOlvS{:>d}".format(layer+1))(h_σs2)
-
-            h_s = kl.Conv1D(self.nZchannels*self.Sstride**(layer+1),
+            # s-average
+            h_μs = kl.Conv1D(self.nZchannels*self.Sstride**(layer+1),
                 self.Skernel,self.Sstride,padding="same",
-                data_format="channels_last",name="FxCNNmuS{:>d}".format(layer+1))(h_s)
-            h_s = kl.BatchNormalization(momentum=0.95,name="FxBNmuS{:>d}".format(layer+1))(h_s)
-            h_s = kl.LeakyReLU(alpha=0.1,name="FxAmuS{:>d}".format(layer+1))(h_s)
-            h_s = kl.Dropout(0.2,name="FxDOmuS{:>d}".format(layer+1))(h_s)
+                data_format="channels_last",name="FxCNNmuS{:>d}".format(layer+1))(h_μs)
+            h_μs = kl.BatchNormalization(momentum=0.95,name="FxBNmuS{:>d}".format(layer+1))(h_μs)
+            h_μs = kl.LeakyReLU(alpha=0.1,name="FxAmuS{:>d}".format(layer+1))(h_μs)
+            h_μs = kl.Dropout(0.2,name="FxDOmuS{:>d}".format(layer+1))(h_μs)
+
+        if self.sdouble_branch:
+            for layer in range(1, self.nSlayers):
+                # s-logvar
+                h_logDiagΣs = kl.Conv1D(self.nZchannels*self.Sstride**(layer+1),
+                    self.Skernel,self.Sstride,padding="same",
+                    data_format="channels_last",name="FxCNNlvS{:>d}".format(layer+1))(h_logDiagΣs)
+                h_logDiagΣs = kl.BatchNormalization(momentum=0.95,name="FxBNlvS{:>d}".format(layer+1))(h_logDiagΣs)
+                h_logDiagΣs = kl.LeakyReLU(alpha=0.1,name="FxAlvS{:>d}".format(layer+1))(h_logDiagΣs)
+                h_logDiagΣs = kl.Dropout(self.dpout,name="FxDOlvS{:>d}".format(layer+1))(h_logDiagΣs)
 
         # variable c
         for layer in range(1,self.nClayers):
@@ -520,42 +517,41 @@ class RepGAN(tf.keras.Model):
             #h_n = tfa.layers.InstanceNormalization()(h_n)
             h_n = kl.Dropout(self.dpout,name="FxDON{:>d}".format(layer+1))(h_n)
 
-        # # variable s
-        # h_μs = kl.Flatten(name="FxFLmuS{:>d}".format(layer+1))(h_μs)
-        # h_μs = kl.Dense(1024)(h_μs)
-        # h_μs = kl.BatchNormalization(momentum=0.95)(h_μs)
-        # h_μs = kl.LeakyReLU(alpha=0.1)(h_μs)
-        # h_μs = kl.Dense(self.latentSdim,name="FxFWmuS")(h_μs)
-        # μs = kl.BatchNormalization(momentum=0.95,name="FxBNmuS")(h_μs)
-        # #h_μs = kl.BatchNormalization(momentum=0.95,name="FxBNmuS")(h_μs)
-        # #μs = kl.LeakyReLU(alpha=0.1)(h_μs)
-
-        # # s-sigma
-        # h_σs2 = kl.Flatten(name="FxFLlvS{:>d}".format(layer+1))(h_σs2)
-        # h_σs2 = kl.Dense(1024)(h_σs2)
-        # h_σs2 = kl.BatchNormalization(momentum=0.95)(h_σs2)
-        # h_σs2 = kl.LeakyReLU(alpha=0.1)(h_σs2)
-        # h_σs2 = kl.Dense(self.latentSdim,name="FxFWlvS")(h_σs2)
-        # h_σs2 = kl.BatchNormalization(momentum=0.95,axis=-1,name="FxBNlvS")(h_σs2)
-        # #h_σs2 = kl.LeakyReLU(alpha=0.1,name="FxAlvS{:>d}".format(layer+2))(h_σs2)
-        # if 'sigmoid' in self.sigmas2:
-        #     σs2 = tf.keras.activations.sigmoid(h_σs2)
-        # elif 'softplus' in self.sigmas2:
-        #     σs2 = tf.keras.activations.softplus(h_σs2)
-        # else:
-        #     σs2
+        # variable s
+        # s-average
+        h_μs = kl.Flatten(name="FxFLmuS{:>d}".format(layer+1))(h_μs)
+        h_μs = kl.Dense(1024)(h_μs)
+        h_μs = kl.BatchNormalization(momentum=0.95)(h_μs)
+        h_μs = kl.LeakyReLU(alpha=0.1)(h_μs)
         
-        h_s = kl.Flatten(name="FxFLmuS{:>d}".format(layer+1))(h_s)
-        h_s = kl.Dense(1024)(h_s)
-        h_s = kl.BatchNormalization(momentum=0.95)(h_s)
-        h_s = kl.LeakyReLU(alpha=0.1)(h_s)
-        h_s = kl.Dense(self.latentSdim*2,name="FxFWmuS")(h_s)
-        h_s = kl.BatchNormalization(momentum=0.95,name="FxBNmuS")(h_s)
-
-        μs    = h_s[:, :self.latentSdim]
-        logσ2 = h_s[:, self.latentSdim:]
+        if self.sdouble_branch:
+            # s-average
+            h_μs = kl.Dense(self.latentSdim,name="FxFWmuS")(h_μs)
+            
+            # s-logvar
+            h_logDiagΣs = kl.Flatten(name="FxFLlvS{:>d}".format(layer+1))(h_logDiagΣs)
+            h_logDiagΣs = kl.Dense(1024)(h_logDiagΣs)
+            h_logDiagΣs = kl.BatchNormalization(momentum=0.95)(h_logDiagΣs)
+            h_logDiagΣs = kl.LeakyReLU(alpha=0.1)(h_logDiagΣs)
+            h_logDiagΣs = kl.Dense(self.latentSdim,name="FxFWlvS")(h_logDiagΣs)
+            
+            if 'sigmoid' in self.sigmas2:
+                logΣs = tf.keras.activations.sigmoid(h_logDiagΣs)
+            elif 'softplus' in self.sigmas2:
+                logΣs = tf.keras.activations.softplus(h_logDiagΣs)
+            else:
+                logΣs = h_logDiagΣs
+            
+            hs = kl.Concatenate([h_μs,h_logDiagΣs],axis=-1,name="FxFWS")
+            
+        else:
+            # s-average & s-logvar
+            hs = kl.Dense(self.latentSdim+self.latentSdim,name="FxFWS")(h_μs)
+            if 'sigmoid' in self.sigmas2:
+                hs = tf.keras.activations.sigmoid(hs)
+            elif 'softplus' in self.sigmas2:
+                hs = tf.keras.activations.softplus(hs)
         
-
         # variable c
         layer = self.nClayers
         h_c = kl.Flatten(name="FxFLC{:>d}".format(layer+1))(h_c)
@@ -575,7 +571,7 @@ class RepGAN(tf.keras.Model):
         h_n = kl.Dense(self.latentNdim,name="FxFWN")(h_n)
 
         # variable s
-        s = sampleS()([μs,logσ2])
+        s = sampleS(hs,self.latentSdim)
 
         # variable c
         #c = kl.Dense(self.latentCdim,activation=tf.keras.activations.softmax)(h_c)
@@ -585,7 +581,7 @@ class RepGAN(tf.keras.Model):
         n = kl.BatchNormalization(name="bn_noise",momentum=0.95)(h_n)
         #n = tfa.layers.InstanceNormalization()(h_n)
 
-        Fx = tf.keras.Model(X,[μs,logσ2,s,c,n],name="Fx")
+        Fx = tf.keras.Model(X,[hs,s,c,n],name="Fx")
 
         return Fx
 
