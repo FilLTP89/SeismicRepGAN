@@ -21,7 +21,7 @@ bce_loss = kl.BinaryCrossentropy(from_logits=True)
 
 
 @tf.function
-def GaussianNLL(x,μ,Σ,mod='var',raxis=None):
+def GaussianNLL(x,μ,logΣ,mod='var',raxis=None):
     """
         Gaussian negative loglikelihood loss function
     """
@@ -30,20 +30,13 @@ def GaussianNLL(x,μ,Σ,mod='var',raxis=None):
     if not raxis:
         raxis = [i for i in range(1,len(x.shape))]
 
-    log2pi = 0.5*n_dims*tf.math.log(2.*np.pi)
+    nlog2pi = 0.5*n_dims*tf.math.log(2.*np.pi)
 
-    # if 'var' in mod:
-    #   Σ = tf.math.log(Σ+ε)
+    mse = 0.5*tf.square(x-μ)*tf.exp(-logΣ)
+    TrlogΣ = tf.reduce_sum(logΣ, axis=raxis)
+    NLL = tf.reduce_sum(mse,axis=raxis)+TrlogΣ+nlog2pi
 
-    mse = 0.5*tf.square(x-μ)*tf.exp(-Σ)
-    traceΣ = tf.reduce_sum(Σ,axis=raxis)
-    NLL = tf.reduce_sum(mse,axis=raxis)+traceΣ+log2pi
-
-    # mse = -0.5*tf.reduce_sum(tf.keras.backend.square((x-μ))/sigma,axis=raxis) 
-    # sigma_trace = -0.5*tf.reduce_sum(tf.math.log(sigma), axis=raxis)
-    # NLL = mse+sigma_trace+log2pi
-
-    return tf.reduce_mean(-NLL)
+    return tf.reduce_mean(NLL)
 
 
 @tf.function
