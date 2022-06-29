@@ -16,7 +16,7 @@ from tensorflow.keras.optimizers import Adam, RMSprop
 
 ε = 1e-8
 
-def GaussianNLL(x,μ,σ2,mod='var',raxis=None):
+def GaussianNLL(x,μ,logσ2,raxis=None):
     """
         Gaussian negative loglikelihood loss function
     """
@@ -29,6 +29,8 @@ def GaussianNLL(x,μ,σ2,mod='var',raxis=None):
 
     # if 'var' in mod:
     #   Σ = tf.math.log(Σ+ε)
+
+    σ2 = tf.exp(logσ2)
 
     # mse = -0.5*tf.square(x-μ)*tf.exp(-Σ)
     #traceΣ = -tf.reduce_sum(Σ,axis=raxis)
@@ -117,17 +119,17 @@ def InfoLoss(X, Gz):
 def getOptimizers(**kwargs):
     getOptimizers.__globals__.update(kwargs)
     optimizers = {}
-    optimizers['DxOpt'] = Adam(learning_rate=0.001, beta_1=0.5, beta_2=0.9999)
+    optimizers['DxOpt'] = Adam(learning_rate=DxLR, beta_1=0.5, beta_2=0.9999)
     if 'WGAN' in discriminator:
-        optimizers['DcOpt'] = RMSprop(learning_rate=0.001)
-        optimizers['DsOpt'] = RMSprop(learning_rate=0.001)
-        optimizers['DnOpt'] = RMSprop(learning_rate=0.001)
+        optimizers['DcOpt'] = RMSprop(learning_rate=DcLR)
+        optimizers['DsOpt'] = RMSprop(learning_rate=DsLR)
+        optimizers['DnOpt'] = RMSprop(learning_rate=DnLR)
     else:
-        optimizers['DcOpt'] = Adam(learning_rate=0.001, beta_1=0.5, beta_2=0.9999)
-        optimizers['DsOpt'] = Adam(learning_rate=0.001, beta_1=0.5, beta_2=0.9999)
-        optimizers['DnOpt'] = Adam(learning_rate=0.001, beta_1=0.5, beta_2=0.9999) 
-    optimizers['FxOpt'] = Adam(learning_rate=0.0005, beta_1=0.5, beta_2=0.9999)
-    optimizers['GzOpt'] = Adam(learning_rate=0.0005, beta_1=0.5, beta_2=0.9999)
+        optimizers['DcOpt'] = Adam(learning_rate=DcLR, beta_1=0.5, beta_2=0.9999)
+        optimizers['DsOpt'] = Adam(learning_rate=DsLR, beta_1=0.5, beta_2=0.9999)
+        optimizers['DnOpt'] = Adam(learning_rate=DnLR, beta_1=0.5, beta_2=0.9999) 
+    optimizers['FxOpt'] = Adam(learning_rate=FxLR, beta_1=0.5, beta_2=0.9999)
+    optimizers['GzOpt'] = Adam(learning_rate=GzLR, beta_1=0.5, beta_2=0.9999)
     return optimizers
 
 def getLosses(**kwargs):
