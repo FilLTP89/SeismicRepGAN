@@ -55,10 +55,10 @@ def Train(DeviceName):
         GiorgiaGAN = RepGAN(options)
 
         # Compile the RepGAN model.
-        GiorgiaGAN.compile(optimizers,losses) #run_eagerly=True
+        GiorgiaGAN.compile(optimizers,losses)
 
         GiorgiaGAN.build(input_shape=(options['batchSize'],options['Xsize'],
-                                options['nXchannels']))
+                         options['nXchannels']))
 
         GiorgiaGAN.compute_output_shape(input_shape=(options['batchSize'],options['Xsize'],
                                 options['nXchannels']))
