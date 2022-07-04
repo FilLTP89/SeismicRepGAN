@@ -222,9 +222,9 @@ class RepGAN(tf.keras.Model):
             Dn_fake = self.Dn(n_fake,training=True)
 
             # Compute adversarial loss for generator
-            AdvGlossC = self.AdvGlossDc(Dc_fake)
-            AdvGlossS = self.AdvGlossDs(Ds_fake)
-            AdvGlossN = self.AdvGlossDn(Dn_fake)
+            AdvGlossC = self.AdvGlossDc(None,Dc_fake)
+            AdvGlossS = self.AdvGlossDs(None,Ds_fake)
+            AdvGlossN = self.AdvGlossDn(None,Dn_fake)
 
             # Compute total generator loss
             AdvGloss = AdvGlossC + AdvGlossS + AdvGlossN
