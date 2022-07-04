@@ -269,6 +269,19 @@ def getLosses(**kwargs):
     getLosses.__globals__.update(kwargs)
     losses = {}
     
+    if DcTrainType.upper() == "WGAN":
+        losses['AdvDlossDc'] = WGANDiscriminatorLoss(λ=PenAdvNloss)
+        losses['AdvGlossDc'] = WGANGeneratorLoss(λ=PenAdvNloss)
+    elif DcTrainType.upper() == "WGANGP":
+        losses['AdvDlossDc'] = WGANGPDiscriminatorLoss(λ=PenAdvNloss)
+        losses['AdvGlossDc'] = WGANGPGeneratorLoss(λ=PenAdvNloss)
+    elif DcTrainType.upper() == "GAN":
+        losses['AdvDlossDc'] = GANDiscriminatorLoss(λ=PenAdvNloss)
+        losses['AdvGlossDc'] = GANGeneratorLoss(λ=PenAdvNloss)
+    elif DcTrainType.upper() == "HINGE":
+        losses['AdvDlossDc'] = HingeGANDiscriminatorLoss(λ=PenAdvNloss)
+        losses['AdvGlossDc'] = GANGeneratorLoss(λ=PenAdvNloss)
+
     if DsTrainType.upper() == "WGAN":
         losses['AdvDlossDs'] = WGANDiscriminatorLoss(λ=PenAdvSloss)
         losses['AdvGlossDs'] = WGANGeneratorLoss(λ=PenAdvSloss)
