@@ -272,7 +272,7 @@ class RepGAN(tf.keras.Model):
             # Update the weights of the discriminator using the discriminator optimizer
             self.DxOpt.apply_gradients(zip(gradDx,self.Dx.trainable_variables))
 
-        #for _ in range(self.nGenerator):
+        for _ in range(self.nGenerator):
 
             # Train generators
             with tf.GradientTape(persistent=True) as tape:
@@ -744,10 +744,10 @@ class RepGAN(tf.keras.Model):
         """
         c = kl.Input(shape=(self.latentCdim,))
         if 'WGAN' in self.discriminator:
-            h = kl.Dense(1000,kernel_constraint=ClipConstraint(self.clipValue))(c)
+            h = kl.Dense(3000,kernel_constraint=ClipConstraint(self.clipValue))(c)
             h = kl.LeakyReLU(alpha=0.1)(h)
             h = kl.Dropout(0.25)(h)
-            h = kl.Dense(1000,kernel_constraint=ClipConstraint(self.clipValue))(h)
+            h = kl.Dense(3000,kernel_constraint=ClipConstraint(self.clipValue))(h)
             h = kl.BatchNormalization(momentum=0.95)(h)
             h = kl.LeakyReLU(alpha=0.1)(h)
             h = kl.Dropout(0.25)(h)
@@ -771,10 +771,10 @@ class RepGAN(tf.keras.Model):
         """
         n = kl.Input(shape=(self.latentNdim,))
         if 'WGAN' in self.discriminator:
-            h = kl.Dense(1000,kernel_constraint=ClipConstraint(self.clipValue))(n) 
+            h = kl.Dense(3000,kernel_constraint=ClipConstraint(self.clipValue))(n) 
             h = kl.LeakyReLU(alpha=0.1)(h)
             h = kl.Dropout(0.25)(h)
-            h = kl.Dense(1000,kernel_constraint=ClipConstraint(self.clipValue))(h)
+            h = kl.Dense(3000,kernel_constraint=ClipConstraint(self.clipValue))(h)
             h = kl.BatchNormalization(momentum=0.95)(h)
             h = kl.LeakyReLU(alpha=0.1)(h)
             h = kl.Dropout(0.25)(h)
@@ -797,10 +797,10 @@ class RepGAN(tf.keras.Model):
         """
         s = kl.Input(shape=(self.latentSdim,))
         if 'WGAN' in self.discriminator:
-            h = kl.Dense(1000,kernel_constraint=ClipConstraint(self.clipValue))(s)
+            h = kl.Dense(3000,kernel_constraint=ClipConstraint(self.clipValue))(s)
             h = kl.LeakyReLU(alpha=0.1)(h)
             h = kl.Dropout(0.25)(h)
-            h = kl.Dense(1000,kernel_constraint=ClipConstraint(self.clipValue))(h)
+            h = kl.Dense(3000,kernel_constraint=ClipConstraint(self.clipValue))(h)
             h = kl.BatchNormalization(momentum=0.95)(h)
             h = kl.LeakyReLU(alpha=0.1)(h)
             h = kl.Dropout(0.25)(h)

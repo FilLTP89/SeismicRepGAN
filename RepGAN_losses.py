@@ -140,7 +140,7 @@ def getLosses(**kwargs):
     losses['PenAdvCloss'] = 1.
     losses['PenAdvSloss'] = 1.
     losses['PenAdvNloss'] = 1.
-    losses['PenRecXloss'] = 1.
+    losses['PenRecXloss'] = 10.
     losses['PenRecCloss'] = 1.
     losses['PenRecSloss'] = 1.
     
