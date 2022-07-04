@@ -17,9 +17,7 @@ from tensorflow.keras.optimizers import Adam, RMSprop
 
 ε = 1e-8
 
-
-@tf.function
-def GaussianNLL(x,μ,logΣ,mod='var',raxis=None):
+class GaussianNLL(kl.Loss):
     """
         Gaussian negative loglikelihood loss function
     """
