@@ -278,8 +278,7 @@ class RepGAN(tf.keras.Model):
                     Dx_fake = self.Dx(X_fake,training=True)
 
                     # Compute adversarial loos (penalized)
-                    #AdvGlossX = self.AdvGlossDx(realBCE_X,Dx_fake)*self.PenAdvXloss
-                    AdvGlossX = -tf.reduce_mean(tf.math.log(Dx_fake+1e-8))*self.PenAdvXloss
+                    AdvGlossX = self.AdvGlossDx(None,Dx_fake)
 
                 # Get the gradients w.r.t the generator loss
                 gradGz = tape.gradient(AdvGlossX,(self.Gz.trainable_variables),unconnected_gradients=tf.UnconnectedGradients.ZERO)
