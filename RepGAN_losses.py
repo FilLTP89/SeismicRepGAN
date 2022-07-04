@@ -74,8 +74,8 @@ class GANDiscriminatorLoss(kl.Loss):
 
 class GANGeneratorLoss(kl.Loss):
     """
-        Generator GAN Loss for generator
-        Logit output from D    
+         General GAN Loss (for real and fake) with labels: {0,1}.
+         Logit output from D
     """
     def __init__(self, raxis=1, λ=1.0):
         super(GANGeneratorLoss,self).__init__()
@@ -94,11 +94,27 @@ class GANGeneratorLoss(kl.Loss):
         real_loss = kl.BinaryCrossentropy(from_logits=True, axis=raxis)(tf.ones_like(DGz), DGz)
         return self.λ*real_loss
 
-@tf.function
-def HingeDGANLoss(logitsDX, logitsDGz):
-    real_loss = tf.reduce_mean(tf.nn.relu(1. - logitsDX))
-    fake_loss = tf.reduce_mean(tf.nn.relu(1. + logitsDGz))
-    return λ*(real_loss + fake_loss)
+class HingeGANDiscriminatorLoss(kl.Loss):
+    """
+         Hinge GAN Loss (for real and fake) with labels: {0,1}.
+         Logit output from D
+    """
+    def __init__(self, raxis=1, λ=1.0):
+        super(HingeGANDiscriminatorLoss,self).__init__()
+
+        self.raxis = raxis
+        self.λ = λ
+
+    @tf.function
+    def call(self,logitsDX, logitsDGz):
+        if not self.raxis:
+            raxis = [i for i in range(1, len(DGz.shape))]
+        else:
+            raxis = self.raxis
+
+        real_loss = tf.reduce_mean(tf.nn.relu(1. - logitsDX),axis=raxis)
+        fake_loss = tf.reduce_mean(tf.nn.relu(1. + logitsDGz),axis=raxis)
+        return self.λ*(real_loss + fake_loss)
 
 class WGANDiscriminatorLoss(kl.Loss):
     """
@@ -276,7 +292,7 @@ def getLosses(**kwargs):
         losses['AdvDlossDs'] = GANDiscriminatorLoss(λ=PenAdvSloss)
         losses['AdvGlossDs'] = GANGeneratorLoss(λ=PenAdvSloss)
     elif DsTrainType.upper() == "HINGE":
-        losses['AdvDlossDs'] = HingeDGANLoss(λ=PenAdvSloss)
+        losses['AdvDlossDs'] = HingeGANDiscriminatorLoss(λ=PenAdvSloss)
         losses['AdvGlossDs'] = GANGeneratorLoss(λ=PenAdvSloss)
         
     if DnTrainType.upper() == "WGAN":
@@ -289,7 +305,7 @@ def getLosses(**kwargs):
         losses['AdvDlossDn'] = GANDiscriminatorLoss(λ=PenAdvNloss)
         losses['AdvGlossDn'] = GANGeneratorLoss(λ=PenAdvNloss)
     elif DnTrainType.upper() == "HINGE":
-        losses['AdvDlossDn'] = HingeDGANLoss(λ=PenAdvNloss)
+        losses['AdvDlossDn'] = HingeGANDiscriminatorLoss(λ=PenAdvNloss)
         losses['AdvGlossDn'] = GANGeneratorLoss(λ=PenAdvNloss)
 
     if DxTrainType.upper() == "WGAN":
