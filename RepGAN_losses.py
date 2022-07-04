@@ -53,9 +53,10 @@ class GANDiscriminatorLoss(kl.Loss):
          General GAN Loss (for real and fake) with labels: {0,1}. 
          Logit output from D
     """
-    def __init__(self, raxis=1, λ=1.0):
+    def __init__(self, from_logits=True, raxis=1, λ=1.0):
         super(GANDiscriminatorLoss,self).__init__()
 
+        self.from_logits = from_logits
         self.raxis = raxis
         self.λ = λ
     
@@ -67,8 +68,10 @@ class GANDiscriminatorLoss(kl.Loss):
         else:
             raxis = self.raxis
             
-        real_loss = kl.BinaryCrossentropy(from_logits=True, axis=raxis)(tf.ones_like(DX), DX)
-        fake_loss = kl.BinaryCrossentropy(from_logits=True, axis=raxis)(tf.zeros_like(DGz), DGz)
+        real_loss = kl.BinaryCrossentropy(from_logits=self.from_logits,
+                                          axis=raxis)(tf.ones_like(DX), DX)
+        fake_loss = kl.BinaryCrossentropy(from_logits=self.from_logits,
+                                          axis=raxis)(tf.zeros_like(DGz), DGz)
         
         return self.λ*(real_loss + fake_loss)
 
@@ -77,9 +80,10 @@ class GANGeneratorLoss(kl.Loss):
          General GAN Loss (for real and fake) with labels: {0,1}.
          Logit output from D
     """
-    def __init__(self, raxis=1, λ=1.0):
+    def __init__(self, from_logits=True, raxis=1, λ=1.0):
         super(GANGeneratorLoss,self).__init__()
 
+        self.from_logits = from_logits
         self.raxis = raxis
         self.λ = λ
         
@@ -91,7 +95,8 @@ class GANGeneratorLoss(kl.Loss):
         else:
             raxis = self.raxis
         
-        real_loss = kl.BinaryCrossentropy(from_logits=True, axis=raxis)(tf.ones_like(DGz), DGz)
+        real_loss = kl.BinaryCrossentropy(from_logits=self.from_logits, 
+                                          axis=raxis)(tf.ones_like(DGz), DGz)
         return self.λ*real_loss
 
 class HingeGANDiscriminatorLoss(kl.Loss):
@@ -215,7 +220,6 @@ class MutualInfoLoss(kl.Loss):
         else:
             raxis = self.raxis
         
-        # H_CgivenX = kl.
         H_CgivenX = -tf.reduce_mean(tf.reduce_mean(tf.math.log(c_given_x+ε)*c,axis=raxis))
         H_C = -tf.reduce_mean(tf.reduce_mean(tf.math.log(c+ε)*c,axis=raxis))
         
@@ -226,15 +230,22 @@ class InfoLoss(kl.Loss):
     """
         Categorical cross entropy loss as Information loss (InfoGAN)
     """
-    def __init__(from_logits=False, λ=1.0):
+    def __init__(self, from_logits=True, raxis=1, λ=1.0):
         super(InfoLoss,self).__init__()
 
         self.from_logits = from_logits
+        self.raxis = raxis
         self.λ = λ
         
     @tf.function
-    def call(self, DX, DGz):
-        return self.λ*kl.CategoricalCrossentropy(from_logits=self.from_logits)(DX, DGz)
+    def call(self, c, QcX):
+
+        if not self.raxis:
+            raxis = [i for i in range(1, len(QcX.shape))]
+        else:
+            raxis = self.raxis
+
+        return self.λ*kl.CategoricalCrossentropy(from_logits=self.from_logits,axis=raxis)(c, QcX)
 
 def getOptimizers(**kwargs):
     getOptimizers.__globals__.update(kwargs)
@@ -322,7 +333,7 @@ def getLosses(**kwargs):
 
     losses['RecSloss']  = GaussianNLL(λ=PenRecSloss)
     losses['RecXloss']  = kl.MeanSquaredError()
-    losses['RecCloss']  = MutualInfoLoss(λ=PenRecCloss)
+    losses['RecCloss']  = InfoLoss(λ=PenRecCloss)
     losses['FakeCloss'] = kl.CategoricalCrossentropy()
 
     return losses
