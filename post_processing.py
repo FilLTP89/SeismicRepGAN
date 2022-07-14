@@ -53,9 +53,8 @@ pn.extension()
 
 from interferometry import *
 import MDOFload as mdof
-from utils import *
 from RepGAN_utils import *
-
+from interferometry_utils import *
 from sklearn.manifold import TSNE
 
 from random import seed

@@ -18,6 +18,6 @@ module load anaconda3/2021.05/gcc-9.2.0
 module load cuda/11.4.0/gcc-9.2.0
 source activate tf
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/gpfs/users/colombergi/.conda/envs/tf/lib
- 
-python3 RepGAN_drive.py --nX 4000 --cuda --epochs 2000 --latentSdim 2 --latentNdim 1024 --nXRepX 1 --nRepXRep 2 --nCritic 1 --nGenerator 5 --nSlayers 1 --nNlayers 1 --nClayers 1 --DxLR 0.00002 --DsLR 0.0001 --DnLR 0.0001 --DcLR 0.0001 --FxLR 0.00002 --GzLR 0.00002 --checkpoint_dir '/gpfs/workdir/colombergi/GiorgiaGAN/checkpoint/04_07' --results_dir '/gpfs/workdir/colombergi/GiorgiaGAN/results'
-#python3 post_processing.py --nX 4000 --cuda --epochs 2000 --latentSdim 2 --latentNdim 1024 --nXRepX 1 --nRepXRep 2 --nCritic 1 --nGenerator 5 --nSlayers 1 --nNlayers 1 --nClayers 1 --DxLR 0.00002 --DsLR 0.0001 --DnLR 0.0001 --DcLR 0.0001 --FxLR 0.00002 --GzLR 0.00002 --checkpoint_dir '/gpfs/workdir/colombergi/GiorgiaGAN/checkpoint/04_07' --results_dir '/gpfs/workdir/colombergi/GiorgiaGAN/results'
+
+python3 RepGAN_drive.py --nX 4000 --cuda --epochs 2000 --latentSdim 2 --latentNdim 256 --nXRepX 1 --nRepXRep 2 --nCritic 1 --nGenerator 5 --nSlayers 1 --nNlayers 1 --nClayers 1 --DxTrainType WGAN --DsTrainType WGAN --DcTrainType WGAN --DnTrainType WGAN --DxSN --DzSN --FxSN --GzSN --DxLR 0.000002 --DsLR 0.00001 --DnLR 0.00001 --DcLR 0.00001 --FxLR 0.000002 --GzLR 0.000002 --checkpoint_dir '/gpfs/workdir/colombergi/GiorgiaGAN/checkpoint/14_07' --results_dir '/gpfs/workdir/colombergi/GiorgiaGAN/results'
+#python3 post_processing.py --nX 4000 --cuda --epochs 2 --latentSdim 2 --latentNdim 256 --nXRepX 1 --nRepXRep 2 --nCritic 1 --nGenerator 5 --nSlayers 1 --nNlayers 1 --nClayers 1 --DxLR 0.000002 --DsLR 0.00001 --DnLR 0.00001 --DcLR 0.00001 --FxLR 0.000002 --GzLR 0.000002 --checkpoint_dir '/gpfs/workdir/colombergi/GiorgiaGAN/checkpoint/14_07' --results_dir '/gpfs/workdir/colombergi/GiorgiaGAN/results'

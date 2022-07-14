@@ -433,12 +433,12 @@ def generate(self, X, c_fake_new):
     X_rec_new = Gz((s_fake,c_fake_new,n_fake),training=False)
     return X_rec_new
 
-def DumpModels(self):
-    Fx.save("/gpfs/workdir/colombergi/GiorgiaGAN/checkpoint_prova/02_06/Fx",save_format="tf")
-    Gz.save("/gpfs/workdir/colombergi/GiorgiaGAN/checkpoint_prova/02_06/Gz",save_format="tf")
-    Dx.save("/gpfs/workdir/colombergi/GiorgiaGAN/checkpoint_prova/02_06/Dx",save_format="tf")
-    Ds.save("/gpfs/workdir/colombergi/GiorgiaGAN/checkpoint_prova/02_06/Ds",save_format="tf")
-    Dn.save("/gpfs/workdir/colombergi/GiorgiaGAN/checkpoint_prova/02_06/Dn",save_format="tf")
-    Dc.save("/gpfs/workdir/colombergi/GiorgiaGAN/checkpoint_prova/02_06/Dc",save_format="tf")
+def DumpModels(self,resultFolder):
+    Fx.save("{:>s}/Fx",save_format="tf")
+    Gz.save("{:>s}/Gz",save_format="tf")
+    Dx.save("{:>s}/Dx",save_format="tf")
+    Ds.save("{:>s}/Ds",save_format="tf")
+    Dn.save("{:>s}/Dn",save_format="tf")
+    Dc.save("{:>s}/Dc",save_format="tf")
     return
 
