@@ -270,7 +270,7 @@ class RepGAN(tf.keras.Model):
             # Update the weights of the discriminator using the discriminator optimizer
             self.DxOpt.apply_gradients(zip(gradDx,self.Dx.trainable_variables))
 
-        #for _ in range(self.nGenerator):
+        for _ in range(self.nGenerator):
 
             # Train generators
             for _ in range(self.nGenerator):
@@ -563,6 +563,12 @@ class RepGAN(tf.keras.Model):
 
         # variable n
         layer = self.nNlayers
+        # h_n = kl.Conv1D(self.nZchannels,self.Nkernel,self.Nstride,padding="same",
+        #         data_format="channels_last")(h_n)
+        # h_n = kl.BatchNormalization(momentum=0.95)(h_n)
+        # h_n = kl.LeakyReLU(alpha=0.1)(h_n)
+        # h_n = kl.Dropout(0.2)(h_n)
+
         h_n = kl.Flatten(name="FxFLN{:>d}".format(layer+1))(h_n)
         h_n = kl.Dense(1024)(h_n)
         h_n = kl.BatchNormalization(momentum=0.95)(h_n)
@@ -603,83 +609,201 @@ class RepGAN(tf.keras.Model):
         h_s = kl.LeakyReLU(alpha=0.1)(h_s)
         h_s = kl.Reshape((self.Ssize,self.nSchannels))(h_s)
 
-        for layer in range(1,self.nSlayers):
-            h_s = tfa.layers.SpectralNormalization(kl.Conv1DTranspose(int(self.nSchannels*self.Sstride**(-layer)),
+        if self.skip:
+            for layer in range(1,self.nSlayers):
+                s1 = tfa.layers.SpectralNormalization(kl.Dense(h_s.shape[1]*h_s.shape[2]))(s)
+                s1 = kl.Reshape((h_s.shape[1],h_s.shape[2]))(s1)
+                h_s = kl.concatenate([h_s,s1])
+                h_s = tfa.layers.SpectralNormalization(kl.Conv1DTranspose(int(self.nSchannels*self.Sstride**(-layer)),
+                    self.Skernel,self.Sstride,padding="same",
+                    data_format="channels_last"))(h_s)
+                h_s = kl.LeakyReLU(alpha=0.1)(h_s)
+                h_s = kl.BatchNormalization(momentum=0.95)(h_s)
+            s1 = tfa.layers.SpectralNormalization(kl.Dense(h_s.shape[1]*h_s.shape[2]))(s)
+            s1 = kl.Reshape((h_s.shape[1],h_s.shape[2]))(s1)
+            h_s = kl.concatenate([h_s,s1])
+            h_s = tfa.layers.SpectralNormalization(kl.Conv1DTranspose(int(self.nSchannels*self.Sstride**(-self.nSlayers)),
+            self.Skernel,self.Sstride,padding="same",data_format="channels_last"))(h_s)
+            h_s = kl.LeakyReLU(alpha=0.1)(h_s)
+            h_s = kl.BatchNormalization(momentum=0.95,name="GzBNS{:>d}".format(self.nSlayers))(h_s)
+            GzS = keras.Model(s,h_s)
+        
+        else:
+            for layer in range(1,self.nSlayers):
+                h_s = tfa.layers.SpectralNormalization(kl.Conv1DTranspose(int(self.nSchannels*self.Sstride**(-layer)),
+                    self.Skernel,self.Sstride,padding="same",
+                    data_format="channels_last"))(h_s)
+                h_s = kl.LeakyReLU(alpha=0.1)(h_s)
+                h_s = kl.BatchNormalization(momentum=0.95)(h_s)
+                #h_s = kl.Dropout(self.dpout,name="GzDOS{:>d}".format(layer))(h_s)
+            h_s = tfa.layers.SpectralNormalization(kl.Conv1DTranspose(int(self.nSchannels*self.Sstride**(-self.nSlayers)),
                 self.Skernel,self.Sstride,padding="same",
                 data_format="channels_last"))(h_s)
+            h_s = kl.BatchNormalization(momentum=0.95,name="GzBNS{:>d}".format(self.nSlayers))(h_s)
             h_s = kl.LeakyReLU(alpha=0.1)(h_s)
-            h_s = kl.BatchNormalization(momentum=0.95)(h_s)
-            #h_s = kl.Dropout(self.dpout,name="GzDOS{:>d}".format(layer))(h_s)
-        h_s = tfa.layers.SpectralNormalization(kl.Conv1DTranspose(int(self.nSchannels*self.Sstride**(-self.nSlayers)),
-            self.Skernel,self.Sstride,padding="same",
-            data_format="channels_last"))(h_s)
-        h_s = kl.BatchNormalization(momentum=0.95,name="GzBNS{:>d}".format(self.nSlayers))(h_s)
-        h_s = kl.LeakyReLU(alpha=0.1)(h_s)
-        #h_s = kl.Dropout(self.dpout)(h_s)
-        GzS = tf.keras.Model(s,h_s)
-
+            #h_s = kl.Dropout(self.dpout)(h_s)
+            GzS = tf.keras.Model(s,h_s)
 
         # variable c
         h_c = tfa.layers.SpectralNormalization(kl.Dense(self.Csize*self.nCchannels))(c)
         h_c = kl.BatchNormalization(momentum=0.95)(h_c)
         h_c = kl.LeakyReLU(alpha=0.1,)(h_c)
         h_c = kl.Reshape((self.Csize,self.nCchannels))(h_c)
-        for layer in range(1,self.nClayers):
-            h_c = tfa.layers.SpectralNormalization(kl.Conv1DTranspose(int(self.nCchannels*self.Cstride**(-layer)),
+
+        if self.skip:
+            for layer in range(1,self.nClayers):
+                c1 = tfa.layers.SpectralNormalization(kl.Dense(h_c.shape[1]*h_c.shape[2]))(c)
+                c1 = kl.Reshape((h_c.shape[1],h_c.shape[2]))(c1)
+                h_c = kl.concatenate([h_c,c1])
+                h_c = tfa.layers.SpectralNormalization(kl.Conv1DTranspose(int(self.nCchannels*self.Cstride**(-layer)),
+                    self.Ckernel,self.Cstride,padding="same",
+                    data_format="channels_last"))(h_c)
+                h_c = kl.LeakyReLU(alpha=0.1)(h_c)
+                h_c = kl.BatchNormalization(momentum=0.95)(h_c)
+            c1 = tfa.layers.SpectralNormalization(kl.Dense(h_c.shape[1]*h_c.shape[2]))(c)
+            c1 = kl.Reshape((h_c.shape[1],h_c.shape[2]))(c1)
+            h_c = kl.concatenate([h_c,c1])
+            h_c = tfa.layers.SpectralNormalization(kl.Conv1DTranspose(int(self.nCchannels*self.Cstride**(-self.nClayers)),
+            self.Ckernel,self.Cstride,padding="same",data_format="channels_last"))(h_c)
+            h_c = kl.LeakyReLU(alpha=0.1)(h_c)
+            h_c = kl.BatchNormalization(momentum=0.95,name="GzBNC{:>d}".format(self.nClayers))(h_c)
+            GzC = keras.Model(c,h_c)
+
+        else:
+            for layer in range(1,self.nClayers):
+                h_c = tfa.layers.SpectralNormalization(kl.Conv1DTranspose(int(self.nCchannels*self.Cstride**(-layer)),
+                    self.Ckernel,self.Cstride,padding="same",
+                    data_format="channels_last"))(h_c)
+                h_c = kl.BatchNormalization(momentum=0.95)(h_c)
+                h_c = kl.LeakyReLU(alpha=0.1)(h_c)
+                # h_c = kl.Dropout(self.dpout)(h_c)
+            h_c = tfa.layers.SpectralNormalization(kl.Conv1DTranspose(int(self.nCchannels*self.Cstride**(-self.nClayers)),
                 self.Ckernel,self.Cstride,padding="same",
                 data_format="channels_last"))(h_c)
             h_c = kl.BatchNormalization(momentum=0.95)(h_c)
             h_c = kl.LeakyReLU(alpha=0.1)(h_c)
             #h_c = kl.Dropout(self.dpout)(h_c)
-        h_c = tfa.layers.SpectralNormalization(kl.Conv1DTranspose(int(self.nCchannels*self.Cstride**(-self.nClayers)),
-            self.Ckernel,self.Cstride,padding="same",
-            data_format="channels_last"))(h_c)
-        h_c = kl.BatchNormalization(momentum=0.95)(h_c)
-        h_c = kl.LeakyReLU(alpha=0.1)(h_c)
-        #h_c = kl.Dropout(self.dpout)(h_c)
-        GzC = tf.keras.Model(c,h_c)
+            GzC = tf.keras.Model(c,h_c)
 
         # variable n
         h_n = tfa.layers.SpectralNormalization(kl.Dense(self.Nsize*self.nNchannels))(n)
         h_n = kl.BatchNormalization(momentum=0.95)(h_n)
         h_n = kl.LeakyReLU(alpha=0.1)(h_n)
         h_n = kl.Reshape((self.Nsize,self.nNchannels))(h_n)
-        for layer in range(1,self.nNlayers):
-            h_n = tfa.layers.SpectralNormalization(kl.Conv1DTranspose(int(self.nNchannels*self.Nstride**(-layer)),
+
+        if self.skip:
+            for layer in range(1,self.nNlayers):
+                n1 = tfa.layers.SpectralNormalization(kl.Dense(h_n.shape[1]*h_n.shape[2]))(n)
+                n1 = kl.Reshape((h_n.shape[1],h_n.shape[2]))(n1)
+                h_n = kl.concatenate([h_n,n1])
+                h_n = tfa.layers.SpectralNormalization(kl.Conv1DTranspose(int(self.nNchannels*self.Nstride**(-layer)),
+                    self.Nkernel,self.Nstride,padding="same",
+                    data_format="channels_last"))(h_n)
+                h_n = kl.LeakyReLU(alpha=0.1)(h_n)
+                h_n = kl.BatchNormalization(momentum=0.95)(h_n)
+            n1 = tfa.layers.SpectralNormalization(kl.Dense(h_n.shape[1]*h_n.shape[2]))(n)
+            n1 = kl.Reshape((h_n.shape[1],h_n.shape[2]))(n1)
+            h_n = kl.concatenate([h_n,n1])
+            h_n = tfa.layers.SpectralNormalization(kl.Conv1DTranspose(int(self.nNchannels*self.Nstride**(-self.nNlayers)),
+            self.Nkernel,self.Nstride,padding="same",data_format="channels_last"))(h_n)
+            h_n = kl.LeakyReLU(alpha=0.1)(h_n)
+            h_n = kl.BatchNormalization(momentum=0.95,name="GzBNN{:>d}".format(self.nNlayers))(h_n)
+            GzN = keras.Model(n,h_n)
+
+        else:
+            for layer in range(1,self.nNlayers):
+                h_n = tfa.layers.SpectralNormalization(kl.Conv1DTranspose(int(self.nNchannels*self.Nstride**(-layer)),
+                    self.Nkernel,self.Nstride,padding="same",
+                    data_format="channels_last"))(h_n)
+                h_n = kl.LeakyReLU(alpha=0.1)(h_n)
+                h_n = kl.BatchNormalization(momentum=0.95)(h_n)
+                #h_n = kl.Dropout(self.dpout)(h_n)
+            h_n = tfa.layers.SpectralNormalization(kl.Conv1DTranspose(int(self.nNchannels*self.Nstride**(-self.nNlayers)),
                 self.Nkernel,self.Nstride,padding="same",
                 data_format="channels_last"))(h_n)
-            h_n = kl.LeakyReLU(alpha=0.1)(h_n)
             h_n = kl.BatchNormalization(momentum=0.95)(h_n)
-            #h_n = kl.Dropout(self.dpout)(h_n)
-        h_n = tfa.layers.SpectralNormalization(kl.Conv1DTranspose(int(self.nNchannels*self.Nstride**(-self.nNlayers)),
-            self.Nkernel,self.Nstride,padding="same",
-            data_format="channels_last"))(h_n)
-        h_n = kl.BatchNormalization(momentum=0.95)(h_n)
-        h_n = kl.LeakyReLU(alpha=0.1)(h_n)
-        #h_n = kl.Dropout(self.dpout)(h_n)
-        GzN = tf.keras.Model(n,h_n)
+            h_n = kl.LeakyReLU(alpha=0.1)(h_n)
+            # h_n = kl.Dropout(self.dpout)(h_n)
+            GzN = tf.keras.Model(n,h_n)
 
-        Gz = kl.concatenate([GzS.output,GzC.output,GzN.output])
-        Gz = tfa.layers.SpectralNormalization(kl.Conv1DTranspose(self.nZchannels,
-                self.kernel,1,padding="same",
-                data_format="channels_last"))(Gz)
-        Gz = kl.BatchNormalization(axis=-1,momentum=0.95)(Gz)
-        Gz = kl.LeakyReLU(alpha=0.1)(Gz)
-
-        for layer in range(self.nAElayers-1):
-            Gz = tfa.layers.SpectralNormalization(kl.Conv1DTranspose(self.nZchannels//self.stride**(layer+1),
-                self.kernel,self.stride,padding="same",use_bias=False))(Gz)
+        if self.skip:
+            s1 = kl.Dense(h_s.shape[1]*h_s.shape[2])(s)
+            s1 = kl.Reshape((h_s.shape[1],h_s.shape[2]))(s1)
+            c1 = kl.Dense(h_c.shape[1]*h_c.shape[2])(c)
+            c1 = kl.Reshape((h_c.shape[1],h_c.shape[2]))(c1)
+            n1 = kl.Dense(h_n.shape[1]*h_n.shape[2])(n)
+            n1 = kl.Reshape((h_n.shape[1],h_n.shape[2]))(n1)
+            Gz = kl.concatenate([GzS.output,GzC.output,GzN.output,s1,c1,n1])
+            Gz = tfa.layers.SpectralNormalization(kl.Conv1DTranspose(self.nZchannels,self.kernel,1,padding="same",
+            data_format="channels_last"))(Gz)
+            Gz = kl.LeakyReLU(alpha=0.1)(Gz)
+            Gz = kl.BatchNormalization(axis=-1,momentum=0.95)(Gz)
+        
+        else:
+            Gz = kl.concatenate([GzS.output,GzC.output,GzN.output])
+            Gz = tfa.layers.SpectralNormalization(kl.Conv1DTranspose(self.nZchannels,
+                    self.kernel,1,padding="same",
+                    data_format="channels_last"))(Gz)
             Gz = kl.BatchNormalization(axis=-1,momentum=0.95)(Gz)
             Gz = kl.LeakyReLU(alpha=0.1)(Gz)
+        
+        if self.skip:
+            for layer in range(self.nAElayers-1):
+                s1 = kl.Dense(Gz.shape[1]*Gz.shape[2])(s)
+                s1 = kl.Reshape((Gz.shape[1],Gz.shape[2]))(s1)
+                c1 = kl.Dense(Gz.shape[1]*Gz.shape[2])(c)
+                c1 = kl.Reshape((Gz.shape[1],Gz.shape[2]))(c1)
+                n1 = kl.Dense(Gz.shape[1]*Gz.shape[2])(n)
+                n1 = kl.Reshape((Gz.shape[1],Gz.shape[2]))(n1)
+                Gz = kl.concatenate([Gz,s1,c1,n1])
+                Gz = tfa.layers.SpectralNormalization(kl.Conv1DTranspose(self.nZchannels//self.stride**(layer+1),
+                    self.kernel,self.stride,padding="same",use_bias=False))(Gz)
+                Gz = kl.LeakyReLU(alpha=0.1)(Gz)
+                Gz = kl.BatchNormalization(axis=-1,momentum=0.95)(Gz)
+
+        else:
+            for layer in range(self.nAElayers-1):
+                Gz = tfa.layers.SpectralNormalization(kl.Conv1DTranspose(self.nZchannels//self.stride**(layer+1),
+                    self.kernel,self.stride,padding="same",use_bias=False))(Gz)
+                Gz = kl.BatchNormalization(axis=-1,momentum=0.95)(Gz)
+                Gz = kl.LeakyReLU(alpha=0.1)(Gz)
 
         layer = self.nAElayers-1
-        Gz = tfa.layers.SpectralNormalization(kl.Conv1DTranspose(self.nZchannels//self.stride**(layer+1),
-                self.kernel,self.stride,padding="same",use_bias=False))(Gz)
-        Gz = kl.BatchNormalization(axis=-1,momentum=0.95)(Gz)
-        Gz = kl.LeakyReLU(alpha=0.1,name="GzA{:>d}".format(layer+1))(Gz)
+
+        if self.skip:
+            s1 = kl.Dense(Gz.shape[1]*Gz.shape[2])(s)
+            s1 = kl.Reshape((Gz.shape[1],Gz.shape[2]))(s1)
+            c1 = kl.Dense(Gz.shape[1]*Gz.shape[2])(c)
+            c1 = kl.Reshape((Gz.shape[1],Gz.shape[2]))(c1)
+            n1 = kl.Dense(Gz.shape[1]*Gz.shape[2])(n)
+            n1 = kl.Reshape((Gz.shape[1],Gz.shape[2]))(n1)
+            Gz = kl.concatenate([Gz,s1,c1,n1])
+            Gz = tfa.layers.SpectralNormalization(kl.Conv1DTranspose(self.nZchannels//self.stride**(layer+1),
+                    self.kernel,self.stride,padding="same",use_bias=False))(Gz)
+            Gz = kl.LeakyReLU(alpha=0.1,name="GzA{:>d}".format(layer+1))(Gz)
+            Gz = kl.BatchNormalization(axis=-1,momentum=0.95)(Gz)
+
+        else:
+            Gz = tfa.layers.SpectralNormalization(kl.Conv1DTranspose(self.nZchannels//self.stride**(layer+1),
+                    self.kernel,self.stride,padding="same",use_bias=False))(Gz)
+            Gz = kl.BatchNormalization(axis=-1,momentum=0.95)(Gz)
+            Gz = kl.LeakyReLU(alpha=0.1,name="GzA{:>d}".format(layer+1))(Gz)
 
         layer = self.nAElayers
-        X = tfa.layers.SpectralNormalization(kl.Conv1DTranspose(self.nXchannels,self.kernel,1,
+
+        if self.skip:
+            s1 = kl.Dense(Gz.shape[1]*Gz.shape[2])(s)
+            s1 = kl.Reshape((Gz.shape[1],Gz.shape[2]))(s1)
+            c1 = kl.Dense(Gz.shape[1]*Gz.shape[2])(c)
+            c1 = kl.Reshape((Gz.shape[1],Gz.shape[2]))(c1)
+            n1 = kl.Dense(Gz.shape[1]*Gz.shape[2])(n)
+            n1 = kl.Reshape((Gz.shape[1],Gz.shape[2]))(n1)
+            Gz = kl.concatenate([Gz,s1,c1,n1])
+            X = tfa.layers.SpectralNormalization(kl.Conv1DTranspose(self.nXchannels,self.kernel,1,padding="same",
+            activation='tanh',use_bias=False))(Gz)
+        
+        else:
+            X = tfa.layers.SpectralNormalization(kl.Conv1DTranspose(self.nXchannels,self.kernel,1,
             padding="same",activation='tanh',use_bias=False))(Gz)
 
         Gz = tf.keras.Model(inputs=[GzS.input,GzC.input,GzN.input],outputs=X,name="Gz")
