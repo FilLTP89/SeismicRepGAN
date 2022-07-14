@@ -42,7 +42,7 @@ def ParseOptions():
     parser.add_argument("--Nstride",type=int,default=2,help='CNN stride of N-branch branch')
     parser.add_argument("--batchSize",type=int,default=50,help='input batch size')    
     parser.add_argument("--DxTrainType", type=str, default='GAN',help='Train Dx with GAN, WGAN or WGANGP')
-    parser.add_argument("--DzTrainType", type=str, default='GAN',help='Train Ds with GAN, WGAN or WGANGP')
+    parser.add_argument("--DzTrainType", type=str, default='WGAN',help='Train Ds with GAN, WGAN or WGANGP')
     parser.add_argument("--DxLR", type=float, default=0.0002,help='Learning rate for Dx [GAN=0.0002/WGAN=0.001]')
     parser.add_argument("--DsLR", type=float, default=0.001,help='Learning rate for Ds [GAN=0.0002/WGAN=0.001]')
     parser.add_argument("--DnLR", type=float, default=0.001,help='Learning rate for Dn [GAN=0.0002/WGAN=0.001]')
@@ -66,12 +66,12 @@ def ParseOptions():
     parser.add_argument("--case",type=str,default="train_model",help="case")
     parser.add_argument("--avu",type=str,nargs='+',default="U",help="case avu")
     parser.add_argument("--pb",type=str,default="DC",help="case pb")#DC
+    parser.add_argument("--skip",action='store_true',default=True,help='Create skip connections flag')
     parser.add_argument("--CreateData",action='store_true',default=False,help='Create data flag')
     parser.add_argument("--cuda",action='store_true',default=False,help='Use cuda powered GPU')
     parser.add_argument('--dtm',type=float,default=0.04,help='time-step [s]')
     parser.add_argument("--checkpoint_dir",default='/gpfs/workdir/colombergi/GiorgiaGAN/checkpoint/03_06',help="Checkpoint")
     parser.add_argument("--results_dir",default='/gpfs/workdir/colombergi/GiorgiaGAN/results',help="Checkpoint")
-    parser.add_argument("--discriminator",default='WGAN',help="Type of Dz")
     parser.add_argument("--sigmas2",default='sigmoid',help="Last sigmas2 activation layer")
     options = parser.parse_args().__dict__
 

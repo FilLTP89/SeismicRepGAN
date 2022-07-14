@@ -120,7 +120,7 @@ def getOptimizers(**kwargs):
     getOptimizers.__globals__.update(kwargs)
     optimizers = {}
     optimizers['DxOpt'] = Adam(learning_rate=DxLR, beta_1=0.5, beta_2=0.9999)
-    if 'WGAN' in discriminator:
+    if 'WGAN' in DzTrainType:
         optimizers['DcOpt'] = RMSprop(learning_rate=DcLR)
         optimizers['DsOpt'] = RMSprop(learning_rate=DsLR)
         optimizers['DnOpt'] = RMSprop(learning_rate=DnLR)
