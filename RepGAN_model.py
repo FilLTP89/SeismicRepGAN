@@ -59,9 +59,8 @@ class sampleSlayer(kl.Layer):
         self.latentSdim = latentSdim
     def call(self,hs):
         μs, logΣs = tf.split(hs,num_or_size_splits=2, axis=1)
-        Σs = tf.math.exp(0.5*logΣs)
         ε = tf.random.normal(shape=self.latentSdim, mean=0.0, stddev=1.0)
-        return μs + tf.exp(0.5*Σs)*ε
+        return μs + tf.exp(0.5*logΣs)*ε
 
 
 def sampleS(hs,latentSdim):
@@ -153,25 +152,27 @@ class RepGAN(tf.keras.Model):
         # Update the weights of the generator using the generator optimizer
         self.FxOpt.apply_gradients(zip(gradFx,self.Fx.trainable_variables))
 
-        with tf.GradientTape(persistent=True) as tape:
+        # Train generators
+        # Train nGenerator times the generators
+        for _ in range(self.nGenerator):
+            with tf.GradientTape(persistent=True) as tape:
 
-            # Encode real signals
-            _,s_fake,c_fake,n_fake = self.Fx(X,training=True)
+                # Encode real signals
+                _,s_fake,c_fake,n_fake = self.Fx(X,training=True)
 
-            # Reconstruct real signals
-            X_rec = self.Gz((s_fake,c_fake,n_fake),training=True)
+                # Reconstruct real signals
+                X_rec = self.Gz((s_fake,c_fake,n_fake),training=True)
 
-            # Compute reconstruction loss
-            RecGlossX = self.RecXloss(X,X_rec)
+                # Compute reconstruction loss
+                RecGlossX = self.RecXloss(X,X_rec)
     
-        # Get the gradients w.r.t the generator loss
-        gradFx, gradGz = tape.gradient(RecGlossX,
-                                       (self.Fx.trainable_variables,self.Gz.trainable_variables),
-                                       unconnected_gradients=tf.UnconnectedGradients.ZERO)
+            # Get the gradients w.r.t the generator loss
+            gradFx, gradGz = tape.gradient(RecGlossX,(self.Fx.trainable_variables,self.Gz.trainable_variables),
+                                           unconnected_gradients=tf.UnconnectedGradients.ZERO)
 
-        # Update the weights of the generator using the generator optimizer
-        self.FxOpt.apply_gradients(zip(gradFx,self.Fx.trainable_variables))
-        self.GzOpt.apply_gradients(zip(gradGz,self.Gz.trainable_variables))
+            # Update the weights of the generator using the generator optimizer
+            self.FxOpt.apply_gradients(zip(gradFx,self.Fx.trainable_variables))
+            self.GzOpt.apply_gradients(zip(gradGz,self.Gz.trainable_variables))
 
         # Train discriminators
         # Train nCritic times the discriminators
@@ -230,13 +231,16 @@ class RepGAN(tf.keras.Model):
             AdvGloss = AdvGlossC + AdvGlossS + AdvGlossN
             
         # Get the gradients w.r.t the generator loss
-        gradFx = tape.gradient(AdvGloss,(self.Fx.trainable_variables),unconnected_gradients=tf.UnconnectedGradients.ZERO)
+        gradFx = tape.gradient(AdvGloss,(self.Fx.trainable_variables),
+                               unconnected_gradients=tf.UnconnectedGradients.ZERO)
 
         # Update the weights of the generator using the generator optimizer
         self.FxOpt.apply_gradients(zip(gradFx,self.Fx.trainable_variables))
-
-        return RecGlossX,FakeCloss,AdvDloss,AdvDlossC,AdvDlossS,AdvDlossN,AdvGloss,AdvGlossC,AdvGlossS,AdvGlossN,\
-                Dc_fake,Ds_fake,Dn_fake,Dc_real,Ds_real,Dn_real
+        
+        return RecGlossX,FakeCloss,\
+            AdvDloss,AdvDlossC,AdvDlossS,AdvDlossN,\
+            AdvGloss,AdvGlossC,AdvGlossS,AdvGlossN,\
+            Dc_fake,Ds_fake,Dn_fake,Dc_real,Ds_real,Dn_real
 
     @tf.function
     def train_ZXZ(self,X,c):
@@ -266,6 +270,7 @@ class RepGAN(tf.keras.Model):
             # Update the weights of the discriminator using the discriminator optimizer
             self.DxOpt.apply_gradients(zip(gradDx,self.Dx.trainable_variables))
 
+        #for _ in range(self.nGenerator):
 
             # Train generators
             for _ in range(self.nGenerator):
@@ -479,7 +484,7 @@ class RepGAN(tf.keras.Model):
                 data_format="channels_last",name="FxCNNmuS{:>d}".format(layer+1))(h_μs)
             h_μs = kl.BatchNormalization(momentum=0.95,name="FxBNmuS{:>d}".format(layer+1))(h_μs)
             h_μs = kl.LeakyReLU(alpha=0.1,name="FxAmuS{:>d}".format(layer+1))(h_μs)
-            h_μs = kl.Dropout(self.dpout,name="FxDOmuS{:>d}".format(layer+1))(h_μs)
+            h_μs = kl.Dropout(0.2,name="FxDOmuS{:>d}".format(layer+1))(h_μs)
 
         if self.sdouble_branch:
             for layer in range(1, self.nSlayers):
@@ -748,7 +753,7 @@ class RepGAN(tf.keras.Model):
             h = kl.Dense(3000,kernel_constraint=ClipConstraint(self.clipValue))(c)
             h = kl.LeakyReLU(alpha=0.1)(h)
             h = kl.Dropout(0.25)(h)
-            h = kl.Dense(3000,kernel_constraint=ClipConstraint(self.clipValue))(h)
+            h = kl.Dense(1000,kernel_constraint=ClipConstraint(self.clipValue))(h)
             h = kl.BatchNormalization(momentum=0.95)(h)
             h = kl.LeakyReLU(alpha=0.1)(h)
             h = kl.Dropout(0.25)(h)
@@ -774,7 +779,7 @@ class RepGAN(tf.keras.Model):
             h = kl.Dense(3000,kernel_constraint=ClipConstraint(self.clipValue))(n) 
             h = kl.LeakyReLU(alpha=0.1)(h)
             h = kl.Dropout(0.25)(h)
-            h = kl.Dense(3000,kernel_constraint=ClipConstraint(self.clipValue))(h)
+            h = kl.Dense(1000,kernel_constraint=ClipConstraint(self.clipValue))(h)
             h = kl.BatchNormalization(momentum=0.95)(h)
             h = kl.LeakyReLU(alpha=0.1)(h)
             h = kl.Dropout(0.25)(h)
@@ -799,7 +804,7 @@ class RepGAN(tf.keras.Model):
             h = kl.Dense(3000,kernel_constraint=ClipConstraint(self.clipValue))(s)
             h = kl.LeakyReLU(alpha=0.1)(h)
             h = kl.Dropout(0.25)(h)
-            h = kl.Dense(3000,kernel_constraint=ClipConstraint(self.clipValue))(h)
+            h = kl.Dense(1000,kernel_constraint=ClipConstraint(self.clipValue))(h)
             h = kl.BatchNormalization(momentum=0.95)(h)
             h = kl.LeakyReLU(alpha=0.1)(h)
             h = kl.Dropout(0.25)(h)

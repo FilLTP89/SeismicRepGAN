@@ -1444,17 +1444,21 @@ def PlotDistributions(model,realXC,results_dir):
     fakeS_mean = tf.reduce_mean(fakeS,axis=0)
     recS_mean = tf.reduce_mean(recS,axis=0)
 
+    Zσ2 = tf.exp(Zlogvar)
+
     fig, ax = plt.subplots()
-    ax.scatter(Zmu, Zlogvar,marker="o",label=None, alpha=0.8,edgecolors='w')
+    ax.scatter(Zmu, Zσ2,marker="o",label=None, alpha=0.8,edgecolors='w')
     ax.set_xlabel(r'$Z_{μ}$',fontsize=14)
-    ax.set_ylabel(r'$Z_{σ}$',fontsize=14)
+    ax.set_ylabel(r'$Z_{σ2}$',fontsize=14)
     plt.savefig(results_dir + '/fakeS_sampling.png',bbox_inches = 'tight')
     plt.close()
 
+    Recσ2 = tf.exp(Reclogvar)
+
     fig, ax = plt.subplots()
-    ax.scatter(Recmu, Reclogvar,marker="o",label=None, alpha=0.8,edgecolors='w')
+    ax.scatter(Recmu, Recσ2,marker="o",label=None, alpha=0.8,edgecolors='w')
     ax.set_xlabel(r'$Z_{μ}$',fontsize=14)
-    ax.set_ylabel(r'$Z_{σ}$',fontsize=14)
+    ax.set_ylabel(r'$Z_{σ2}$',fontsize=14)
     plt.savefig(results_dir + '/recS_sampling.png',bbox_inches = 'tight')
     plt.close()
 
@@ -1503,30 +1507,30 @@ def PlotDistributions(model,realXC,results_dir):
 
     return
 
-if __name__ == '__main__':
-    options = ParseOptions()
 
-    # MODEL LOADING
-    optimizers = RepGAN_losses.getOptimizers(**options)
-    losses = RepGAN_losses.getLosses(**options)
+options = ParseOptions()
 
-    # Instantiate the RepGAN model.
-    GiorgiaGAN = RepGAN(options)
+# MODEL LOADING
+optimizers = RepGAN_losses.getOptimizers(**options)
+losses = RepGAN_losses.getLosses(**options)
 
-    # Compile the RepGAN model.
-    GiorgiaGAN.compile(optimizers, losses)  # run_eagerly=True
+# Instantiate the RepGAN model.
+GiorgiaGAN = RepGAN(options)
 
-    Xtrn, Xvld, _ = mdof.LoadData(**options)
+# Compile the RepGAN model.
+GiorgiaGAN.compile(optimizers, losses)  # run_eagerly=True
 
-    GiorgiaGAN.Fx = keras.models.load_model(options['checkpoint_dir'] + '/Fx',compile=False)
-    GiorgiaGAN.Gz = keras.models.load_model(options['checkpoint_dir'] + '/Gz',compile=False)
-    GiorgiaGAN.Dx = keras.models.load_model(options['checkpoint_dir'] + '/Dx',compile=False)
-    GiorgiaGAN.Ds = keras.models.load_model(options['checkpoint_dir'] + '/Ds',compile=False)
-    GiorgiaGAN.Dn = keras.models.load_model(options['checkpoint_dir'] + '/Dn',compile=False)
-    GiorgiaGAN.Dc = keras.models.load_model(options['checkpoint_dir'] + '/Dc',compile=False)
+Xtrn, Xvld, _ = mdof.LoadData(**options)
+
+GiorgiaGAN.Fx = keras.models.load_model(options['checkpoint_dir'] + '/Fx',compile=False)
+GiorgiaGAN.Gz = keras.models.load_model(options['checkpoint_dir'] + '/Gz',compile=False)
+GiorgiaGAN.Dx = keras.models.load_model(options['checkpoint_dir'] + '/Dx',compile=False)
+GiorgiaGAN.Ds = keras.models.load_model(options['checkpoint_dir'] + '/Ds',compile=False)
+GiorgiaGAN.Dn = keras.models.load_model(options['checkpoint_dir'] + '/Dn',compile=False)
+GiorgiaGAN.Dc = keras.models.load_model(options['checkpoint_dir'] + '/Dc',compile=False)
 
 
-    GiorgiaGAN.build(input_shape=(options['batchSize'], options['Xsize'], options['nXchannels']))
+GiorgiaGAN.build(input_shape=(options['batchSize'], options['Xsize'], options['nXchannels']))
 
 
 #load_status = GiorgiaGAN.load_weights("ckpt")
@@ -1535,36 +1539,36 @@ if __name__ == '__main__':
 #print('restoring model from ' + latest)
 #GiorgiaGAN.load_weights(latest)
 #initial_epoch = int(latest[len(checkpoint_dir) + 7:])
-    GiorgiaGAN.summary()
+GiorgiaGAN.summary()
 
-    if options['CreateData']:
-        # Create the dataset
-        Xtrn,  Xvld, _ = mdof.CreateData(**options)
-    else:
-        # Load the dataset
-        Xtrn, Xvld, _ = mdof.LoadData(**options)
+if options['CreateData']:
+    # Create the dataset
+    Xtrn,  Xvld, _ = mdof.CreateData(**options)
+else:
+    # Load the dataset
+    Xtrn, Xvld, _ = mdof.LoadData(**options)
 
-    PlotReconstructedTHs(GiorgiaGAN,Xvld,options['results_dir']) # Plot reconstructed time-histories
+PlotReconstructedTHs(GiorgiaGAN,Xvld,options['results_dir']) # Plot reconstructed time-histories
 
-    PlotTHSGoFs(GiorgiaGAN,Xvld,options['results_dir']) # Plot reconstructed time-histories
+PlotTHSGoFs(GiorgiaGAN,Xvld,options['results_dir']) # Plot reconstructed time-histories
 
-    PlotClassificationMetrics(GiorgiaGAN,Xvld,options['results_dir']) # Plot classification metrics
+PlotClassificationMetrics(GiorgiaGAN,Xvld,options['results_dir']) # Plot classification metrics
 
-    PlotLatentSpace(GiorgiaGAN,Xvld,options['results_dir'])
+PlotLatentSpace(GiorgiaGAN,Xvld,options['results_dir'])
 
-    PlotTSNE(GiorgiaGAN,Xvld,options['results_dir'])
+PlotTSNE(GiorgiaGAN,Xvld,options['results_dir'])
 
-    PlotDistributions(GiorgiaGAN,Xvld,options['results_dir'])
+PlotDistributions(GiorgiaGAN,Xvld,options['results_dir'])
 
-    Xtrn = {}
-    Xvld = {}
-    for i in range(options['latentCdim']):
-        Xtrn['Xtrn_%d' % i], Xvld['Xvld_%d' % i], _  = mdof.Load_Un_Damaged(i,**options)
+Xtrn = {}
+Xvld = {}
+for i in range(options['latentCdim']):
+    Xtrn['Xtrn_%d' % i], Xvld['Xvld_%d' % i], _  = mdof.Load_Un_Damaged(i,**options)
 
-    for i in range(options['latentCdim']):
-        PlotBatchGoFs(GiorgiaGAN,Xtrn['Xtrn_%d' % i],Xvld['Xvld_%d' % i],i,options['results_dir'])
+for i in range(options['latentCdim']):
+    PlotBatchGoFs(GiorgiaGAN,Xtrn['Xtrn_%d' % i],Xvld['Xvld_%d' % i],i,options['results_dir'])
 
-    for i in range(1,options['latentCdim']):
-        PlotSwitchedTHs(GiorgiaGAN,Xvld['Xvld_%d' % 0],Xvld['Xvld_%d' % i],i,options['results_dir']) # Plot switched time-histories
+for i in range(1,options['latentCdim']):
+    PlotSwitchedTHs(GiorgiaGAN,Xvld['Xvld_%d' % 0],Xvld['Xvld_%d' % i],i,options['results_dir']) # Plot switched time-histories
 
 

@@ -40,11 +40,11 @@ class GaussianNLL(kl.Loss):
         else:
             raxis = self.raxis
 
-        log2pi = 0.5*n_dims*tf.math.log(2.*np.pi)
+        nlog2π = 0.5*n_dims*tf.math.log(2.*np.pi)
 
         mse = tf.reduce_sum(0.5*tf.math.square(x-μ)*tf.math.exp(-logΣ),axis=raxis)
-        traceΣ = tf.reduce_sum(tf.math.exp(logΣ), axis=raxis)
-        NLL = mse+traceΣ+log2pi
+        TrlogΣ = tf.reduce_sum(logΣ, axis=raxis)
+        NLL = mse+TrlogΣ+nlog2π
 
         return self.λ*tf.reduce_mean(NLL)
 
