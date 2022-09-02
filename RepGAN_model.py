@@ -18,26 +18,21 @@ import tensorflow.keras.layers as kl
 import tensorflow.keras.metrics as km
 import tensorflow.keras.constraints as kc
 
-from RepGAN_losses import GradientPenalty as GP
-
 tfd = tfp.distributions
 
-# Create Metric instances to track the losses
-AdvDLoss_tracker = km.Mean(name="Dloss")
-AdvDlossX_tracker = km.Mean(name="DlossX")
-AdvDlossC_tracker = km.Mean(name="DlossC")
-AdvDlossS_tracker = km.Mean(name="DlossS")
-AdvDlossN_tracker = km.Mean(name="DlossN")
-AdvGLoss_tracker = km.Mean(name="Gloss")
-AdvGlossX_tracker = km.Mean(name="GlossX")
-AdvGlossC_tracker = km.Mean(name="GlossC")
-AdvGlossS_tracker = km.Mean(name="GlossS")
-AdvGlossN_tracker = km.Mean(name="GlossN")
-RecGlossX_tracker = km.Mean(name="RecGlossX")
-RecGlossC_tracker = km.Mean(name="RecGlossC")
-RecGlossS_tracker = km.Mean(name="RecGlossN")
-Qloss_tracker = km.Mean(name="Qloss")
-FakeCloss_tracker = km.Mean(name="FakeCloss")
+loss_names = [
+    "AdvDLossX",
+    "AdvDlossC",
+    "AdvDlossS",
+    "AdvDlossN",
+    "AdvGlossX",
+    "AdvGlossC",
+    "AdvGlossS",
+    "AdvGlossN",
+    "RecXloss",
+    "RecCloss",
+    "RecSloss",
+    "FakeCloss"]
 
 class ClipConstraint(kc.Constraint):
     # set clip value when initialized
@@ -62,7 +57,6 @@ class sampleSlayer(kl.Layer):
         ε = tf.random.normal(shape=self.latentSdim, mean=0.0, stddev=1.0)
         return μs + tf.exp(0.5*logΣs)*ε
 
-
 def sampleS(hs,latentSdim):
     μs, logΣs = tf.split(hs,num_or_size_splits=2, axis=1)
     ε = tf.random.normal(shape=tf.shape(μs), mean=0.0, stddev=1.0)
@@ -76,17 +70,40 @@ class RepGAN(tf.keras.Model):
             Setup
         """
         self.__dict__.update(options)
-
+        
+        # Create Metric instances to track the losses
+        self.loss_trackers = {"{:>s}_tracker".format(l): km.Mean(name=l) for l in loss_names}
+        self.loss_val = {"{:>s}".format(l): 0.0 for l in loss_names}
         # define the constraint
         self.ClipD = ClipConstraint(0.01)
         
-        self.ps = tfd.MultivariateNormalDiag(loc=tf.zeros(shape=(self.latentSdim,),dtype=tf.float32),
-                       scale_diag=tf.ones(shape=(self.latentSdim,),dtype=tf.float32))
-        self.pn = tfd.MultivariateNormalDiag(loc=tf.zeros(shape=(self.latentNdim,),dtype=tf.float32),
-                       scale_diag=tf.ones(shape=(self.latentNdim,),dtype=tf.float32))
+        self.ps = tfd.MultivariateNormalDiag(loc=tf.zeros(shape=(self.latentSdim,),
+                                                          dtype=tf.float32),
+                                             scale_diag=tf.ones(shape=(self.latentSdim,),
+                                             dtype=tf.float32))
+        self.pn = tfd.MultivariateNormalDiag(loc=tf.zeros(shape=(self.latentNdim,),
+                                                          dtype=tf.float32),
+                                             scale_diag=tf.ones(shape=(self.latentNdim,),
+                                             dtype=tf.float32))
         self.BuildModels()
-        
-    def BuildModels(self):
+    
+    def reset_metrics(self):
+        for k,v in self.loss_trackers.items():
+            v.reset_states()
+
+    def get_config(self):
+        config = super().get_config().copy()
+        config.update({'size': self.Xshape})
+        return config
+
+    @property
+    def metrics(self):
+        return list(self.loss_trackers.values())
+        # return [AdvDLoss_tracker,AdvGLoss_tracker,AdvDlossX_tracker,AdvDlossDc_tracker,AdvDlossDs_tracker,\
+        #     AdvDlossDn_tracker,AdvGlossX_tracker,AdvGlossC_tracker,AdvGlossS_tracker,AdvGlossN_tracker,\
+        #     RecGlossX_tracker,RecGlossC_tracker,RecGlossS_tracker,Qloss_tracker,FakeCloss_tracker]
+
+    def BuildModels(self,GP=False):
         """
             Build the discriminators
         """
@@ -102,20 +119,10 @@ class RepGAN(tf.keras.Model):
         
         self.models = [self.Dx, self.Dc, self.Ds, self.Dn,
                        self.Fx, self.Gz]
-
-    def get_config(self):
-        config = super().get_config().copy()
-        config.update({'size': self.Xshape})
-        return config
-
-    @property
-    def metrics(self):
-        return [AdvDLoss_tracker,AdvGLoss_tracker,AdvDlossX_tracker,AdvDlossC_tracker,AdvDlossS_tracker,\
-            AdvDlossN_tracker,AdvGlossX_tracker,AdvGlossC_tracker,AdvGlossS_tracker,AdvGlossN_tracker,\
-            RecGlossX_tracker,RecGlossC_tracker,RecGlossS_tracker,Qloss_tracker,FakeCloss_tracker]
-
-    def compile(self,optimizers,losses):
-        super(RepGAN, self).compile()
+    
+    def compile(self,optimizers,losses,**kwargs):
+        
+        super(RepGAN, self).compile(**kwargs)
         """
             Optimizers
         """
@@ -124,126 +131,113 @@ class RepGAN(tf.keras.Model):
             Losses
         """
         self.__dict__.update(losses)
-
-    @tf.function
-    def train_XZX(self,X,c):
+            
+    # @tf.function
+    def train_XZX(self, X, c_prior):
 
         # Sample factorial prior S
-        
         s_prior = self.ps.sample(self.batchSize)
 
         # Sample factorial prior N
         n_prior = self.pn.sample(self.batchSize)
 
-        # Train generators
-        # Train nGenerator times the generators
-        #for _ in range(self.nGenerator):
-        with tf.GradientTape(persistent=True) as tape:
-
-            # Encode real signals
-            _,s_fake,c_fake,n_fake = self.Fx(X,training=True)
-
-            FakeCloss = self.FakeCloss(c,c_fake)
-        
-        # Get the gradients w.r.t the generator loss
-        gradFx = tape.gradient(FakeCloss,(self.Fx.trainable_variables),
-                               unconnected_gradients=tf.UnconnectedGradients.ZERO)
-
-        # Update the weights of the generator using the generator optimizer
-        self.FxOpt.apply_gradients(zip(gradFx,self.Fx.trainable_variables))
-
-        # Train generators
-        # Train nGenerator times the generators
-        for _ in range(self.nGenerator):
-            with tf.GradientTape(persistent=True) as tape:
-
-                # Encode real signals
-                _,s_fake,c_fake,n_fake = self.Fx(X,training=True)
-
-                # Reconstruct real signals
-                X_rec = self.Gz((s_fake,c_fake,n_fake),training=True)
-
-                # Compute reconstruction loss
-                RecGlossX = self.RecXloss(X,X_rec)
-    
-            # Get the gradients w.r.t the generator loss
-            gradFx, gradGz = tape.gradient(RecGlossX,(self.Fx.trainable_variables,self.Gz.trainable_variables),
-                                           unconnected_gradients=tf.UnconnectedGradients.ZERO)
-
-            # Update the weights of the generator using the generator optimizer
-            self.FxOpt.apply_gradients(zip(gradFx,self.Fx.trainable_variables))
-            self.GzOpt.apply_gradients(zip(gradGz,self.Gz.trainable_variables))
-
-        # Train discriminators
-        # Train nCritic times the discriminators
+        # Train discriminative part
         for _ in range(self.nCritic):
             
+            # Tape gradients
             with tf.GradientTape(persistent=True) as tape:
 
                 # Encode real signals X
-                [_,s_fake,c_fake,n_fake] = self.Fx(X,training=True)
+                [_,s_fake,c_fake,n_fake] = self.Fx(X, training=True)
 
                 # Discriminates real and fake S
-                Ds_fake = self.Ds(s_fake,training=True)
-                Ds_real = self.Ds(s_prior,training=True)
+                Ds_real = self.Ds(s_prior, training=True)
+                Ds_fake = self.Ds(s_fake, training=True)
 
                 # Discriminates real and fake N
-                Dn_fake = self.Dn(n_fake,training=True)
-                Dn_real = self.Dn(n_prior,training=True)
-
+                Dn_real = self.Dn(n_prior, training=True)
+                Dn_fake = self.Dn(n_fake, training=True)
+                
                 # Discriminates real and fake C
-                Dc_fake = self.Dc(c_fake,training=True)
-                Dc_real = self.Dc(c,training=True)
+                Dc_real = self.Dc(c_prior, training=True)
+                Dc_fake = self.Dc(c_fake, training=True)
 
                 # Compute XZX adversarial loss (JS(s),JS(n),JS(c))
-                AdvDlossC = self.AdvDlossDc(Dc_real, Dc_fake)
-                AdvDlossS = self.AdvDlossDs(Ds_real, Ds_fake)
-                AdvDlossN = self.AdvDlossDn(Dn_real, Dn_fake)
+                AdvDlossC = self.AdvDlossC(Dc_real, Dc_fake)
+                AdvDlossS = self.AdvDlossS(Ds_real, Ds_fake)
+                AdvDlossN = self.AdvDlossN(Dn_real, Dn_fake)
+                AdvDlossXZX = AdvDlossC + AdvDlossS + AdvDlossN
                 
-                AdvDloss = AdvDlossC + AdvDlossS + AdvDlossN
-
             # Compute the discriminator gradient
-            gradDc, gradDs, gradDn = tape.gradient(AdvDloss,
-                    (self.Dc.trainable_variables,self.Ds.trainable_variables, 
-                    self.Dn.trainable_variables),unconnected_gradients=tf.UnconnectedGradients.ZERO)
+            gradDc_w, gradDs_w, gradDn_w = tape.gradient(AdvDlossXZX,
+                                                         (self.Dc.trainable_variables, 
+                                                          self.Ds.trainable_variables,
+                                                          self.Dn.trainable_variables),
+                                                         unconnected_gradients=tf.UnconnectedGradients.ZERO)
 
             # Update discriminators' weights
-            self.DcOpt.apply_gradients(zip(gradDc,self.Dc.trainable_variables))
-            self.DsOpt.apply_gradients(zip(gradDs,self.Ds.trainable_variables))
-            self.DnOpt.apply_gradients(zip(gradDn,self.Dn.trainable_variables))
+            self.DcOpt.apply_gradients(zip(gradDc_w, self.Dc.trainable_variables))
+            self.DsOpt.apply_gradients(zip(gradDs_w, self.Ds.trainable_variables))
+            self.DnOpt.apply_gradients(zip(gradDn_w, self.Dn.trainable_variables))
 
-        with tf.GradientTape(persistent=True) as tape:
-
-            # Encode real signals
-            _,s_fake,c_fake,n_fake = self.Fx(X,training=True)
-
-            # Discriminate fake latent space
-            Ds_fake = self.Ds(s_fake,training=True)
-            Dc_fake = self.Dc(c_fake,training=True)
-            Dn_fake = self.Dn(n_fake,training=True)
-
-            # Compute adversarial loss for generator
-            AdvGlossC = self.AdvGlossDc(None,Dc_fake)
-            AdvGlossS = self.AdvGlossDs(None,Ds_fake)
-            AdvGlossN = self.AdvGlossDn(None,Dn_fake)
-
-            # Compute total generator loss
-            AdvGloss = AdvGlossC + AdvGlossS + AdvGlossN
+        self.loss_val["AdvDlossC"] = AdvDlossC
+        self.loss_val["AdvDlossS"] = AdvDlossS
+        self.loss_val["AdvDlossN"] = AdvDlossN
             
-        # Get the gradients w.r.t the generator loss
-        gradFx = tape.gradient(AdvGloss,(self.Fx.trainable_variables),
-                               unconnected_gradients=tf.UnconnectedGradients.ZERO)
+        # Train the generative part
+        for _ in range(self.nGenerator):
+            
+            # Tape gradients
+            with tf.GradientTape(persistent=True) as tape:
+                
+                # Encode real signals
+                _, s_fake, c_fake, n_fake = self.Fx(X, training=True)
+                
+                # Discriminate fake latent space
+                Ds_fake = self.Ds(s_fake, training=True)
+                Dc_fake = self.Dc(c_fake, training=True)
+                Dn_fake = self.Dn(n_fake, training=True)
 
-        # Update the weights of the generator using the generator optimizer
-        self.FxOpt.apply_gradients(zip(gradFx,self.Fx.trainable_variables))
-        
-        return RecGlossX,FakeCloss,\
-            AdvDloss,AdvDlossC,AdvDlossS,AdvDlossN,\
-            AdvGloss,AdvGlossC,AdvGlossS,AdvGlossN,\
-            Dc_fake,Ds_fake,Dn_fake,Dc_real,Ds_real,Dn_real
+                # Compute adversarial loss for generator
+                AdvGlossC = self.AdvGlossC(None, Dc_fake)
+                AdvGlossS = self.AdvGlossS(None, Ds_fake)
+                AdvGlossN = self.AdvGlossN(None, Dn_fake)
+                
+                # Compute total generator loss
+                AdvGlossXZX = AdvGlossC + AdvGlossS + AdvGlossN
+                
+                # Reconstruct real signals
+                X_rec = self.Gz((s_fake, c_fake, n_fake), training=True)
 
-    @tf.function
-    def train_ZXZ(self,X,c):
+                # Compute reconstruction loss
+                FakeCloss = self.FakeCloss(c_prior, c_fake)
+                
+                # Compute reconstruction loss
+                RecXloss = self.RecXloss(X, X_rec)
+                
+                # Total generator loss
+                GeneratorLossXZX = AdvGlossXZX + RecXloss + FakeCloss
+
+            # Get the gradients w.r.t the generator loss
+            gradFx_w, gradGz_w = tape.gradient(GeneratorLossXZX,
+                                               (self.Fx.trainable_variables,
+                                                self.Gz.trainable_variables),
+                                               unconnected_gradients=tf.UnconnectedGradients.ZERO)
+
+            # Update the weights of the generator using the generator optimizer
+            self.FxOpt.apply_gradients(zip(gradFx_w,self.Fx.trainable_variables))
+            self.GzOpt.apply_gradients(zip(gradGz_w,self.Gz.trainable_variables))
+            
+        self.loss_val["AdvGlossC"] = AdvGlossC
+        self.loss_val["AdvGlossS"] = AdvGlossS
+        self.loss_val["AdvGlossN"] = AdvGlossN
+        self.loss_val["FakeCloss"] = FakeCloss
+        self.loss_val["RecXloss"] = RecXloss
+            
+        return Dc_fake,Ds_fake,Dn_fake,Dc_real,Ds_real,Dn_real
+
+    # @tf.function
+    def train_ZXZ(self, X, c_prior):
 
         # Sample factorial prior S
         s_prior = self.ps.sample(self.batchSize)
@@ -251,121 +245,144 @@ class RepGAN(tf.keras.Model):
         # Sample factorial prior N
         n_prior = self.pn.sample(self.batchSize)
 
+        # Train discriminative part
         for _ in range(self.nCritic):
 
-            # Train discriminators
+            # Tape gradients
             with tf.GradientTape(persistent=True) as tape:
 
                 # Decode factorial prior
-                X_fake = self.Gz((s_prior,c,n_prior),training=True)
+                X_fake = self.Gz((s_prior, c_prior, n_prior), training=True)
 
                 # Discriminate real and fake X
-                Dx_fake = self.Dx(X_fake,training=True)
-                Dx_real = self.Dx(X,training=True)
+                Dx_real = self.Dx(X, training=True)
+                Dx_fake = self.Dx(X_fake, training=True)
 
                 # Compute the discriminator loss GAN loss (penalized)
-                AdvDlossX = self.AdvDlossDx(Dx_real, Dx_fake)
+                AdvDlossX = self.AdvDlossX(Dx_real, Dx_fake)
+                
+                AdvDlossZXZ = AdvDlossX
+                if self.DxTrainType.upper() == "WGANGP":
+                    
+                    # Regularize with Gradient Penalty (WGANGP)
+                    PenDxLoss = self.PenDxLoss(X,X_fake)
+                    
+                    AdvDlossZXZ += PenDxLoss
+                
             # Compute the discriminator gradient
-            gradDx = tape.gradient(AdvDlossX,self.Dx.trainable_variables,unconnected_gradients=tf.UnconnectedGradients.ZERO)
+            gradDx_w = tape.gradient(AdvDlossZXZ, self.Dx.trainable_variables,
+                                     unconnected_gradients=tf.UnconnectedGradients.ZERO)
             # Update the weights of the discriminator using the discriminator optimizer
-            self.DxOpt.apply_gradients(zip(gradDx,self.Dx.trainable_variables))
-
+            self.DxOpt.apply_gradients(zip(gradDx_w, self.Dx.trainable_variables))
+            
+            if self.DxTrainType.upper() == "WGANGP":
+                self.loss_val["PenDxLoss"] = PenDxLoss
+            else:
+                self.loss_val["PenDxLoss"] = None
+            
+            self.loss_val["AdvDlossX"] = AdvDlossX
+            
+        # Train generative part
         for _ in range(self.nGenerator):
-
-            # Train generators
-            for _ in range(self.nGenerator):
-                with tf.GradientTape(persistent=True) as tape:
-
-                    # Decode factorial prior
-                    X_fake = self.Gz((s_prior,c,n_prior),training=True)
-
-                    # Discriminate real and fake X
-                    Dx_fake = self.Dx(X_fake,training=True)
-
-                    # Compute adversarial loos (penalized)
-                    AdvGlossX = self.AdvGlossDx(None,Dx_fake)
-
-                # Get the gradients w.r.t the generator loss
-                gradGz = tape.gradient(AdvGlossX,(self.Gz.trainable_variables),unconnected_gradients=tf.UnconnectedGradients.ZERO)
-
-                # Update the weights of the generator using the generator optimizer
-                self.GzOpt.apply_gradients(zip(gradGz,self.Gz.trainable_variables))
-
-            # Train generators
+            
+            # Tape gradients
             with tf.GradientTape(persistent=True) as tape:
+
+                # Decode factorial prior
+                X_fake = self.Gz((s_prior, c_prior, n_prior), training=True)
+
+                # Discriminate real and fake X
+                Dx_fake = self.Dx(X_fake, training=True)
+
+                # Compute adversarial loos (penalized)
+                AdvGlossX = self.AdvGlossX(None, Dx_fake)
                 
                 # Encode fake signals
-                [hs,s_rec,c_rec,_] = self.Fx(X_fake,training=True)
+                [hs, s_rec, c_rec, _] = self.Fx(X_fake, training=True)
                 #Q_cont_distribution = tfp.distributions.MultivariateNormalDiag(loc=μs_rec, scale_diag=logΣs_rec)
-                #RecGlossS = -tf.reduce_mean(Q_cont_distribution.log_prob(s_rec))
-                RecGlossS = self.RecSloss(s_prior,hs)
-                RecGlossC = self.RecCloss(c,c_rec)
-
+                #RecSloss = -tf.reduce_mean(Q_cont_distribution.log_prob(s_rec))
+                RecSloss = self.RecSloss(s_prior, hs)
+                RecCloss = self.RecCloss(c_prior, c_rec)
+                
                 # Compute InfoGAN Q loos
-                Qloss = RecGlossS + RecGlossC
+                Qloss = RecSloss + RecCloss
+                                
+                # Total ZXZ generator loss
+                GeneratorLossZXZ = AdvGlossX + Qloss
 
             # Get the gradients w.r.t the generator loss
-            gradFx, gradGz = tape.gradient(Qloss,
-                (self.Fx.trainable_variables,self.Gz.trainable_variables),unconnected_gradients=tf.UnconnectedGradients.ZERO)
-
+            gradFx_w, gradGz_w = tape.gradient(GeneratorLossZXZ, (self.Fx.trainable_variables,
+                                                                  self.Gz.trainable_variables),
+                unconnected_gradients=tf.UnconnectedGradients.ZERO)
+            
             # Update the weights of the generator using the generator optimizer
-            self.FxOpt.apply_gradients(zip(gradFx,self.Fx.trainable_variables))
-            self.GzOpt.apply_gradients(zip(gradGz,self.Gz.trainable_variables))
+            self.GzOpt.apply_gradients(zip(gradGz_w,self.Gz.trainable_variables))
+            self.FxOpt.apply_gradients(zip(gradFx_w,self.Fx.trainable_variables))
 
-        return AdvDlossX,AdvGlossX,RecGlossS,RecGlossC,Qloss,Dx_fake,Dx_real
+            self.loss_val["AdvGlossX"] = AdvGlossX
+            self.loss_val["RecSloss"] = RecSloss
+            self.loss_val["RecCloss"] = RecCloss
 
-    
+        return Dx_fake, Dx_real
+
+    # @tf.function
     def train_step(self, XC):
-
-        X, c, mag, di = XC
+        if isinstance(XC, tuple):
+            X, metadata = XC
+            damage_class, magnitude, damage_index = metadata
 
         self.batchSize = tf.shape(X)[0]
 
-        #------------------------------------------------
-        #           Construct Computational Graph
-        #               for the Discriminator
-        #------------------------------------------------
-        #       
         for _ in range(self.nRepXRep):  
-            ZXZout = self.train_ZXZ(X,c)
+            ZXZout = self.train_ZXZ(X, damage_class)
         for _ in range(self.nXRepX):
-            XZXout = self.train_XZX(X,c)
+            XZXout = self.train_XZX(X, damage_class)
 
-        (AdvDlossX,AdvGlossX,RecGlossS,RecGlossC,Qloss,Dx_fake,Dx_real) = ZXZout
+        (Dx_fake,Dx_real) = ZXZout
 
-        (RecGlossX,FakeCloss,AdvDloss,AdvDlossC,AdvDlossS,AdvDlossN,AdvGloss,AdvGlossC,AdvGlossS,AdvGlossN,\
-            Dc_fake,Ds_fake,Dn_fake,Dc_real,Ds_real,Dn_real) = XZXout     
-      
+        (Dc_fake,Ds_fake,Dn_fake,Dc_real,Ds_real,Dn_real) = XZXout
+        
         # Compute our own metrics
-        AdvDLoss_tracker.update_state(AdvDloss)
-        AdvGLoss_tracker.update_state(AdvGloss)
-        AdvDlossX_tracker.update_state(AdvDlossX)
-        AdvDlossC_tracker.update_state(AdvDlossC)
-        AdvDlossS_tracker.update_state(AdvDlossS)
-        AdvDlossN_tracker.update_state(AdvDlossN)
+        for k,v in self.loss_trackers.items():
+            v.update_state(self.loss_val[k.strip("_tracker")])
+        import pdb
+        pdb.set_trace()
+        return {m.result() for m in self.loss_trackers.values()} #.update(
+            # {"Dxfake": tf.reduce_mean(Dx_fake), 
+            #  "Dxreal": tf.reduce_mean(Dx_real),
+            #  "Dcfake": tf.reduce_mean(Dc_fake), 
+            #  "Dcreal": tf.reduce_mean(Dc_real),
+            #  "Dnfake": tf.reduce_mean(Dn_fake), 
+            #  "Dnreal": tf.reduce_mean(Dn_real),
+            #  "Dsfake": tf.reduce_mean(Ds_fake),
+            #  "Dsreal": tf.reduce_mean(Ds_real)}
+            # )
+        # return {"AdvDLoss": AdvDLoss_tracker.result(),"AdvGLoss": AdvGLoss_tracker.result(),"AdvDlossX": AdvDlossX_tracker.result(),
+        #     "AdvDlossC": AdvDlossDc_tracker.result(), "AdvDlossS": AdvDlossDs_tracker.result(),"AdvDlossN": AdvDlossDn_tracker.result(),
+        #     "AdvGlossX": AdvGlossX_tracker.result(),"AdvGlossC": AdvGlossC_tracker.result(),"AdvGlossS": AdvGlossS_tracker.result(),
+        #     "AdvGlossN": AdvGlossN_tracker.result(),"RecXloss": RecGlossX_tracker.result(),"RecCloss": RecGlossC_tracker.result(),
+        #     "RecSloss": RecGlossS_tracker.result(), "Qloss": Qloss_tracker.result(), "FakeCloss": FakeCloss_tracker.result(),
+        #     "fakeX":tf.reduce_mean(Dx_fake),"X":tf.reduce_mean(Dx_real),
+        #     "c_fake":tf.reduce_mean(Dc_fake),"c":tf.reduce_mean(Dc_real),
+        #     "n_fake":tf.reduce_mean(Dn_fake),"n_prior":tf.reduce_mean(Dn_real),
+        #     "s_fake":tf.reduce_mean(Ds_fake),"s_prior":tf.reduce_mean(Ds_real)}
+    
+    @tf.function
+    def test_step(self, XC):
+        if isinstance(XC, tuple):
+            X, c = XC
+            c, mag, di = c
+        # Compute predictions
+        X_rec, c_fake, s_fake, n_fake = self(X, training=False)
 
-        AdvGlossX_tracker.update_state(AdvGlossX)
-        AdvGlossC_tracker.update_state(AdvGlossC)
-        AdvGlossS_tracker.update_state(AdvGlossS)
-        AdvGlossN_tracker.update_state(AdvGlossN)
+        # Updates the metrics tracking the loss
+        self.RecXloss(X, X_rec)
+        # Update the metrics.
+        self.RecGlossX_tracker.update_state(X, X_rec)
+        # Return a dict mapping metric names to current value.
+        # Note that it will include the loss (tracked in self.metrics).
+        return {"RecXloss": RecGlossX_tracker.result()}
 
-        RecGlossX_tracker.update_state(RecGlossX)
-        RecGlossC_tracker.update_state(RecGlossC)
-        RecGlossS_tracker.update_state(RecGlossS)
-
-        Qloss_tracker.update_state(Qloss)
-
-        FakeCloss_tracker.update_state(FakeCloss)
-
-        return {"AdvDLoss": AdvDLoss_tracker.result(),"AdvGLoss": AdvGLoss_tracker.result(),"AdvDlossX": AdvDlossX_tracker.result(),
-            "AdvDlossC": AdvDlossC_tracker.result(), "AdvDlossS": AdvDlossS_tracker.result(),"AdvDlossN": AdvDlossN_tracker.result(),
-            "AdvGlossX": AdvGlossX_tracker.result(),"AdvGlossC": AdvGlossC_tracker.result(),"AdvGlossS": AdvGlossS_tracker.result(),
-            "AdvGlossN": AdvGlossN_tracker.result(),"RecGlossX": RecGlossX_tracker.result(),"RecGlossC": RecGlossC_tracker.result(),
-            "RecGlossS": RecGlossS_tracker.result(), "Qloss": Qloss_tracker.result(), "FakeCloss": FakeCloss_tracker.result(),
-            "fakeX":tf.reduce_mean(Dx_fake),"X":tf.reduce_mean(Dx_real),
-            "c_fake":tf.reduce_mean(Dc_fake),"c":tf.reduce_mean(Dc_real),
-            "n_fake":tf.reduce_mean(Dn_fake),"n_prior":tf.reduce_mean(Dn_real),
-            "s_fake":tf.reduce_mean(Ds_fake),"s_prior":tf.reduce_mean(Ds_real)}
 
     def call(self, X):
         [_,s_fake,c_fake,n_fake] = self.Fx(X)
@@ -398,6 +415,11 @@ class RepGAN(tf.keras.Model):
         μs_rec, logΣs_rec = tf.split(hs_fake,num_or_size_splits=2, axis=1)
         return s_prior, n_prior, s_fake, n_fake, s_rec, n_rec, μs_fake, logΣs_fake, μs_rec, logΣs_rec
 
+    def reconstruct(self,X):
+        [_,s_fake,c_fake,n_fake] = self.Fx(X)
+        fakeX = self.Gz((s_fake,c_fake,n_fake),training=False)
+        return fakeX
+    
     def generate(self, X, c_fake_new):
         [_,s_fake,c_fake,n_fake] = self.Fx(X)
         X_rec_new = self.Gz((s_fake,c_fake_new,n_fake),training=False)
@@ -856,6 +878,8 @@ class RepGAN(tf.keras.Model):
             h = kl.LeakyReLU(alpha=0.1)(h)
             h = kl.Dropout(0.25)(h)
             Px = kl.Dense(1)(h)
+            
+        
         Dx = tf.keras.Model(X,Px,name="Dx")
         return Dx
 
