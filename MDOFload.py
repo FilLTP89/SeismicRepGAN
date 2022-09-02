@@ -74,8 +74,6 @@ def CreateData(**kwargs):
                     df_th.loc[iBeg:iEnd, "ACC{:>d}".format(c)].to_numpy().astype(np.float32).reshape(step,Xsize)
 
     percentage = 0.05
-    import pdb
-    pdb.set_trace()
     noise = np.random.normal(0, data.std(), data.size).reshape(data.shape)*percentage
     # data += noise
     pga = np.tile(np.atleast_3d(np.max(data,axis=-1)),(1,1,Xsize))
@@ -137,9 +135,9 @@ def LoadData(**kwargs):
     
     h5f = h5py.File(fid_th,'r')
     X = h5f['X'][...]
-    c = h5f['c'][...]
+    c = h5f['damage_class'][...]
     magnitude = h5f['magnitude'][...]
-    d = h5f['d'][...]
+    d = h5f['damage_index'][...]
     h5f.close()
 
     # Split between train and validation set (time series and parameters are splitted in the same way)
