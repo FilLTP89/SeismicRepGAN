@@ -10,8 +10,10 @@ __Maintainer__ = "Filippo Gatti"
 __email__ = "filippo.gatti@centralesupelec.fr"
 __status__ = "Beta"
 
+import os
 import tensorflow as tf
 import tensorflow.keras.losses as kl
+import tensorflow.keras.callbacks as kc
 import numpy as np
 from tensorflow.keras.optimizers import Adam, RMSprop
 
@@ -21,8 +23,8 @@ class GaussianNLL(kl.Loss):
     """
         Gaussian negative loglikelihood loss function
     """
-    def __init__(self, mod='var', raxis=None, λ=1.0):
-        super(GaussianNLL,self).__init__()
+    def __init__(self, mod='var', raxis=None, λ=1.0, name="GaussianNLL"):
+        super(GaussianNLL,self).__init__(name=name)
 
         self.mod = mod
         self.raxis = raxis
@@ -53,8 +55,8 @@ class GANDiscriminatorLoss(kl.Loss):
          General GAN Loss (for real and fake) with labels: {0,1}. 
          Logit output from D
     """
-    def __init__(self, from_logits=True, raxis=1, λ=1.0):
-        super(GANDiscriminatorLoss,self).__init__()
+    def __init__(self, from_logits=True, raxis=1, λ=1.0, name="GANDiscriminatorLoss"):
+        super(GANDiscriminatorLoss,self).__init__(name=name)
 
         self.from_logits = from_logits
         self.raxis = raxis
@@ -80,8 +82,8 @@ class GANGeneratorLoss(kl.Loss):
          General GAN Loss (for real and fake) with labels: {0,1}.
          Logit output from D
     """
-    def __init__(self, from_logits=True, raxis=1, λ=1.0):
-        super(GANGeneratorLoss,self).__init__()
+    def __init__(self, from_logits=True, raxis=1, λ=1.0, name="GANGeneratorLoss"):
+        super(GANGeneratorLoss,self).__init__(name=name)
 
         self.from_logits = from_logits
         self.raxis = raxis
@@ -104,8 +106,8 @@ class HingeGANDiscriminatorLoss(kl.Loss):
          Hinge GAN Loss (for real and fake) with labels: {0,1}.
          Logit output from D
     """
-    def __init__(self, raxis=1, λ=1.0):
-        super(HingeGANDiscriminatorLoss,self).__init__()
+    def __init__(self, raxis=1, λ=1.0, name="HingeGANDiscriminatorLoss"):
+        super(HingeGANDiscriminatorLoss,self).__init__(name=name)
 
         self.raxis = raxis
         self.λ = λ
@@ -125,8 +127,8 @@ class WGANDiscriminatorLoss(kl.Loss):
     """
         Compute standard WGAN loss (complete)
     """
-    def __init__(self, raxis=1, λ=1.0):
-        super(WGANDiscriminatorLoss,self).__init__()
+    def __init__(self, raxis=1, λ=1.0, name="WGANDiscriminatorLoss"):
+        super(WGANDiscriminatorLoss,self).__init__(name=name)
 
         self.raxis = raxis
         self.λ = λ
@@ -149,8 +151,8 @@ class WGANGeneratorLoss(kl.Loss):
         Compute standard WGAN loss (generator only)
     """
 
-    def __init__(self, raxis=1, λ=1.0):
-        super(WGANGeneratorLoss,self).__init__()
+    def __init__(self, raxis=1, λ=1.0, name="WGANGeneratorLoss"):
+        super(WGANGeneratorLoss,self).__init__(name=name)
 
         self.raxis = raxis
         self.λ = λ
@@ -166,48 +168,55 @@ class WGANGeneratorLoss(kl.Loss):
         EDGz = tf.reduce_mean(DGz, axis=raxis)
         return -self.λ*EDGz
 
-@tf.function
-def GradientPenalty(X, Gz, D):
-    """Compute the gradient penalty of discriminator D"""
-    # Get the interpolated image
-    α = tf.random.normal([X.shape[0], 1, 1], 0.0, 1.0)
-    δ = Gz - X
-    δ = Gz - X
-    XδX = X + α*δ
+class GradientPenalty(kl.Loss):
+    """
+        Compute the gradient penalty of discriminator D
+    """
 
-    with tf.GradientTape() as gp_tape:
-        gp_tape.watch(XδX)
-        # 1. Get the discriminator output for this interpolated image.
-        DXδX = D(XδX, training=True)
+    def __init__(self, raxis=1, λ=1.0, kLip=1.0, name="GradientPenalty"):
+        super(GradientPenalty, self).__init__(name=name)
 
-    # 2. Calculate the gradients w.r.t to this interpolated image.
-    GradD = gp_tape.gradient(DXδX, [XδX])[0]
-    # 3. Calculate the norm of the gradients.
-    NormGradD = tf.sqrt(tf.reduce_sum(tf.square(GradD), axis=[1]))
-    GPloss = tf.reduce_mean((NormGradD - 1.0) ** 2)
-    return GPloss
+        self.raxis = raxis
+        self.λ = λ
+        self.kLip = kLip
+    
+    def random_deviation(X, Gz):
+        # Get the interpolated image
+        α = tf.random.normal(shape=[X.shape[0], 1, 1], mean=0.0, stddev=1.0)
+        δ = Gz - X
+        XδX = X + α*δ
+        return XδX
 
-
-@tf.function
-def WGANGPDiscriminatorLoss(DX, DGz, D, λ=1.0, λGP=1.0):
-    "Wasserstrain loss with Gradient Penalty"
-    Ls = WGANDiscriminatorLoss(DX, DGz)
-    GP = GradientPenalty(DX, DGz, D)
-    return λ*Ls+λGP*GP
-
-
-@tf.function
-def WGANGPGeneratorLoss(DX, DGz, λ=1.0):
-    "Wasserstrain loss with Gradient Penalty"
-    Ls = WGANGeneratorLoss(DX, DGz)
-    return λ*Ls
+    @tf.function
+    def call(self, X, Gz):
+        
+        if not self.raxis:
+            raxis = [i for i in range(1, len(GradD.shape))]
+        else:
+            raxis = self.raxis
+        
+        # 1. Compute random deviation
+        XδX = self.random_deviation(X, X_fake)
+        with tf.GradientTape() as gp_tape:
+            # 1. Random deviation
+            gp_tape.watch(XδX)
+            # 2. Get the discriminator output for this interpolated image.
+            DXδX = self.Dx(XδX, training=True)
+            # 3. Calculate the gradients w.r.t to this interpolated image.
+            gradDx_x = tape.gradient(DXδX, [XδX])[0]
+    
+        # Calculate the norm of the gradients.
+        NormGradD = tf.math.sqrt(tf.math.reduce_sum(
+            tf.math.square(gradDx_x), axis=raxis))
+        GPloss = tf.math.reduce_mean((NormGradD - self.kLip) ** 2)
+        return self.λ*GPloss
 
 class MutualInfoLoss(kl.Loss):
     """
         Mutual Information loss (InfoGAN)
     """
-    def __init__(self, raxis=1, λ=1.0):
-        super(MutualInfoLoss,self).__init__()
+    def __init__(self, raxis=1, λ=1.0, name="MutualInfoLoss"):
+        super(MutualInfoLoss,self).__init__(name=name)
 
         self.raxis = raxis
         self.λ = λ
@@ -230,8 +239,8 @@ class InfoLoss(kl.Loss):
     """
         Categorical cross entropy loss as Information loss (InfoGAN)
     """
-    def __init__(self, from_logits=True, raxis=1, λ=1.0):
-        super(InfoLoss,self).__init__()
+    def __init__(self, from_logits=True, raxis=1, λ=1.0, name="InfoLoss"):
+        super(InfoLoss,self).__init__(name=name)
 
         self.from_logits = from_logits
         self.raxis = raxis
@@ -247,93 +256,113 @@ class InfoLoss(kl.Loss):
 
         return self.λ*kl.CategoricalCrossentropy(from_logits=self.from_logits,axis=raxis)(c, QcX)
 
+def getCallbacks(**kwargs):
+    getCallbacks.__globals__.update(kwargs)
+    
+    cb=[tf.keras.callbacks.ModelCheckpoint(
+        filepath=os.path.join(checkpoint_dir,"ckpt-{epoch}.ckpt"),
+                     save_freq=checkpoint_step, save_weights_only=True)]
+    return cb
+
 def getOptimizers(**kwargs):
     getOptimizers.__globals__.update(kwargs)
     optimizers = {}
     
-    if DxTrainType.upper() == "WGAN" or DxTrainType.upper() == "WGANSN":
+    if DxTrainType.upper() == "WGAN":
         optimizers['DxOpt'] = RMSprop(learning_rate=DxLR)
-    else:
+    elif DxTrainType.upper() == "WGANGP":
+        optimizers['DxOpt'] = Adam(learning_rate=DxLR, beta_1=0.0, beta_2=0.9)
+    elif DxTrainType.upper() == "GAN":
         optimizers['DxOpt'] = Adam(learning_rate=DxLR, beta_1=0.5, beta_2=0.9999)
-        
-    if DcTrainType.upper() == "WGAN" or DcTrainType.upper() == "WGANSN":
+
+    if DcTrainType.upper() == "WGAN":
         optimizers['DcOpt'] = RMSprop(learning_rate=DcLR)        
-    else:
+    elif DcTrainType.upper() == "WGANGP":
+        optimizers['DcOpt'] = Adam(learning_rate=DcLR, beta_1=0.0, beta_2=0.9)
+    elif DcTrainType.upper() == "GAN":
         optimizers['DcOpt'] = Adam(learning_rate=DcLR, beta_1=0.5, beta_2=0.9999)
-        
-    if DsTrainType.upper() == "WGAN" or DsTrainType.upper() == "WGANSN":    
+
+    if DsTrainType.upper() == "WGAN":
         optimizers['DsOpt'] = RMSprop(learning_rate=DsLR)
-    else:
+    elif DsTrainType.upper() == "WGANGP":
+        optimizers['DsOpt'] = Adam(learning_rate=DsLR, beta_1=0.0, beta_2=0.9)
+    elif DsTrainType.upper() == "GAN":
         optimizers['DsOpt'] = Adam(learning_rate=DsLR, beta_1=0.5, beta_2=0.9999)
         
-    if DnTrainType.upper() == "WGAN" or DnTrainType.upper() == "WGANSN":
+    if DnTrainType.upper() == "WGAN":
         optimizers['DnOpt'] = RMSprop(learning_rate=DnLR)
-    else:
+    elif DnTrainType.upper() == "WGANGP":
+        optimizers['DnOpt'] = Adam(learning_rate=DnLR, beta_1=0.0, beta_2=0.9)
+    elif DnTrainType.upper() == "GAN":
         optimizers['DnOpt'] = Adam(learning_rate=DnLR, beta_1=0.5, beta_2=0.9999)
 
-        
-    optimizers['FxOpt'] = Adam(learning_rate=FxLR, beta_1=0.5, beta_2=0.9999)
-    optimizers['GzOpt'] = Adam(learning_rate=GzLR, beta_1=0.5, beta_2=0.9999)
+    if DxTrainType.upper() == "WGAN":
+        optimizers['FxOpt'] = Adam(learning_rate=FxLR, beta_1=0.5, beta_2=0.9999)
+        optimizers['GzOpt'] = Adam(learning_rate=GzLR, beta_1=0.5, beta_2=0.9999)
+    elif DxTrainType.upper() == "WGANGP":
+        optimizers['FxOpt'] = Adam(learning_rate=FxLR, beta_1=0.0, beta_2=0.9)
+        optimizers['GzOpt'] = Adam(learning_rate=GzLR, beta_1=0.0, beta_2=0.9)
+    elif DxTrainType.upper() == "GAN":
+        optimizers['FxOpt'] = Adam(learning_rate=FxLR, beta_1=0.5, beta_2=0.9999)
+        optimizers['GzOpt'] = Adam(learning_rate=GzLR, beta_1=0.5, beta_2=0.9999)
+    
     return optimizers
 
 def getLosses(**kwargs):
     getLosses.__globals__.update(kwargs)
     losses = {}
     
-    if DcTrainType.upper() == "WGAN":
-        losses['AdvDlossDc'] = WGANDiscriminatorLoss(λ=PenAdvNloss)
-        losses['AdvGlossDc'] = WGANGeneratorLoss(λ=PenAdvNloss)
-    elif DcTrainType.upper() == "WGANGP":
-        losses['AdvDlossDc'] = WGANGPDiscriminatorLoss(λ=PenAdvNloss)
-        losses['AdvGlossDc'] = WGANGPGeneratorLoss(λ=PenAdvNloss)
+    if DcTrainType.upper() == "WGAN" or "WGANGP":
+        losses['AdvDlossC'] = WGANDiscriminatorLoss(λ=PenAdvCloss)
+        losses['AdvGlossC'] = WGANGeneratorLoss(λ=PenAdvCloss)
     elif DcTrainType.upper() == "GAN":
-        losses['AdvDlossDc'] = GANDiscriminatorLoss(λ=PenAdvNloss)
-        losses['AdvGlossDc'] = GANGeneratorLoss(λ=PenAdvNloss)
+        losses['AdvDlossC'] = GANDiscriminatorLoss(λ=PenAdvCloss)
+        losses['AdvGlossC'] = GANGeneratorLoss(λ=PenAdvCloss)
     elif DcTrainType.upper() == "HINGE":
-        losses['AdvDlossDc'] = HingeGANDiscriminatorLoss(λ=PenAdvNloss)
-        losses['AdvGlossDc'] = GANGeneratorLoss(λ=PenAdvNloss)
+        losses['AdvDlossC'] = HingeGANDiscriminatorLoss(λ=PenAdvCloss)
+        losses['AdvGlossC'] = GANGeneratorLoss(λ=PenAdvCloss)
 
-    if DsTrainType.upper() == "WGAN":
-        losses['AdvDlossDs'] = WGANDiscriminatorLoss(λ=PenAdvSloss)
-        losses['AdvGlossDs'] = WGANGeneratorLoss(λ=PenAdvSloss)
-    elif DsTrainType.upper() == "WGANGP":
-        losses['AdvDlossDs'] = WGANGPDiscriminatorLoss(λ=PenAdvSloss)
-        losses['AdvGlossDs'] = WGANGPGeneratorLoss(λ=PenAdvSloss)
+    if DsTrainType.upper() == "WGAN" or "WGANGP":
+        losses['AdvDlossS'] = WGANDiscriminatorLoss(λ=PenAdvSloss)
+        losses['AdvGlossS'] = WGANGeneratorLoss(λ=PenAdvSloss)
     elif DsTrainType.upper() == "GAN":
-        losses['AdvDlossDs'] = GANDiscriminatorLoss(λ=PenAdvSloss)
-        losses['AdvGlossDs'] = GANGeneratorLoss(λ=PenAdvSloss)
+        losses['AdvDlossS'] = GANDiscriminatorLoss(λ=PenAdvSloss)
+        losses['AdvGlossS'] = GANGeneratorLoss(λ=PenAdvSloss)
     elif DsTrainType.upper() == "HINGE":
-        losses['AdvDlossDs'] = HingeGANDiscriminatorLoss(λ=PenAdvSloss)
-        losses['AdvGlossDs'] = GANGeneratorLoss(λ=PenAdvSloss)
+        losses['AdvDlossS'] = HingeGANDiscriminatorLoss(λ=PenAdvSloss)
+        losses['AdvGlossS'] = GANGeneratorLoss(λ=PenAdvSloss)
         
-    if DnTrainType.upper() == "WGAN":
-        losses['AdvDlossDn'] = WGANDiscriminatorLoss(λ=PenAdvNloss)
-        losses['AdvGlossDn'] = WGANGeneratorLoss(λ=PenAdvNloss)
-    elif DnTrainType.upper() == "WGANGP":
-        losses['AdvDlossDn'] = WGANGPDiscriminatorLoss(λ=PenAdvNloss)
-        losses['AdvGlossDn'] = WGANGPGeneratorLoss(λ=PenAdvNloss)
+    if DnTrainType.upper() == "WGAN" or "WGANGP":
+        losses['AdvDlossN'] = WGANDiscriminatorLoss(λ=PenAdvNloss)
+        losses['AdvGlossN'] = WGANGeneratorLoss(λ=PenAdvNloss)
     elif DnTrainType.upper() == "GAN":
-        losses['AdvDlossDn'] = GANDiscriminatorLoss(λ=PenAdvNloss)
-        losses['AdvGlossDn'] = GANGeneratorLoss(λ=PenAdvNloss)
+        losses['AdvDlossN'] = GANDiscriminatorLoss(λ=PenAdvNloss)
+        losses['AdvGlossN'] = GANGeneratorLoss(λ=PenAdvNloss)
     elif DnTrainType.upper() == "HINGE":
-        losses['AdvDlossDn'] = HingeGANDiscriminatorLoss(λ=PenAdvNloss)
-        losses['AdvGlossDn'] = GANGeneratorLoss(λ=PenAdvNloss)
+        losses['AdvDlossN'] = HingeGANDiscriminatorLoss(λ=PenAdvNloss)
+        losses['AdvGlossN'] = GANGeneratorLoss(λ=PenAdvNloss)
 
-    if DxTrainType.upper() == "WGAN":
-        losses['AdvDlossDx'] = WGANDiscriminatorLoss(λ=PenAdvXloss)
-        losses['AdvGlossDx'] = WGANGeneratorLoss(λ=PenAdvXloss)
-    elif DxTrainType.upper() == "WGANGP":
-        losses['AdvDlossDx'] = WGANGPDiscriminatorLoss(λ=PenAdvXloss)
-        losses['AdvGlossDx'] = WGANGPGeneratorLoss(λ=PenAdvXloss)
+    if DxTrainType.upper() == "WGAN" or "WGANGP":
+        losses['AdvDlossX'] = WGANDiscriminatorLoss(λ=PenAdvXloss)
+        losses['AdvGlossX'] = WGANGeneratorLoss(λ=PenAdvXloss)
     elif DxTrainType.upper() == 'GAN':
-        losses['AdvDlossDx'] = GANDiscriminatorLoss(λ=PenAdvXloss)
-        losses['AdvGlossDx'] = GANGeneratorLoss(λ=PenAdvXloss)
+        losses['AdvDlossX'] = GANDiscriminatorLoss(λ=PenAdvXloss)
+        losses['AdvGlossX'] = GANGeneratorLoss(λ=PenAdvXloss)
     elif DxTrainType.upper() == "HINGE":
         raise Exception("Hinge loss not implemented for Dx")
 
+    if DcTrainType.upper() == "WGANGP":
+        losses["PenDcLoss"] = GradientPenalty(λ=PenGPCloss)
+    if DsTrainType.upper() == "WGANGP":
+        losses["PenDsLoss"] = GradientPenalty(λ=PenGPSloss)
+    if DnTrainType.upper() == "WGANGP":
+        losses["PenDnLoss"] = GradientPenalty(λ=PenGPNloss)
+    if DxTrainType.upper() == "WGANGP":
+        losses["PenDxLoss"] = GradientPenalty(λ=PenGPXloss)
+    
     losses['RecSloss']  = GaussianNLL(λ=PenRecSloss)
     losses['RecXloss']  = kl.MeanSquaredError()
     losses['RecCloss']  = InfoLoss(λ=PenRecCloss)
-    losses['FakeCloss'] = kl.CategoricalCrossentropy()
+    losses['FakeCloss'] = kl.CategoricalCrossentropy(from_logits=True)
 
     return losses
