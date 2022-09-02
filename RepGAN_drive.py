@@ -24,60 +24,91 @@ tf.keras.backend.set_floatx('float32')
 gpu = tf.config.experimental.list_physical_devices('GPU')
 tf.config.experimental.set_memory_growth(gpu[0], True)
 
-
-from tensorflow.keras.optimizers import Adam, RMSprop, SGD
-import tensorflow_probability as tfp
-from tensorflow.keras.constraints import Constraint
-
 import MDOFload as mdof
-import matplotlib.pyplot as plt
 from plot_tools import *
-from copy import deepcopy
-
 
 from RepGAN_model import RepGAN
 import RepGAN_losses
 
 
-def Train(DeviceName):
+def Train(options):
 
-    options = ParseOptions()
-
-    if not options['cuda']:
-        DeviceName = "/cpu:0"
-
-    with tf.device(DeviceName):
+    with tf.device(options["DeviceName"]):
         
         losses = RepGAN_losses.getLosses(**options)
         optimizers = RepGAN_losses.getOptimizers(**options)
+        callbacks = RepGAN_losses.getCallbacks(**options)
 
         # Instantiate the RepGAN model.
         GiorgiaGAN = RepGAN(options)
 
         # Compile the RepGAN model.
-        GiorgiaGAN.compile(optimizers,losses)
+        GiorgiaGAN.compile(optimizers, losses, metrics=[tf.keras.metrics.Accuracy()])
 
-        GiorgiaGAN.build(input_shape=(options['batchSize'],options['Xsize'],
-                         options['nXchannels']))
+        # Build shapes
+        # GiorgiaGAN.build(input_shape=(options['batchSize'],options['Xsize'],options['nXchannels']))
 
+        # Build output shapes
         GiorgiaGAN.compute_output_shape(input_shape=(options['batchSize'],options['Xsize'],
                                 options['nXchannels']))
+        
+        if options['CreateData']:
+            # Create the dataset
+            train_dataset, val_dataset = mdof.CreateData(**options)
+        else:
+            # Load the dataset
+            train_dataset, val_dataset = mdof.LoadData(**options)
+        
+        # Train RepGAN
+        history = GiorgiaGAN.fit(x=train_dataset,batch_size=options['batchSize'],
+                                 epochs=options["epochs"],
+                                 callbacks=callbacks,
+                                 validation_data=val_dataset,shuffle=True,validation_freq=100)
 
+        DumpModels(GiorgiaGAN,options['results_dir'])
+
+        # PlotLoss(history,options['results_dir']) # Plot loss
+
+
+def Evaluate(options):
+
+    with tf.device(options["DeviceName"]):
+
+        losses = RepGAN_losses.getLosses(**options)
+        optimizers = RepGAN_losses.getOptimizers(**options)
+        callbacks = RepGAN_losses.getCallbacks(**options)
+
+        # Instantiate the RepGAN model.
+        GiorgiaGAN = RepGAN(options)
+
+        # Compile the RepGAN model.
+        GiorgiaGAN.compile(optimizers, losses, metrics=[
+                           tf.keras.metrics.Accuracy()])
+        # Build output shapes
+        GiorgiaGAN.compute_output_shape(input_shape=(options['batchSize'], options['Xsize'],
+                                                     options['nXchannels']))
+        
+        latest = tf.train.latest_checkpoint(options["checkpoint_dir"])
+        
+        GiorgiaGAN.load_weights(latest)
 
         if options['CreateData']:
             # Create the dataset
-            Xtrn,  Xvld, _ = mdof.CreateData(**options)
+            train_dataset, val_dataset = mdof.CreateData(**options)
         else:
             # Load the dataset
-            Xtrn, Xvld, _ = mdof.LoadData(**options)
-
-        history = GiorgiaGAN.fit(Xtrn,epochs=options["epochs"],
-            callbacks=[tf.keras.callbacks.ModelCheckpoint(filepath=options['checkpoint_dir'] + "/ckpt-{epoch}.ckpt", save_freq='epoch',period=500)]) #CustomLearningRateScheduler(schedule), NewCallback(p,epochs)
-
-        DumpModels(GiorgiaGAN.models,options['results_dir'])
-
-        PlotLoss(history,options['results_dir']) # Plot loss
+            train_dataset, val_dataset = mdof.LoadData(**options)
         
+        # Re-evaluate the model
+        import pdb
+        pdb.set_trace()
+        loss, acc = GiorgiaGAN.evaluate(val_dataset)
+    
+
 if __name__ == '__main__':
-    DeviceName = tf.test.gpu_device_name()
-    Train(DeviceName)
+    options = ParseOptions()
+    
+    if options["trainVeval"].upper()=="TRAIN":
+        Train(options)
+    elif options["trainVeval"].upper()=="EVAL":
+        Evaluate(options)
