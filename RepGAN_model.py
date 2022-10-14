@@ -99,10 +99,7 @@ class RepGAN(tf.keras.Model):
     @property
     def metrics(self):
         return list(self.loss_trackers.values())
-        # return [AdvDLoss_tracker,AdvGLoss_tracker,AdvDlossX_tracker,AdvDlossDc_tracker,AdvDlossDs_tracker,\
-        #     AdvDlossDn_tracker,AdvGlossX_tracker,AdvGlossC_tracker,AdvGlossS_tracker,AdvGlossN_tracker,\
-        #     RecGlossX_tracker,RecGlossC_tracker,RecGlossS_tracker,Qloss_tracker,FakeCloss_tracker]
-
+    
     def BuildModels(self,GP=False):
         """
             Build the discriminators
@@ -345,27 +342,8 @@ class RepGAN(tf.keras.Model):
         # Compute our own metrics
         for k,v in self.loss_trackers.items():
             v.update_state(self.loss_val[k.strip("_tracker")])
-        import pdb
-        pdb.set_trace()
-        return {m.result() for m in self.loss_trackers.values()} #.update(
-            # {"Dxfake": tf.reduce_mean(Dx_fake), 
-            #  "Dxreal": tf.reduce_mean(Dx_real),
-            #  "Dcfake": tf.reduce_mean(Dc_fake), 
-            #  "Dcreal": tf.reduce_mean(Dc_real),
-            #  "Dnfake": tf.reduce_mean(Dn_fake), 
-            #  "Dnreal": tf.reduce_mean(Dn_real),
-            #  "Dsfake": tf.reduce_mean(Ds_fake),
-            #  "Dsreal": tf.reduce_mean(Ds_real)}
-            # )
-        # return {"AdvDLoss": AdvDLoss_tracker.result(),"AdvGLoss": AdvGLoss_tracker.result(),"AdvDlossX": AdvDlossX_tracker.result(),
-        #     "AdvDlossC": AdvDlossDc_tracker.result(), "AdvDlossS": AdvDlossDs_tracker.result(),"AdvDlossN": AdvDlossDn_tracker.result(),
-        #     "AdvGlossX": AdvGlossX_tracker.result(),"AdvGlossC": AdvGlossC_tracker.result(),"AdvGlossS": AdvGlossS_tracker.result(),
-        #     "AdvGlossN": AdvGlossN_tracker.result(),"RecXloss": RecGlossX_tracker.result(),"RecCloss": RecGlossC_tracker.result(),
-        #     "RecSloss": RecGlossS_tracker.result(), "Qloss": Qloss_tracker.result(), "FakeCloss": FakeCloss_tracker.result(),
-        #     "fakeX":tf.reduce_mean(Dx_fake),"X":tf.reduce_mean(Dx_real),
-        #     "c_fake":tf.reduce_mean(Dc_fake),"c":tf.reduce_mean(Dc_real),
-        #     "n_fake":tf.reduce_mean(Dn_fake),"n_prior":tf.reduce_mean(Dn_real),
-        #     "s_fake":tf.reduce_mean(Ds_fake),"s_prior":tf.reduce_mean(Ds_real)}
+
+        return {k: v.result() for v in self.loss_trackers.values()} 
     
     @tf.function
     def test_step(self, XC):
