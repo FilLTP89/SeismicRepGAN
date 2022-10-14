@@ -13,6 +13,7 @@ __status__ = "Beta"
 import os
 import argparse
 import tensorflow as tf
+import h5py
 
 def ParseOptions():
     parser = argparse.ArgumentParser()
@@ -50,12 +51,12 @@ def ParseOptions():
     parser.add_argument("--DzSN", action='store_true',default=False, help='Spectral normalization in Dc, Ds, Dn')
     parser.add_argument("--FxSN", action='store_true',default=False, help='Spectral normalization in Fx')
     parser.add_argument("--GzSN", action='store_true',default=False, help='Spectral normalization in Gz')
-    parser.add_argument("--DxLR", type=float, default=0.0002,help='Learning rate for Dx [GAN=0.0002/WGAN=0.001]')
-    parser.add_argument("--DcLR", type=float, default=0.0002,help='Learning rate for Dc [GAN=0.0002/WGAN=0.001]')    
-    parser.add_argument("--DsLR", type=float, default=0.0002,help='Learning rate for Ds [GAN=0.0002/WGAN=0.001]')
-    parser.add_argument("--DnLR", type=float, default=0.0002,help='Learning rate for Dn [GAN=0.0002/WGAN=0.001]')
-    parser.add_argument("--FxLR", type=float, default=0.0002,help='Learning rate for Fx [GAN=0.0002/WGAN=0.0001]')
-    parser.add_argument("--GzLR", type=float, default=0.0002,help='Learning rate for Gz [GAN=0.0002/WGAN=0.0001]')
+    parser.add_argument("--DxLR", type=float, default=0.0001,help='Learning rate for Dx [GAN=0.0002/WGAN=0.001]')
+    parser.add_argument("--DcLR", type=float, default=0.0001,help='Learning rate for Dc [GAN=0.0002/WGAN=0.001]')    
+    parser.add_argument("--DsLR", type=float, default=0.0001,help='Learning rate for Ds [GAN=0.0002/WGAN=0.001]')
+    parser.add_argument("--DnLR", type=float, default=0.0001,help='Learning rate for Dn [GAN=0.0002/WGAN=0.001]')
+    parser.add_argument("--FxLR", type=float, default=0.0001,help='Learning rate for Fx [GAN=0.0002/WGAN=0.0001]')
+    parser.add_argument("--GzLR", type=float, default=0.0001,help='Learning rate for Gz [GAN=0.0002/WGAN=0.0001]')
     parser.add_argument("--PenAdvXloss", type=float, default=1.0,help="Penalty coefficient for Adv X loss")
     parser.add_argument("--PenAdvCloss",type=float,default=1.0,help="Penalty coefficient for Adv C loss")
     parser.add_argument("--PenAdvSloss",type=float,default=1.0,help="Penalty coefficient for Adv S loss")
@@ -63,6 +64,10 @@ def ParseOptions():
     parser.add_argument("--PenRecXloss",type=float,default=1.0,help="Penalty coefficient for Rec X loss")
     parser.add_argument("--PenRecCloss",type=float,default=1.0,help="Penalty coefficient for Rec C loss")
     parser.add_argument("--PenRecSloss",type=float,default=1.0,help="Penalty coefficient for Rec S loss")
+    parser.add_argument("--PenGPXloss",type=float,default=10.0,help="Penalty coefficient for WGAN GP X loss")
+    parser.add_argument("--PenGPCloss",type=float,default=10.0,help="Penalty coefficient for WGAN GP C loss")
+    parser.add_argument("--PenGPSloss",type=float,default=10.0,help="Penalty coefficient for WGAN GP S loss")
+    parser.add_argument("--PenGPNloss",type=float,default=10.0,help="Penalty coefficient for WGAN GP N loss")
     parser.add_argument("--DclassLR", type=float, default=0.0002,help='Learning rate for Qc [GAN=0.0002/WGAN=0.00002]')
     parser.add_argument("--nCritic",type=int,default=1,help='number of discriminator training steps')
     parser.add_argument("--nGenerator", type=int, default=1,help='number of generator training steps')
@@ -74,6 +79,7 @@ def ParseOptions():
     parser.add_argument("--rawdata_dir", nargs="+", default=["PortiqueElasPlas_N_2000_index","PortiqueElasPlas_E_2000_index"],help="Data root folder") 
     parser.add_argument("--store_dir", default="input_data", help="Data root folder")
     parser.add_argument("--checkpoint_dir",default='checkpoint',help="Checkpoint")
+    parser.add_argument("--checkpoint_step",type=int,default=500,help="Checkpoint epochs")
     parser.add_argument("--results_dir",default='results',help="Checkpoint")
     parser.add_argument("--idChannels", type=int, nargs='+', default=[1, 2, 3, 4], help="Channel 1")
     parser.add_argument("--nParams", type=str, default=2,help="Number of parameters")
@@ -83,6 +89,8 @@ def ParseOptions():
     parser.add_argument('--dtm', type=float, default=0.04,help='time-step [s]')
     parser.add_argument("--sigmas2",default='linear',help="Last sigmas2 activation layer")
     parser.add_argument("--sdouble_branch",action='store_true',default=False,help="Split the s branch into two, one for average and one for logvar")
+    parser.add_argument("--skip",action='store_true',default=False,help="Add skip connections from F to G")
+    parser.add_argument("--trainVeval",type=str,default="TRAIN",help="Train or Eval")
     options = parser.parse_args().__dict__
 
     options['batchXshape'] = (options['batchSize'],options['Xsize'],options['nXchannels'])
@@ -106,12 +114,22 @@ def ParseOptions():
     if not os.path.exists(options['checkpoint_dir']):
         os.makedirs(options['checkpoint_dir'])
 
+    options["DeviceName"] = tf.test.gpu_device_name() if not options['cuda'] else "/cpu:0"
+    
     return options
-
-
-def DumpModels(models, results_dir):
-    for m in models:
-        m.save(os.path.join(results_dir,m.name),
-            save_format="tf")
+        
+def DumpModels(model, results_dir):
+    
+    # filepath = os.path.join(results_dir, "{:>s}".format(model.name))
+    # tf.keras.models.save_model(model=model,filepath=filepath,save_format="tf")
+    # loaded_module = tf.keras.models.load_model(
+    #     filepath, custom_objects=None, compile=True, options=None)
+    for m in model.models:
+        filepath= os.path.join(results_dir, "{:>s}.h5".format(m.name))
+        fidh5 = h5py.File(filepath,'w')
+        tf.keras.models.save_model(model=m,filepath=fidh5,save_format="h5")
+        fidh5.close()
+        
         tf.keras.utils.plot_model(m,to_file="{:>s}.png".format(os.path.join(results_dir,m.name)))
+    
     return
