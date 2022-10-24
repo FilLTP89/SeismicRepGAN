@@ -28,6 +28,7 @@ import MDOFload as mdof
 from plot_tools import *
 
 from RepGAN_model import RepGAN
+from ImplicitAE_model import ImplicitAE
 import RepGAN_losses
 
 
