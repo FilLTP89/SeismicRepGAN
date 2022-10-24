@@ -129,7 +129,7 @@ class RepGAN(tf.keras.Model):
         """
         self.__dict__.update(losses)
             
-    # @tf.function
+    #@tf.function
     def train_XZX(self, X, c_prior):
 
         # Sample factorial prior S
@@ -233,7 +233,7 @@ class RepGAN(tf.keras.Model):
             
         return Dc_fake,Ds_fake,Dn_fake,Dc_real,Ds_real,Dn_real
 
-    # @tf.function
+    # #@tf.function
     def train_ZXZ(self, X, c_prior):
 
         # Sample factorial prior S
@@ -322,7 +322,7 @@ class RepGAN(tf.keras.Model):
 
         return Dx_fake, Dx_real
 
-    # @tf.function
+    # #@tf.function
     def train_step(self, XC):
         if isinstance(XC, tuple):
             X, metadata = XC

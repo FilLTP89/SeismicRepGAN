@@ -23,6 +23,8 @@ def ParseOptions():
     parser.add_argument("--nX",type=int,default=4000,help='Number of signals')
     parser.add_argument("--nXchannels",type=int,default=4,help="Number of data channels")
     parser.add_argument("--nAElayers",type=int,default=3,help='Number of AE CNN layers')
+    parser.add_argument("--nDlayersX", type=int, default=3,help='Number of D CNN layers for X')
+    parser.add_argument("--nDlayersz", type=int, default=3,help='Number of D CNN layers for z')
     parser.add_argument("--nDlayers",type=int,default=5,help='Number of D CNN layers')
     parser.add_argument("--N",type=int,default=2,help="Number of experiments")
     parser.add_argument("--signal",type=int,default=2,help="Types of signals")
@@ -108,7 +110,7 @@ def ParseOptions():
     options['Ssize'] = int(options['Zsize']*options['Sstride']**(-options['nSlayers']))
     options['Csize'] = int(options['Zsize']*options['Cstride']**(-options['nClayers']))
     options['Nsize'] = int(options['Zsize']*options['Nstride']**(-options['nNlayers']))
-
+    options['Nshape'] = (options['Nsize'], options['nNchannels'])
     #options['nDlayers'] = min(options['nDlayers'],int(tf.math.log(options['Xsize'],options['stride'])))
 
     if not os.path.exists(options['checkpoint_dir']):

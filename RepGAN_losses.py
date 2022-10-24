@@ -30,7 +30,7 @@ class GaussianNLL(kl.Loss):
         self.raxis = raxis
         self.λ = λ
     
-    @tf.function
+    #@tf.function
     def call(self, x, μlogΣ):
                 
         μ, logΣ = tf.split(μlogΣ,num_or_size_splits=2, axis=1)
@@ -62,7 +62,7 @@ class GANDiscriminatorLoss(kl.Loss):
         self.raxis = raxis
         self.λ = λ
     
-    @tf.function
+    #@tf.function
     def call(self,DX,DGz):
         
         if not self.raxis:
@@ -89,7 +89,7 @@ class GANGeneratorLoss(kl.Loss):
         self.raxis = raxis
         self.λ = λ
         
-    @tf.function
+    #@tf.function
     def call(self, DX, DGz):
 
         if not self.raxis:
@@ -112,7 +112,7 @@ class HingeGANDiscriminatorLoss(kl.Loss):
         self.raxis = raxis
         self.λ = λ
 
-    @tf.function
+    #@tf.function
     def call(self,logitsDX, logitsDGz):
         if not self.raxis:
             raxis = [i for i in range(1, len(DGz.shape))]
@@ -133,7 +133,7 @@ class WGANDiscriminatorLoss(kl.Loss):
         self.raxis = raxis
         self.λ = λ
         
-    @tf.function
+    # #@tf.function
     def call(self, DX, DGz):
         
         if not self.raxis:
@@ -157,7 +157,7 @@ class WGANGeneratorLoss(kl.Loss):
         self.raxis = raxis
         self.λ = λ
 
-    @tf.function
+    #@tf.function
     def call(self, DX, DGz):
 
         if not self.raxis:
@@ -187,7 +187,7 @@ class GradientPenalty(kl.Loss):
         XδX = X + α*δ
         return XδX
 
-    @tf.function
+    #@tf.function
     def call(self, X, Gz):
         
         if not self.raxis:
@@ -221,7 +221,7 @@ class MutualInfoLoss(kl.Loss):
         self.raxis = raxis
         self.λ = λ
     
-    @tf.function
+    #@tf.function
     def call(self, c, c_given_x):
         
         if not self.raxis:
@@ -246,7 +246,7 @@ class InfoLoss(kl.Loss):
         self.raxis = raxis
         self.λ = λ
         
-    @tf.function
+    #@tf.function
     def call(self, c, QcX):
 
         if not self.raxis:
