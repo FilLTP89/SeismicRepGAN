@@ -14,7 +14,7 @@ __status__ = "Beta"
 import os
 os.environ['CUDA_VISIBLE_DEVICES'] = "0"
 
-from RepGAN_utils import *
+from ImplicitAE_utils import *
 from interferometry_utils import *
 import math as mt
 
@@ -27,29 +27,29 @@ tf.config.experimental.set_memory_growth(gpu[0], True)
 import MDOFload as mdof
 from plot_tools import *
 
-from RepGAN_model import RepGAN
-import RepGAN_losses
+from ImplicitAE_model import ImplicitAE
+import ImplicitAE_losses
 
 
 def Train(options):
 
     with tf.device(options["DeviceName"]):
         
-        losses = RepGAN_losses.getLosses(**options)
-        optimizers = RepGAN_losses.getOptimizers(**options)
-        callbacks = RepGAN_losses.getCallbacks(**options)
+        losses = ImplicitAE_losses.getLosses(**options)
+        optimizers = ImplicitAE_losses.getOptimizers(**options)
+        callbacks = ImplicitAE_losses.getCallbacks(**options)
 
         # Instantiate the RepGAN model.
-        GiorgiaGAN = RepGAN(options)
+        IAE = ImplicitAE(options)
 
         # Compile the RepGAN model.
-        GiorgiaGAN.compile(optimizers, losses, metrics=[tf.keras.metrics.Accuracy()])
+        IAE.compile(optimizers, losses, metrics=[tf.keras.metrics.Accuracy()])
 
         # Build shapes
-        # GiorgiaGAN.build(input_shape=(options['batchSize'],options['Xsize'],options['nXchannels']))
+        # IAE.build(input_shape=(options['batchSize'],options['Xsize'],options['nXchannels']))
 
         # Build output shapes
-        GiorgiaGAN.compute_output_shape(input_shape=(options['batchSize'],options['Xsize'],
+        IAE.compute_output_shape(input_shape=(options['batchSize'], options['Xsize'],
                                 options['nXchannels']))
         
         if options['CreateData']:
@@ -60,12 +60,12 @@ def Train(options):
             train_dataset, val_dataset = mdof.LoadData(**options)
         
         # Train RepGAN
-        history = GiorgiaGAN.fit(x=train_dataset,batch_size=options['batchSize'],
+        history = IAE.fit(x=train_dataset,batch_size=options['batchSize'],
                                  epochs=options["epochs"],
                                  callbacks=callbacks,
                                  validation_data=val_dataset,shuffle=True,validation_freq=100)
 
-        DumpModels(GiorgiaGAN,options['results_dir'])
+        DumpModels(IAE,options['results_dir'])
 
         # PlotLoss(history,options['results_dir']) # Plot loss
 
@@ -74,23 +74,23 @@ def Evaluate(options):
 
     with tf.device(options["DeviceName"]):
 
-        losses = RepGAN_losses.getLosses(**options)
-        optimizers = RepGAN_losses.getOptimizers(**options)
-        callbacks = RepGAN_losses.getCallbacks(**options)
+        losses = ImplicitAE_losses.getLosses(**options)
+        optimizers = ImplicitAE_losses.getOptimizers(**options)
+        callbacks = ImplicitAE_losses.getCallbacks(**options)
 
         # Instantiate the RepGAN model.
-        GiorgiaGAN = RepGAN(options)
+        IAE = RepGAN(options)
 
         # Compile the RepGAN model.
-        GiorgiaGAN.compile(optimizers, losses, metrics=[
+        IAE.compile(optimizers, losses, metrics=[
                            tf.keras.metrics.Accuracy()])
         # Build output shapes
-        GiorgiaGAN.compute_output_shape(input_shape=(options['batchSize'], options['Xsize'],
-                                                     options['nXchannels']))
+        IAE.compute_output_shape(input_shape=(options['batchSize'], options['Xsize'],
+                                options['nXchannels']))
         
         latest = tf.train.latest_checkpoint(options["checkpoint_dir"])
         
-        GiorgiaGAN.load_weights(latest)
+        IAE.load_weights(latest)
 
         if options['CreateData']:
             # Create the dataset
@@ -102,7 +102,7 @@ def Evaluate(options):
         # Re-evaluate the model
         import pdb
         pdb.set_trace()
-        loss, acc = GiorgiaGAN.evaluate(val_dataset)
+        loss, acc = IAE.evaluate(val_dataset)
     
 
 if __name__ == '__main__':
