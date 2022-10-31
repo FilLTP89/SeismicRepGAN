@@ -22,18 +22,20 @@ import tensorflow_addons.layers as tfal
 tfd = tfp.distributions
 
 loss_names = [
-    "AdvDLossX",
-    "AdvDlossC",
-    "AdvDlossS",
-    "AdvDlossN",
-    "AdvGlossX",
-    "AdvGlossC",
-    "AdvGlossS",
-    "AdvGlossN",
-    "RecXloss",
-    "RecCloss",
-    "RecSloss",
-    "FakeCloss"]
+    "AdvDLossXz",
+    "AdvDLossZ",
+    # "AdvDlossC",
+    # "AdvDlossS",
+    # "AdvDlossN",
+    "AdvGlossXz",
+    # "AdvGlossC",
+    # "AdvGlossS",
+    # "AdvGlossN",
+    "AdvGlossZ",
+    "RecXloss",]
+    # "RecCloss",
+    # "RecSloss",
+    # "FakeCloss"]
 
 class ClipConstraint(kc.Constraint):
     # set clip value when initialized
@@ -59,47 +61,67 @@ class sampleSlayer(kl.Layer):
         return μs + tf.exp(0.5*logΣs)*ε
 
 
-class LatentCodeConditioner(tf.keras.Model):
+class LatentCodeConditioner(kl.Layer):
+
     def __init__(self, 
-                 LCC, 
-                 batch_size,
-                 latent_code_size=128, 
-                 latent_length=128, 
-                 n_channels=1,
-                 name="LCC"):
+                 LCC: str, 
+                 batch_size: int,
+                 latent_length : int =128, 
+                 n_channels : int =1,
+                 SN: bool = False,
+                 name : str = "LCC"):
+        """_summary_
+
+        Args:
+            LCC (str): _description_
+            batch_size (int): _description_
+            latent_length (int, optional): _description_. Defaults to 128.
+            n_channels (int, optional): _description_. Defaults to 1.
+            name (str, optional): _description_. Defaults to "LCC".
+        """        
         super(LatentCodeConditioner, self).__init__(name=name)
         
         self.LCC = LCC
         self.batch_size = batch_size
-        self.latent_code_size = latent_code_size
         self.latent_length = latent_length
         self.n_channels = n_channels
-        self.final_shape = [self.batch_size, self.latent_length, self.n_channels]
-        self.model = []
         
+        self.model = []        
         if LCC == "LDC":
-            self.model = tf.keras.Sequential(
-                [kl.Dense(1000, activation="relu", name="{:s}FW0".format(name)),
-                 kl.Dense(latent_length, name="{:s}FW1".format(name))
-                ]
-            )
+            if SN:
+                self.model = tf.keras.Sequential(
+                    [tfal.SpectralNormalization(
+                        kl.Dense(1000, activation="relu", name="{:s}FW0".format(name))
+                        ),
+                     tfal.SpectralNormalization(
+                         kl.Dense(latent_length, name="{:s}FW1".format(name))
+                         ),
+                     tfal.SpectralNormalization(kl.Reshape(
+                         (self.latent_length, 1), name="{:s}Rs0".format(name))
+                                                )
+                     ]
+                )
+            else:
+                self.model=tf.keras.Sequential(
+                    [kl.Dense(1000, activation="relu", name="{:s}FW0".format(name)),
+                     kl.Dense(latent_length, name="{:s}FW1".format(name)),
+                     kl.Reshape((self.latent_length, 1),name="{:s}Rs0".format(name))
+                    ]
+                )
         elif LCC == "LIC":
-            self.model = kl.Dense(n_channels, name="{:s}FW1".format(name))
-        
-        
-        def call(self, z):
-            
-            rz = self.model(z)
-            if self.LCC == "LDC":
+            if SN:
+                self.model = tfal.SpectralNormalization(
+                    kl.Dense(n_channels, name="{:s}FW1".format(name))
+                )
+            else:
+                self.model = kl.Dense(n_channels, name="{:s}FW1".format(name))
                 
-                rz = tf.reshape(rz, shape=(self.batch_size, self.latent_length, 1))
-                
-            return tf.broadcast_to(rz, self.final_shape)
 
-def sampleS(hs,latentSdim):
-    μs, logΣs = tf.split(hs,num_or_size_splits=2, axis=1)
-    ε = tf.random.normal(shape=tf.shape(μs), mean=0.0, stddev=1.0)
-    return μs + tf.math.exp(0.5*logΣs)*ε
+    def call(self, z):
+        
+        rz = self.model(z) 
+        
+        return tf.broadcast_to(rz, shape=(-1,self.latent_length, self.n_channels))
 
 class ImplicitAE(tf.keras.Model):
 
@@ -116,20 +138,23 @@ class ImplicitAE(tf.keras.Model):
         # define the constraint
         self.ClipD = ClipConstraint(0.01)
         
-        self.px = tfd.MultivariateNormalDiag(loc=tf.zeros(shape=Xshape,
-                                                          dtype=tf.float32),
-                                             scale_diag=tf.ones(shape=Xshape,
-                                                                dtype=tf.float32))
+        self.px = tfd.MultivariateNormalDiag(
+            loc = tf.zeros(shape = self.Xshape, dtype = tf.float32),
+            scale_diag = tf.ones(shape = self.Xshape, dtype = tf.float32)
+            )
+        self.px_flat = tfd.MultivariateNormalDiag(
+            loc = tf.zeros(shape = self.Xsize*self.nXchannels, dtype = tf.float32),
+            scale_diag = tf.ones(shape = self.Xsize*self.nXchannels, dtype = tf.float32)
+            )
+        self.pz = tfd.MultivariateNormalDiag(
+            loc = tf.zeros(shape = self.Zshape, dtype = tf.float32),
+            scale_diag = tf.ones(shape = self.Zshape, dtype = tf.float32)
+            )
+        self.pz_flat = tfd.MultivariateNormalDiag(
+            loc = tf.zeros(shape = self.latentZdim, dtype = tf.float32),
+            scale_diag = tf.ones(shape = self.latentZdim, dtype=tf.float32)
+            )
         
-        self.pz = tfd.MultivariateNormalDiag(loc=tf.zeros(shape=Zshape,
-                                                          dtype=tf.float32),
-                                             scale_diag=tf.ones(shape=Zshape,
-                                                                dtype=tf.float32))
-        
-        self.pz_flat = tfd.MultivariateNormalDiag(loc=tf.zeros(shape=Zshape[0]*Zshape[1],
-                                                               dtype=tf.float32),
-                                                  scale_diag=tf.ones(shape=Zshape[0]*Zshape[1],
-                                                                     dtype=tf.float32))
         self.BuildModels()
     
     def reset_metrics(self):
@@ -149,8 +174,7 @@ class ImplicitAE(tf.keras.Model):
         """
             Build the discriminators
         """
-        self.Dx = self.BuildDx()
-        self.Dz = self.BuildDz()
+        self.Dx = self.BuildDz()
         self.Dxz = self.BuildDxz()
         """
             Build Fx/Gz (generators)
@@ -158,11 +182,12 @@ class ImplicitAE(tf.keras.Model):
         self.Fx = self.BuildFx()
         self.Gz = self.BuildGz()
         
+        # self.models = [self.Dx, self.Dz, self.Dxz, self.Fx, self.Gz]
         self.models = [self.Dx, self.Dz, self.Dxz, self.Fx, self.Gz]
     
     def compile(self,optimizers,losses,**kwargs):
         
-        super(RepGAN, self).compile(**kwargs)
+        super(ImplicitAE, self).compile(**kwargs)
         """
             Optimizers
         """
@@ -179,7 +204,9 @@ class ImplicitAE(tf.keras.Model):
         """
         # Sample factorial prior Z
         z_prior = self.pz.sample(self.batchSize)
-
+        ε = self.px_flat.sample(self.batchSize)
+        n = self.pz_flat.sample(self.batchSize)
+        
         # Train discriminative part
         for _ in range(self.nCritic):
             
@@ -187,22 +214,30 @@ class ImplicitAE(tf.keras.Model):
             with tf.GradientTape(persistent=True) as tape:
 
                 # Encode real signals X
-                z_hat = self.Fx(X, training=True)
-                X_hat = self.Gz(z_hat, training=True)
+                z_hat = self.Fx((X,ε), training=True)
+                
+                # Decode reconstructed signals X_hat
+                X_hat = self.Gz((z_hat,n), training=True)
                 
                 # Discriminates real (X,z_hat) from false (X_hat,z_hat)
                 Dxz_real = self.Dxz((X, z_hat), training=True)
                 Dxz_fake = self.Dxz((X_hat, z_hat), training=True)
 
+                AdvDlossXz = self.AdvDlossXz(Dxz_real,Dxz_fake)
+                # Discriminates real z from false z_hat
+                Dxz_real = self.Dz(z, training=True)
+                Dxz_fake = self.Dz(z_hat, training=True)
+                
                 # Compute XZX adversarial loss (JS(x,z))
-                AdvDlossXZX = self.AdvDlossC(Dxz_real, Dxz_fake)
+                AdvDlossZ = self.AdvDlossZ(Dz_real, Dz_fake)
+
+                AdvLossD = AdvLossXz+AdvLossZ
                 
             # Compute the discriminator gradient
-            gradDc_w, gradDs_w, gradDn_w = tape.gradient(AdvDlossXZX,
-                                                         (self.Dc.trainable_variables, 
-                                                          self.Ds.trainable_variables,
-                                                          self.Dn.trainable_variables),
-                                                         unconnected_gradients=tf.UnconnectedGradients.ZERO)
+            gradDxz_w, gradDz_w = tape.gradient(AdvLossD,
+                                                (self.Dxz.trainable_variables, 
+                                                 self.Dz.trainable_variables),
+                                                unconnected_gradients=tf.UnconnectedGradients.ZERO)
 
             # Update discriminators' weights
             self.DcOpt.apply_gradients(zip(gradDc_w, self.Dc.trainable_variables))
@@ -445,108 +480,162 @@ class ImplicitAE(tf.keras.Model):
         # To build this model using the functional API
 
         # Input layer
-        X = kl.Input(shape=self.Xshape,name="X")
+        X = kl.Input(shape = self.Xshape, 
+                     name="X")
+        ε = kl.Input(shape = self.Xshape[0]*self.Xshape[1], 
+                     name="ε")
 
+        h_ε = LatentCodeConditioner(LCC=self.LCC,
+                                    batch_size=self.batchSize,
+                                    latent_length=self.Xshape[0],
+                                    n_channels=self.nZfirst,
+                                    SN=self.FxSN,
+                                    name="FxLCC")(ε)
         if self.FxSN:
             # Initial CNN layer
-            h = tfal.SpectralNormalization(kl.Conv1D(self.nZfirst, self.kernel, 1, padding="same",
-                        data_format="channels_last", name="FxCNN0"))(X)
-            h = kl.BatchNormalization(momentum=0.95)(h)
-            h = kl.LeakyReLU(alpha=0.1, name="FxA0")(h)
-            h = kl.Dropout(self.dpout, name="FxDO0")(h)
+            h_X = tfal.SpectralNormalization(kl.Conv1D(self.nZfirst, 
+                                                       self.kernel, 
+                                                       1, 
+                                                       padding="same",
+                                                       data_format="channels_last", 
+                                                       name="FxCNN0"))(X)
+            h_X = kl.Add()([h_X, h_ε])
+            h_X = kl.BatchNormalization(momentum=0.95)(h_X)
+            h_X = kl.LeakyReLU(alpha=0.1, 
+                               name="FxA0")(h_X)
+            h_X = kl.Dropout(self.dpout, 
+                             name="FxDO0")(h_X)
 
             # Common encoder CNN layers
-            for layer in range(self.nAElayers):
-                h = tfal.SpectralNormalization(kl.Conv1D(self.nZfirst*self.stride**(layer+1),
-                            self.kernel, self.stride, padding="same",
-                            data_format="channels_last", name="FxCNN{:>d}".format(layer+1)))(h)
-                h = kl.BatchNormalization(momentum=0.95)(h)
-                h = kl.LeakyReLU(alpha=0.1, name="FxA{:>d}".format(layer+1))(h)
-                h = kl.Dropout(self.dpout, name="FxDO{:>d}".format(layer+1))(h)
+            for l in range(self.nAElayers):
+                h_X = tfal.SpectralNormalization(kl.Conv1D(self.nZfirst*self.stride**(l+1),
+                            self.kernel, 
+                            self.stride, 
+                            padding="same",
+                            data_format="channels_last", 
+                            name="FxCNN{:>d}".format(l+1)))(h_X)
+                h_X = kl.BatchNormalization(momentum=0.95)(h_X)
+                h_X = kl.LeakyReLU(alpha=0.1, 
+                                   name="FxA{:>d}".format(l+1))(h_X)
+                h_X = kl.Dropout(self.dpout,
+                                 name="FxDO{:>d}".format(l+1))(h_X)
 
             # Last common CNN layer (no stride, same channels) before branching
-            layer = self.nAElayers
-            h = tfal.SpectralNormalization(kl.Conv1D(self.nZchannels,
-                        self.kernel, 1, padding="same",
-                        data_format="channels_last", name="FxCNN{:>d}".format(layer+1)))(h)
-            h = kl.BatchNormalization(
-                momentum=0.95, name="FxBN{:>d}".format(layer+1))(h)
-            h = kl.LeakyReLU(alpha=0.1, name="FxA{:>d}".format(layer+1))(h)
-            z = kl.Dropout(self.dpout, name="FxDO{:>d}".format(layer+1))(h)
+            l = self.nAElayers
+            h_X = tfal.SpectralNormalization(kl.Conv1D(self.nZchannels,
+                        self.kernel, 
+                        1, 
+                        padding="same",
+                        data_format="channels_last", 
+                        name="FxCNN{:>d}".format(l+1)))(h_X)
+            h_X = kl.BatchNormalization(momentum=0.95, 
+                                        name="FxBN{:>d}".format(l+1))(h_X)
+            h_X = kl.LeakyReLU(alpha=0.1, 
+                               name="FxA{:>d}".format(l+1))(h_X)
+            z = kl.Dropout(self.dpout, 
+                           name="FxDO{:>d}".format(l+1))(h_X)
         else:        
             # Initial CNN layer        
-            h = kl.Conv1D(self.nZfirst,self.kernel,1,padding="same",
-                    data_format="channels_last",name="FxCNN0")(X)
-            h = kl.BatchNormalization(momentum=0.95)(h)
-            h = kl.LeakyReLU(alpha=0.1,name="FxA0")(h)
-            h = kl.Dropout(self.dpout,name="FxDO0")(h)
+            h_X = kl.Conv1D(self.nZfirst,
+                            self.kernel,
+                            1,
+                            padding="same",
+                            data_format="channels_last",
+                            name="FxCNN0")(X)
+            h_X = kl.Add()([h_X, h_ε])
+            h_X = kl.BatchNormalization(momentum=0.95)(h_X)
+            h_X = kl.LeakyReLU(alpha=0.1,
+                               name="FxA0")(h_X)
+            h_X = kl.Dropout(self.dpout,
+                             name="FxDO0")(h_X)
 
             # Common encoder CNN layers
-            for layer in range(self.nAElayers):
-                h = kl.Conv1D(self.nZfirst*self.stride**(layer+1),
-                    self.kernel,self.stride,padding="same",
-                    data_format="channels_last",name="FxCNN{:>d}".format(layer+1))(h)
-                h = kl.BatchNormalization(momentum=0.95)(h)
-                h = kl.LeakyReLU(alpha=0.1,name="FxA{:>d}".format(layer+1))(h)
-                h = kl.Dropout(self.dpout,name="FxDO{:>d}".format(layer+1))(h)
+            for l in range(self.nAElayers):
+                h_X = kl.Conv1D(self.nZfirst*self.stride**(l+1),
+                    self.kernel,
+                    self.stride,
+                    padding="same",
+                    data_format="channels_last",
+                    name="FxCNN{:>d}".format(l+1))(h_X)
+                h_X = kl.BatchNormalization(momentum=0.95)(h_X)
+                h_X = kl.LeakyReLU(alpha=0.1,
+                                   name="FxA{:>d}".format(l+1))(h_X)
+                h_X = kl.Dropout(self.dpout,
+                                 name="FxDO{:>d}".format(l+1))(h_X)
 
             # Last common CNN layer (no stride, same channels) before branching
-            layer = self.nAElayers
-            h = kl.Conv1D(self.nZchannels,
-                self.kernel,1,padding="same",
-                data_format="channels_last",name="FxCNN{:>d}".format(layer+1))(h)
-            h = kl.BatchNormalization(momentum=0.95,name="FxBN{:>d}".format(layer+1))(h)
-            h = kl.LeakyReLU(alpha=0.1,name="FxA{:>d}".format(layer+1))(h)
-            z = kl.Dropout(self.dpout,name="FxDO{:>d}".format(layer+1))(h)
+            l = self.nAElayers
+            h_X = kl.Conv1D(self.nZchannels,
+                            self.kernel,
+                            1,
+                            padding="same",
+                            data_format="channels_last",
+                            name="FxCNN{:>d}".format(l+1))(h_X)
+            h_X = kl.BatchNormalization(momentum=0.95,
+                                        name="FxBN{:>d}".format(l+1))(h_X)
+            h_X = kl.LeakyReLU(alpha=0.1,
+                               name="FxA{:>d}".format(l+1))(h_X)
+            z = kl.Dropout(self.dpout,
+                           name="FxDO{:>d}".format(l+1))(h_X)
         # z ---> Zshape = (Zsize,nZchannels)
 
         # Option linear block
-        # z = kl.Flatten(name="FxFLN{:>d}".format(layer+1))(z)
+        # z = kl.Flatten(name="FxFLN{:>d}".format(l+1))(z)
         # z = kl.Dense(1024)(z)
         # z = kl.BatchNormalization(momentum=0.95)(z)
         # z = kl.LeakyReLU(alpha=0.1)(z)
         # z = kl.Dense(self.latentNdim,name="FxFWN")(z)
 
-        Fx = tf.keras.Model(X,z,name="Fx")
-        return Fx
+        F_x = tf.keras.Model(X, z, name="Fx")
+        return F_x
 
     def BuildGz(self):
         """
             Conv1D Gz structure CNN
         """
     
-        z = kl.Input(shape=self.Zshape,name="z")
-
+        z = kl.Input(shape=self.Zshape, 
+                     name="z")
+        n = kl.Input(shape=self.Zshape[0]*self.Zshape[1], 
+                     name="n")
+        h_n = LatentCodeConditioner(LCC=self.LCC,
+                                    batch_size=self.batchSize,
+                                    latent_length=Zshape[1],
+                                    n_channels=1,
+                                    name="GzLCC")(n)
+    
         if self.GzSN:
-            Gz = tfal.SpectralNormalization(kl.Conv1DTranspose(self.nZchannels,
+            h_z = tfal.SpectralNormalization(kl.Conv1DTranspose(self.nZchannels,
                     self.kernel, 
                     1, 
                     padding="same", 
                     data_format="channels_last"))(z)
-            Gz = kl.BatchNormalization(axis=-1, 
-                                       momentum=0.95)(Gz)
-            Gz = kl.LeakyReLU(alpha=0.1)(Gz)
+            h_z = kl.Add()([h_z, h_n])
+            h_z = kl.BatchNormalization(axis=-1, 
+                                        momentum=0.95)(h_z)
+            h_z = kl.LeakyReLU(alpha=0.1)(h_z)
         
-            for layer in range(1, self.nAElayers-1):
-                Gz = tfal.SpectralNormalization(kl.Conv1DTranspose(self.nZchannels//self.stride**(layer+1),
+            for l in range(1, self.nAElayers-1):
+                h_z = tfal.SpectralNormalization(kl.Conv1DTranspose(self.nZchannels//self.stride**(layer+1),
                     self.kernel, 
                     self.stride, 
                     padding="same", 
-                    use_bias=False))(Gz)
-                Gz = kl.BatchNormalization(axis=-1, 
-                                           momentum=0.95)(Gz)
-                Gz = kl.LeakyReLU(alpha=0.1)(Gz)
+                    use_bias=False))(h_z)
+                h_z = kl.BatchNormalization(axis=-1, 
+                                            momentum=0.95)(h_z)
+                h_z = kl.LeakyReLU(alpha=0.1)(h_z)
 
             layer = self.nAElayers-1
 
-            Gz = tfal.SpectralNormalization(kl.Conv1DTranspose(self.nZchannels//self.stride**(layer+1),
-                                                               self.kernel, 
-                                                               self.stride, 
-                                                               padding="same", 
-                                                               use_bias=False))(Gz)
-            Gz = kl.BatchNormalization(axis=-1, 
-                                       momentum=0.95)(Gz)
-            Gz = kl.LeakyReLU(alpha=0.1, name="GzA{:>d}".format(layer+1))(Gz)
+            h_z = tfal.SpectralNormalization(kl.Conv1DTranspose(self.nZchannels//self.stride**(layer+1),
+                                                                self.kernel, 
+                                                                self.stride, 
+                                                                padding="same", 
+                                                                use_bias=False))(h_z)
+            h_z = kl.BatchNormalization(axis=-1, 
+                                        momentum=0.95)(h_z)
+            h_z = kl.LeakyReLU(alpha=0.1, 
+                               name="GzA{:>d}".format(layer+1))(h_z)
 
             layer = self.nAElayers
 
@@ -555,38 +644,39 @@ class ImplicitAE(tf.keras.Model):
                                                               1, 
                                                               padding="same", 
                                                               activation='tanh', 
-                                                              use_bias=False))(Gz)
+                                                              use_bias=False))(h_z)
         else:
-            Gz = kl.Conv1DTranspose(self.nZchannels, 
-                                    self.kernel, 
-                                    1, 
-                                    padding="same", 
-                                    data_format="channels_last")(z)
-            Gz = kl.BatchNormalization(axis=-1, 
-                                       momentum=0.95)(Gz)
-            Gz = kl.LeakyReLU(alpha=0.1)(Gz)
+            h_z = kl.Conv1DTranspose(self.nZchannels, 
+                                     self.kernel, 
+                                     1, 
+                                     padding="same", 
+                                     data_format="channels_last")(z)
+            h_z = kl.Add()([h_z, hn])
+            h_z = kl.BatchNormalization(axis=-1, 
+                                        momentum=0.95)(h_z)
+            h_z = kl.LeakyReLU(alpha=0.1)(h_z)
 
-            for layer in range(1, self.nAElayers-1):
-                Gz = kl.Conv1DTranspose(self.nZchannels//self.stride**(layer+1),
-                                        self.kernel, 
-                                        self.stride, 
-                                        padding="same", 
-                                        use_bias=False)(Gz)
-                Gz = kl.BatchNormalization(axis=-1, 
-                                           momentum=0.95)(Gz)
-                Gz = kl.LeakyReLU(alpha=0.1)(Gz)
+            for l in range(1, self.nAElayers-1):
+                h_z = kl.Conv1DTranspose(self.nZchannels//self.stride**(layer+1),
+                                         self.kernel, 
+                                         self.stride, 
+                                         padding="same", 
+                                         use_bias=False)(h_z)
+                h_z = kl.BatchNormalization(axis=-1, 
+                                            momentum=0.95)(h_z)
+                h_z = kl.LeakyReLU(alpha=0.1)(h_z)
 
             layer = self.nAElayers-1
 
-            Gz = kl.Conv1DTranspose(self.nZchannels//self.stride**(layer+1),
-                                    self.kernel, 
-                                    self.stride, 
-                                    padding="same", 
-                                    use_bias=False)(Gz)
-            Gz = kl.BatchNormalization(axis=-1, 
-                                       momentum=0.95)(Gz)
-            Gz = kl.LeakyReLU(alpha=0.1,
-                              name="GzA{:>d}".format(layer+1))(Gz)
+            h_z = kl.Conv1DTranspose(self.nZchannels//self.stride**(layer+1),
+                                     self.kernel, 
+                                     self.stride, 
+                                     padding="same", 
+                                     use_bias=False)(h_z)
+            h_z = kl.BatchNormalization(axis=-1, 
+                                        momentum=0.95)(h_z)
+            h_z = kl.LeakyReLU(alpha=0.1,
+                               name="GzA{:>d}".format(layer+1))(h_z)
 
             layer = self.nAElayers
 
@@ -595,63 +685,78 @@ class ImplicitAE(tf.keras.Model):
                                                               1,
                                                               padding="same", 
                                                               activation='tanh', 
-                                                              use_bias=False))(Gz)
-        Gz = tf.keras.Model(inputs=z,
-                            outputs=X,
-                            name="Gz")
-        return Gz
+                                                              use_bias=False))(h_z)
+        G_z = tf.keras.Model(inputs=z,
+                             outputs=X,
+                             name="Gz")
+        return G_z
 
-    def BuildDx(self):
+    def BuildDz(self):
         """
             Conv1D discriminator structure
         """
         layer = 0
-        X = kl.Input(shape=self.Xshape,name="X")
+        z = kl.Input(shape=self.Zshape,name="z")
         
-        if self.DxSN:
-            h = tfal.SpectralNormalization(kl.Conv1D(self.Xsize*self.stride**(-(layer+1)),
-                    self.kernel,self.stride,padding="same",
-                    data_format="channels_last",name="DxCNN0"))(X)
-            h = kl.LeakyReLU(alpha=0.1,name="DxA0")(h)
-            h = kl.Dropout(0.25)(h)
+        if self.DzSN:
+            h_z = tfal.SpectralNormalization(kl.Conv1D(self.Zsize*self.stride**(-(layer+1)),
+                                                       self.kernel,
+                                                       self.stride,
+                                                       padding="same",
+                                                       data_format="channels_last",
+                                                       name="DzCNN0"))(z)
+            h_z = kl.LeakyReLU(alpha=0.1,
+                              name="DzA0")(h_z)
+            h_z = kl.Dropout(self.dpout)(h_z)
 
-            for layer in range(1,self.nDlayers):
-                h = tfal.SpectralNormalization(kl.Conv1D(self.Xsize*self.stride**(-(layer+1)),
-                    self.kernel,self.stride,padding="same",
-                    data_format="channels_last",name="DxCNN{:>d}".format(layer)))(h)
-                h = kl.LeakyReLU(alpha=0.1,name="DxA{:>d}".format(layer))(h)
-                h = kl.Dropout(0.25)(h)
+            for l in range(1,self.nDlayers):
+                h_z = tfal.SpectralNormalization(kl.Conv1D(self.Zsize*self.stride**(-(layer+1)),
+                                                           self.kernel,
+                                                           self.stride,
+                                                           padding="same",
+                                                           data_format="channels_last",
+                                                           name="DzCNN{:>d}".format(l+1)))(h_z)
+                h_z = kl.LeakyReLU(alpha=0.1,
+                                   name="DzA{:>d}".format(l+1))(h_z)
+                h_z = kl.Dropout(self.dpout)(h_z)
 
             layer = self.nDlayers    
-            h = kl.Flatten(name="DxFL{:>d}".format(layer))(h)
-            h = tfal.SpectralNormalization(kl.Dense(1024))(h)
-            h = kl.LeakyReLU(alpha=0.1)(h)
-            h = kl.Dropout(0.25)(h)
-            Px = tfal.SpectralNormalization(kl.Dense(1))(h)
+            h_z = kl.Flatten(name="DzFL{:>d}".format(l+1))(h_z)
+            h_z = tfal.SpectralNormalization(kl.Dense(1024))(h_z)
+            h_z = kl.LeakyReLU(alpha=0.1)(h_z)
+            h_z = kl.Dropout(self.dpout)(h_z)
+            P_z = tfal.SpectralNormalization(kl.Dense(1))(h_z)
         else:
-            h = kl.Conv1D(self.Xsize*self.stride**(-(layer+1)),
-                    self.kernel,self.stride,padding="same",
-                    data_format="channels_last",name="DxCNN0")(X)
-            h = kl.LeakyReLU(alpha=0.1,name="DxA0")(h)
-            h = kl.Dropout(0.25)(h)
+            h_z = kl.Conv1D(self.Zsize*self.stride**(-(layer+1)),
+                            self.kernel,
+                            self.stride,
+                            padding="same",
+                            data_format="channels_last",
+                            name="DzCNN0")(z)
+            h_z = kl.LeakyReLU(alpha=0.1,
+                             name="DzA0")(h_z)
+            h_z = kl.Dropout(self.dpout)(h_z)
 
-            for layer in range(1,self.nDlayers):
-                h = kl.Conv1D(self.Xsize*self.stride**(-(layer+1)),
-                    self.kernel,self.stride,padding="same",
-                    data_format="channels_last",name="DxCNN{:>d}".format(layer))(h)
-                h = kl.LeakyReLU(alpha=0.1,name="DxA{:>d}".format(layer))(h)
-                h = kl.Dropout(0.25)(h)
+            for l in range(1,self.nDlayers):
+                h_z = kl.Conv1D(self.Zsize*self.stride**(-(layer+1)),
+                                self.kernel,
+                                self.stride,
+                                padding="same",
+                                data_format="channels_last",
+                                name="DzCNN{:>d}".format(l+1))(h_z)
+                h_z = kl.LeakyReLU(alpha=0.1,
+                                 name="DzA{:>d}".format(l+1))(h_z)
+                h_z = kl.Dropout(self.dpout)(h_z)
 
             layer = self.nDlayers    
-            h = kl.Flatten(name="DxFL{:>d}".format(layer))(h)
-            h = kl.Dense(1024)(h)
-            h = kl.LeakyReLU(alpha=0.1)(h)
-            h = kl.Dropout(0.25)(h)
-            Px = kl.Dense(1)(h)
-            
+            h_z = kl.Flatten(name="DxFL{:>d}".format(l+1))(h_z)
+            h_z = kl.Dense(1024)(h_z)
+            h_z = kl.LeakyReLU(alpha=0.1)(h_z)
+            h_z = kl.Dropout(self.dpout)(h_z)
+            P_z = kl.Dense(1)(h_z)            
         
-        Dx = tf.keras.Model(X,Px,name="Dx")
-        return Dx
+        D_z = tf.keras.Model(z, P_z, name="Dz")
+        return D_z
 
     def BuildDxz(self):
         """
@@ -660,126 +765,138 @@ class ImplicitAE(tf.keras.Model):
         X = kl.Input(shape=self.Xshape, name="X")
         z = kl.Input(shape=self.Zshape, name="z")
 
-        # Branch Dx
-        layer = 0
-        if self.DxSN:
-            h_X = tfal.SpectralNormalization(kl.Conv1D(self.Xsize*self.stride**(-(layer+1)),
-                                                       self.kernel,
-                                                       self.stride,
+        k = self.kernel
+        s = self.stride
+
+        l = 0
+        if self.DxzSN:
+            # Branch Dx
+            f = int(self.Xsize*1**(-(l+1)))
+            h_X = tfal.SpectralNormalization(kl.Conv1D(f, k, strides=1,
                                                        padding="same",
                                                        data_format="channels_last",
                                                        name="DxCNN0"))(X)
             h_X = kl.LeakyReLU(alpha=0.1, name="DxA0")(h_X)
-            h_X = kl.Dropout(0.25)(h_X)
+            h_X = kl.Dropout(self.dpout)(h_X)
 
-        # Branch Dz
-        layer = 0
-        if self.DzSN:
-            h_z = tfal.SpectralNormalization(kl.Conv1D(self.Zsize*self.stride**(-(layer+1)),
-                                                       self.kernel,
-                                                       self.stride,
+            # Branch Dz
+            f = int(self.Zsize*1**(-(l+1)))
+            h_z = tfal.SpectralNormalization(kl.Conv1D(f, k, strides=1,
                                                        padding="same",
                                                        data_format="channels_last",
                                                        name="DzCNN0"))(z)
             h_z = kl.LeakyReLU(alpha=0.1, name="DzA0")(h_z)
-            h_z = kl.Dropout(0.25)(h_z)
-
-        nlayers_z = self.nDlayers-int(tf.log(Xsize/Zsize))
-
-        for layer in range(1, nlayers_z):
+            h_z = kl.Dropout(self.dpout)(h_z)
+        else:
             # Branch Dx
-            if self.DxSN:
-                h_X = tfal.SpectralNormalization(kl.Conv1D(self.Xsize*self.stride**(-(layer+1)),
-                                                           self.kernel,
-                                                           self.stride,
-                                                           padding="same",
-                                                           data_format="channels_last",
-                                                           name="DxCNN{:>d}".format(layer)))(h_X)
-            else:
-                h_X = kl.Conv1D(self.Xsize*self.stride**(-(layer+1)),
-                                self.kernel,
-                                self.stride,
-                                padding="same",
-                                data_format="channels_last",
-                                name="DxCNN{:>d}".format(layer))(h_X)
-
-            h_X = kl.LeakyReLU(alpha=0.1, name="DxA{:>d}".format(layer))(h_X)
-            h_X = kl.Dropout(0.25)(h_X)
+            f = int(self.Xsize*s**(-(l+1)))
+            h_X = kl.Conv1D(f,
+                            k,
+                            strides=1,
+                            padding="same",
+                            data_format="channels_last",
+                            name="DxCNN0")(X)
+            h_X = kl.LeakyReLU(alpha=0.1, name="DxA0")(h_X)
+            h_X = kl.Dropout(self.dpout)(h_X)
 
             # Branch Dz
-            if self.DzSN:
-                h_z = tfal.SpectralNormalization(kl.Conv1D(self.Zsize*self.stride**(-(layer+1)),
-                                                           self.kernel,
-                                                           self.stride,
+            f = int(self.Zsize*s**(-(l+1)))
+            h_z = kl.Conv1D(f,
+                            k,
+                            strides=1,
+                            padding="same",
+                            data_format="channels_last",
+                            name="DzCNN0")(z)
+            h_z = kl.LeakyReLU(alpha=0.1, name="DzA0")(h_z)
+            h_z = kl.Dropout(self.dpout)(h_z)
+
+        nlayers_z = int(tf.math.log(self.Xsize/self.Zsize)/tf.math.log(float(s)))
+                
+        if self.DxzSN:
+            for l in range(nlayers_z):
+                # Branch Dx
+                f = int(self.Xsize*s**(-(l+1)))
+                h_X = tfal.SpectralNormalization(kl.Conv1D(f,
+                                                           k,
+                                                           strides=s,
                                                            padding="same",
                                                            data_format="channels_last",
-                                                           name="DzCNN{:>d}".format(layer)))(h_z)
-            else:
-                h_z = kl.Conv1D(self.Zsize*self.stride**(-(layer+1)),
-                                self.kernel,
-                                self.stride,
+                                                           name="DxCNN{:>d}".format(l+1)))(h_X)
+                h_X = kl.LeakyReLU(alpha=0.1, 
+                                   name="DxA{:>d}".format(l+1))(h_X)
+                h_X = kl.Dropout(self.dpout)(h_X)
+                
+            # # Branch z
+            # h_z = tfal.SpectralNormalization(kl.Conv1D(self.Xsize*self.stride**(-(l+1)),
+            #                                            self.kernel,
+            #                                            1,
+            #                                            padding="same",
+            #                                            data_format="channels_last",
+            #                                            name="DzCNN{:>d}".format(l+1)))(h_z)
+            # h_z = kl.LeakyReLU(alpha=0.1, name="DzA{:>d}".format(l+1))(h_z)
+            # h_z = kl.Dropout(self.dpout)(h_z)
+        else:
+            for l in range(nlayers_z):
+                # Branch Dx
+                f = int(self.Xsize*s**(-(l+1)))
+                h_X = kl.Conv1D(f,
+                                k,
+                                strides=s,
                                 padding="same",
                                 data_format="channels_last",
-                                name="DzCNN{:>d}".format(layer))(h_z)
+                                name="DxCNN{:>d}".format(l+1))(h_X)
+                h_X = kl.LeakyReLU(alpha=0.1,
+                                   name="DxA{:>d}".format(l+1))(h_X)
+                h_X = kl.Dropout(self.dpout)(h_X)
+            # # Branch z
+            # h_z = kl.Conv1D(self.Xsize*self.stride**(-(l+1)),
+            #                 self.kernel,
+            #                 1,
+            #                 padding="same",
+            #                 data_format="channels_last",
+            #                 name="DzCNN{:>d}".format(l+1))(h_z)
+            # h_z = kl.LeakyReLU(alpha=0.1, name="DzA{:>d}".format(l+1))(h_z)
+            # h_z = kl.Dropout(self.dpout)(h_z)
 
-            h_z = kl.LeakyReLU(alpha=0.1, name="DzA{:>d}".format(layerz))(h_z)
-            h_z = kl.Dropout(0.25)(h_z)
+        D_x  = keras.Model(X, h_X)
+        D_z =  keras.Model(z, h_z)
 
-        Dx, Dz = keras.Model(X, h_X), keras.Model(z, h_z)
-
-        h_Xz = kl.concatenate([Dx.output, Dz.output])
+        h_Xz = kl.concatenate([D_x.output, D_z.output], axis=-1)
 
         # Branch (X,z)
-        for layer in range(nlayers_z, self.nDlayers):
-            if self.DzSN:
-                h_Xz = tfal.SpectralNormalization(kl.Conv1D(self.Zsize*self.stride**(-(layer+1)),
+        if self.DxzSN:
+            for l in range(nlayers_z, self.nDlayers):
+                h_Xz = tfal.SpectralNormalization(kl.Conv1D(self.Zsize*self.stride**(-(l+1)),
                                                             self.kernel,
                                                             self.stride,
                                                             padding="same",
                                                             data_format="channels_last",
-                                                            name="DxzCNN{:>d}".format(layer)))(h_Xz)
-            else:
-                h_Xz = kl.Conv1D(self.Zsize*self.stride**(-(layer+1)),
+                                                            name="DxzCNN{:>d}".format(l+1)))(h_Xz)
+                h_Xz = kl.LeakyReLU(alpha=0.1, name="DzA{:>d}".format(l+1))(h_Xz)
+                h_Xz = kl.Dropout(self.dpout)(h_Xz)
+            h_Xz = kl.Flatten(name="DxFL{:>d}".format(l+1))(h_Xz)
+            h_Xz = tfal.SpectralNormalization(kl.Dense(1024))(h_Xz)
+            h_Xz = kl.LeakyReLU(alpha=0.1)(h_Xz)
+            h_Xz = kl.Dropout(self.dpout)(h_Xz)
+            P_Xz = tfal.SpectralNormalization(kl.Dense(1))(h_Xz)
+        else:
+            for l in range(nlayers_z, self.nDlayers):
+                h_Xz = kl.Conv1D(self.Zsize*self.stride**(-(l+1)),
                                  self.kernel,
                                  self.stride,
                                  padding="same",
                                  data_format="channels_last",
-                                 name="DxzCNN{:>d}".format(layer))(h_Xz)
+                                 name="DxzCNN{:>d}".format(l+1))(h_Xz)
 
-            h_Xz = kl.LeakyReLU(
-                alpha=0.1, name="DzA{:>d}".format(layerz))(h_Xz)
-            h_Xz = kl.Dropout(0.25)(h_Xz)
-
-        h_Xz = kl.Flatten(name="DxFL{:>d}".format(layer))(h_Xz)
-        h_Xz = tfal.SpectralNormalization(kl.Dense(1024))(h_Xz)
-        h_Xz = kl.LeakyReLU(alpha=0.1)(h_Xz)
-        h_Xz = kl.Dropout(0.25)(h_Xz)
-        Px = tfal.SpectralNormalization(kl.Dense(1))(h_Xz)
-
-        Dxz = tf.keras.Model(inputs=[Dx.input, Dz.input], outputs=Px, name="Dxz")
-        return Dxz
-
-    def BuildDn(self):
-        """
-            Dense discriminator structure
-        """
-        n = kl.Input(shape=(self.latentNdim,))
-        if self.DzSN:
-            h = tfal.SpectralNormalization(kl.Dense(3000))(n)
-            h = kl.LeakyReLU(alpha=0.1)(h)
-            h = kl.Dropout(0.25)(h)
-            h = tfal.SpectralNormalization(kl.Dense(3000))(h)
-            h = kl.LeakyReLU(alpha=0.1)(h)
-            h = kl.Dropout(0.25)(h)
-            Pn = tfal.SpectralNormalization(kl.Dense(1))(h)
-        else:
-            h = kl.Dense(3000,kernel_constraint=ClipConstraint(self.clipValue))(n) 
-            h = kl.LeakyReLU(alpha=0.1)(h)
-            h = kl.Dropout(0.25)(h)
-            h = kl.Dense(1000,kernel_constraint=ClipConstraint(self.clipValue))(h)
-            h = kl.BatchNormalization(momentum=0.95)(h)
-            h = kl.LeakyReLU(alpha=0.1)(h)
-            h = kl.Dropout(0.25)(h)
-            Pn = kl.Dense(1,kernel_constraint=ClipConstraint(self.clipValue))(h)
-        Dn = tf.keras.Model(n,Pn,name="Dn")
-        return Dn
+                h_Xz = kl.LeakyReLU(alpha=0.1, name="DzA{:>d}".format(l+1))(h_Xz)
+                h_Xz = kl.Dropout(self.dpout)(h_Xz)
+            h_Xz = kl.Flatten(name="DxFL{:>d}".format(l+1))(h_Xz)
+            h_Xz = kl.Dense(1024)(h_Xz)
+            h_Xz = kl.LeakyReLU(alpha=0.1)(h_Xz)
+            h_Xz = kl.Dropout(self.dpout)(h_Xz)
+            P_Xz = kl.Dense(1)(h_Xz)
+        
+        D_Xz = tf.keras.Model(inputs=[D_x.input, D_z.input], 
+                              outputs=P_Xz, 
+                              name="Dxz")
+        return D_Xz
