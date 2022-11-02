@@ -303,15 +303,15 @@ def getOptimizers(**kwargs):
     elif DzTrainType.upper() == "GAN":
         optimizers['DzOpt'] = Adam(learning_rate=DzLR, beta_1=0.5, beta_2=0.9999)
 
-    if DxTrainType.upper() == "WGAN":
-        optimizers['FxOpt'] = Adam(learning_rate=FxLR, beta_1=0.5, beta_2=0.9999)
-        optimizers['GzOpt'] = Adam(learning_rate=GzLR, beta_1=0.5, beta_2=0.9999)
-    elif DxTrainType.upper() == "WGANGP":
-        optimizers['FxOpt'] = Adam(learning_rate=FxLR, beta_1=0.0, beta_2=0.9)
-        optimizers['GzOpt'] = Adam(learning_rate=GzLR, beta_1=0.0, beta_2=0.9)
-    elif DxTrainType.upper() == "GAN":
-        optimizers['FxOpt'] = Adam(learning_rate=FxLR, beta_1=0.5, beta_2=0.9999)
-        optimizers['GzOpt'] = Adam(learning_rate=GzLR, beta_1=0.5, beta_2=0.9999)
+    # if DxTrainType.upper() == "WGAN":
+    #     optimizers['FxOpt'] = Adam(learning_rate=FxLR, beta_1=0.5, beta_2=0.9999)
+    #     optimizers['GzOpt'] = Adam(learning_rate=GzLR, beta_1=0.5, beta_2=0.9999)
+    # elif DxTrainType.upper() == "WGANGP":
+    #     optimizers['FxOpt'] = Adam(learning_rate=FxLR, beta_1=0.0, beta_2=0.9)
+    #     optimizers['GzOpt'] = Adam(learning_rate=GzLR, beta_1=0.0, beta_2=0.9)
+    # elif DxTrainType.upper() == "GAN":
+    #     optimizers['FxOpt'] = Adam(learning_rate=FxLR, beta_1=0.5, beta_2=0.9999)
+    #     optimizers['GzOpt'] = Adam(learning_rate=GzLR, beta_1=0.5, beta_2=0.9999)
     
     return optimizers
 
@@ -368,14 +368,14 @@ def getLosses(**kwargs):
         losses['AdvDlossXz'] = HingeGANDiscriminatorLoss(λ=PenAdvZloss)
         losses['AdvGlossXz'] = GANGeneratorLoss(λ=PenAdvZloss)
         
-    if DxTrainType.upper() == "WGAN" or "WGANGP":
-        losses['AdvDlossX'] = WGANDiscriminatorLoss(λ=PenAdvXloss)
-        losses['AdvGlossX'] = WGANGeneratorLoss(λ=PenAdvXloss)
-    elif DxTrainType.upper() == 'GAN':
-        losses['AdvDlossX'] = GANDiscriminatorLoss(λ=PenAdvXloss)
-        losses['AdvGlossX'] = GANGeneratorLoss(λ=PenAdvXloss)
-    elif DxTrainType.upper() == "HINGE":
-        raise Exception("Hinge loss not implemented for Dx")
+    # if DxTrainType.upper() == "WGAN" or "WGANGP":
+    #     losses['AdvDlossX'] = WGANDiscriminatorLoss(λ=PenAdvXloss)
+    #     losses['AdvGlossX'] = WGANGeneratorLoss(λ=PenAdvXloss)
+    # elif DxTrainType.upper() == 'GAN':
+    #     losses['AdvDlossX'] = GANDiscriminatorLoss(λ=PenAdvXloss)
+    #     losses['AdvGlossX'] = GANGeneratorLoss(λ=PenAdvXloss)
+    # elif DxTrainType.upper() == "HINGE":
+    #     raise Exception("Hinge loss not implemented for Dx")
 
     # if DcTrainType.upper() == "WGANGP":
     #     losses["PenDcLoss"] = GradientPenalty(λ=PenGPCloss)
