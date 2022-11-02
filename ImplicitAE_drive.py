@@ -79,7 +79,7 @@ def Evaluate(options):
         callbacks = ImplicitAE_losses.getCallbacks(**options)
 
         # Instantiate the RepGAN model.
-        IAE = RepGAN(options)
+        IAE = ImplicitAE(options)
 
         # Compile the RepGAN model.
         IAE.compile(optimizers, losses, metrics=[
