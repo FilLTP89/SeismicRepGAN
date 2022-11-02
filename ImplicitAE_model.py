@@ -22,8 +22,8 @@ import tensorflow_addons.layers as tfal
 tfd = tfp.distributions
 
 loss_names = [
-    "AdvDLossXz",
-    "AdvDLossZ",
+    "AdvDlossXz",
+    "AdvDlossZ",
     # "AdvDlossC",
     # "AdvDlossS",
     # "AdvDlossN",
@@ -174,7 +174,7 @@ class ImplicitAE(tf.keras.Model):
         """
             Build the discriminators
         """
-        self.Dx = self.BuildDz()
+        self.Dz = self.BuildDz()
         self.Dxz = self.BuildDxz()
         """
             Build Fx/Gz (generators)
@@ -183,7 +183,7 @@ class ImplicitAE(tf.keras.Model):
         self.Gz = self.BuildGz()
         
         # self.models = [self.Dx, self.Dz, self.Dxz, self.Fx, self.Gz]
-        self.models = [self.Dx, self.Dz, self.Dxz, self.Fx, self.Gz]
+        self.models = [self.Dz, self.Dxz, self.Fx, self.Gz]
     
     def compile(self,optimizers,losses,**kwargs):
         
@@ -223,30 +223,34 @@ class ImplicitAE(tf.keras.Model):
                 Dxz_real = self.Dxz((X, z_hat), training=True)
                 Dxz_fake = self.Dxz((X_hat, z_hat), training=True)
 
-                AdvDlossXz = self.AdvDlossXz(Dxz_real,Dxz_fake)
-                # Discriminates real z from false z_hat
-                Dxz_real = self.Dz(z, training=True)
-                Dxz_fake = self.Dz(z_hat, training=True)
+                # Compute Z adversarial loss (JS(x,z))
+                AdvDlossXz = self.AdvDlossXz(Dxz_real, Dxz_fake)
                 
-                # Compute XZX adversarial loss (JS(x,z))
+                # Discriminates real z from false z_hat
+                Dz_real = self.Dz(z_prior, training=True)
+                Dz_fake = self.Dz(z_hat, training=True)
+                
+                # Compute Z adversarial loss (JS(z))
                 AdvDlossZ = self.AdvDlossZ(Dz_real, Dz_fake)
 
-                AdvLossD = AdvLossXz+AdvLossZ
+                AdvDloss = AdvDlossXz+AdvDlossZ
                 
             # Compute the discriminator gradient
-            gradDxz_w, gradDz_w = tape.gradient(AdvLossD,
+            gradDxz_w, gradDz_w = tape.gradient(AdvDloss,
                                                 (self.Dxz.trainable_variables, 
                                                  self.Dz.trainable_variables),
                                                 unconnected_gradients=tf.UnconnectedGradients.ZERO)
 
             # Update discriminators' weights
-            self.DcOpt.apply_gradients(zip(gradDc_w, self.Dc.trainable_variables))
-            self.DsOpt.apply_gradients(zip(gradDs_w, self.Ds.trainable_variables))
-            self.DnOpt.apply_gradients(zip(gradDn_w, self.Dn.trainable_variables))
+            self.DxzOpt.apply_gradients(
+                zip(gradDxz_w, self.Dxz.trainable_variables)
+                )
+            self.DzOpt.apply_gradients(
+                zip(gradDz_w, self.Dz.trainable_variables)
+                )
 
-        self.loss_val["AdvDlossC"] = AdvDlossC
-        self.loss_val["AdvDlossS"] = AdvDlossS
-        self.loss_val["AdvDlossN"] = AdvDlossN
+        self.loss_val["AdvDlossXz"] = AdvDlossXz
+        self.loss_val["AdvDlossZ"] = AdvDlossZ
             
         # Train the generative part
         for _ in range(self.nGenerator):
@@ -254,36 +258,33 @@ class ImplicitAE(tf.keras.Model):
             # Tape gradients
             with tf.GradientTape(persistent=True) as tape:
                 
-                # Encode real signals
-                _, s_fake, c_fake, n_fake = self.Fx(X, training=True)
-                
-                # Discriminate fake latent space
-                Ds_fake = self.Ds(s_fake, training=True)
-                Dc_fake = self.Dc(c_fake, training=True)
-                Dn_fake = self.Dn(n_fake, training=True)
+                # Encode real signals X
+                z_hat = self.Fx((X, ε), training=True)
 
-                # Compute adversarial loss for generator
-                AdvGlossC = self.AdvGlossC(None, Dc_fake)
-                AdvGlossS = self.AdvGlossS(None, Ds_fake)
-                AdvGlossN = self.AdvGlossN(None, Dn_fake)
-                
-                # Compute total generator loss
-                AdvGlossXZX = AdvGlossC + AdvGlossS + AdvGlossN
-                
-                # Reconstruct real signals
-                X_rec = self.Gz((s_fake, c_fake, n_fake), training=True)
+                # Decode reconstructed signals X_hat
+                X_hat = self.Gz((z_hat, n), training=True)
 
+                # Discriminates real (X,z_hat) from false (X_hat,z_hat)
+                Dxz_fake = self.Dxz((X_hat, z_hat), training=True)
+
+                # Compute Z adversarial loss (JS(x,z))
+                AdvGlossXz = self.AdvGlossXz(None, Dxz_fake)
+
+                # Discriminates real z from false z_hat
+                Dz_fake = self.Dz(z_hat, training=True)
+
+                # Compute Z adversarial loss (JS(z))
+                AdvGlossZ = self.AdvGlossZ(None, Dz_fake)
+                                
                 # Compute reconstruction loss
-                FakeCloss = self.FakeCloss(c_prior, c_fake)
-                
-                # Compute reconstruction loss
-                RecXloss = self.RecXloss(X, X_rec)
+                RecXloss = self.RecXloss(X, X_hat)
                 
                 # Total generator loss
-                GeneratorLossXZX = AdvGlossXZX + RecXloss + FakeCloss
+                # Compute total generator loss
+                AdvGloss = AdvGlossXz+AdvGlossZ+RecXloss
 
             # Get the gradients w.r.t the generator loss
-            gradFx_w, gradGz_w = tape.gradient(GeneratorLossXZX,
+            gradFx_w, gradGz_w = tape.gradient(AdvGloss,
                                                (self.Fx.trainable_variables,
                                                 self.Gz.trainable_variables),
                                                unconnected_gradients=tf.UnconnectedGradients.ZERO)
@@ -292,102 +293,100 @@ class ImplicitAE(tf.keras.Model):
             self.FxOpt.apply_gradients(zip(gradFx_w,self.Fx.trainable_variables))
             self.GzOpt.apply_gradients(zip(gradGz_w,self.Gz.trainable_variables))
             
-        self.loss_val["AdvGlossC"] = AdvGlossC
-        self.loss_val["AdvGlossS"] = AdvGlossS
-        self.loss_val["AdvGlossN"] = AdvGlossN
-        self.loss_val["FakeCloss"] = FakeCloss
+        self.loss_val["AdvGlossXz"] = AdvGlossXz
+        self.loss_val["AdvGlossZ"] = AdvGlossZ
         self.loss_val["RecXloss"] = RecXloss
             
         return Dc_fake,Ds_fake,Dn_fake,Dc_real,Ds_real,Dn_real
 
-    # @tf.function
-    def train_ZXZ(self, X, c_prior):
+    # # @tf.function
+    # def train_ZXZ(self, X, c_prior):
 
-        # Sample factorial prior S
-        s_prior = self.ps.sample(self.batchSize)
+    #     # Sample factorial prior S
+    #     s_prior = self.ps.sample(self.batchSize)
 
-        # Sample factorial prior N
-        n_prior = self.pn.sample(self.batchSize)
+    #     # Sample factorial prior N
+    #     n_prior = self.pn.sample(self.batchSize)
 
-        # Train discriminative part
-        for _ in range(self.nCritic):
+    #     # Train discriminative part
+    #     for _ in range(self.nCritic):
 
-            # Tape gradients
-            with tf.GradientTape(persistent=True) as tape:
+    #         # Tape gradients
+    #         with tf.GradientTape(persistent=True) as tape:
 
-                # Decode factorial prior
-                X_fake = self.Gz((s_prior, c_prior, n_prior), training=True)
+    #             # Decode factorial prior
+    #             X_fake = self.Gz((s_prior, c_prior, n_prior), training=True)
 
-                # Discriminate real and fake X
-                Dx_real = self.Dx(X, training=True)
-                Dx_fake = self.Dx(X_fake, training=True)
+    #             # Discriminate real and fake X
+    #             Dx_real = self.Dx(X, training=True)
+    #             Dx_fake = self.Dx(X_fake, training=True)
 
-                # Compute the discriminator loss GAN loss (penalized)
-                AdvDlossX = self.AdvDlossX(Dx_real, Dx_fake)
+    #             # Compute the discriminator loss GAN loss (penalized)
+    #             AdvDlossX = self.AdvDlossX(Dx_real, Dx_fake)
                 
-                AdvDlossZXZ = AdvDlossX
-                if self.DxTrainType.upper() == "WGANGP":
+    #             AdvDlossZXZ = AdvDlossX
+    #             if self.DxTrainType.upper() == "WGANGP":
                     
-                    # Regularize with Gradient Penalty (WGANGP)
-                    PenDxLoss = self.PenDxLoss(X,X_fake)
+    #                 # Regularize with Gradient Penalty (WGANGP)
+    #                 PenDxLoss = self.PenDxLoss(X,X_fake)
                     
-                    AdvDlossZXZ += PenDxLoss
+    #                 AdvDlossZXZ += PenDxLoss
                 
-            # Compute the discriminator gradient
-            gradDx_w = tape.gradient(AdvDlossZXZ, self.Dx.trainable_variables,
-                                     unconnected_gradients=tf.UnconnectedGradients.ZERO)
-            # Update the weights of the discriminator using the discriminator optimizer
-            self.DxOpt.apply_gradients(zip(gradDx_w, self.Dx.trainable_variables))
+    #         # Compute the discriminator gradient
+    #         gradDx_w = tape.gradient(AdvDlossZXZ, self.Dx.trainable_variables,
+    #                                  unconnected_gradients=tf.UnconnectedGradients.ZERO)
+    #         # Update the weights of the discriminator using the discriminator optimizer
+    #         self.DxOpt.apply_gradients(zip(gradDx_w, self.Dx.trainable_variables))
             
-            if self.DxTrainType.upper() == "WGANGP":
-                self.loss_val["PenDxLoss"] = PenDxLoss
-            else:
-                self.loss_val["PenDxLoss"] = None
+    #         if self.DxTrainType.upper() == "WGANGP":
+    #             self.loss_val["PenDxLoss"] = PenDxLoss
+    #         else:
+    #             self.loss_val["PenDxLoss"] = None
             
-            self.loss_val["AdvDlossX"] = AdvDlossX
+    #         self.loss_val["AdvDlossX"] = AdvDlossX
             
-        # Train generative part
-        for _ in range(self.nGenerator):
+    #     # Train generative part
+    #     for _ in range(self.nGenerator):
             
-            # Tape gradients
-            with tf.GradientTape(persistent=True) as tape:
+    #         # Tape gradients
+    #         with tf.GradientTape(persistent=True) as tape:
 
-                # Decode factorial prior
-                X_fake = self.Gz((s_prior, c_prior, n_prior), training=True)
+    #             # Decode factorial prior
+    #             X_fake = self.Gz((s_prior, c_prior, n_prior), training=True)
 
-                # Discriminate real and fake X
-                Dx_fake = self.Dx(X_fake, training=True)
+    #             # Discriminate real and fake X
+    #             Dx_fake = self.Dx(X_fake, training=True)
 
-                # Compute adversarial loos (penalized)
-                AdvGlossX = self.AdvGlossX(None, Dx_fake)
+    #             # Compute adversarial loos (penalized)
+    #             AdvGlossX = self.AdvGlossX(None, Dx_fake)
                 
-                # Encode fake signals
-                [hs, s_rec, c_rec, _] = self.Fx(X_fake, training=True)
-                #Q_cont_distribution = tfp.distributions.MultivariateNormalDiag(loc=μs_rec, scale_diag=logΣs_rec)
-                #RecSloss = -tf.reduce_mean(Q_cont_distribution.log_prob(s_rec))
-                RecSloss = self.RecSloss(s_prior, hs)
-                RecCloss = self.RecCloss(c_prior, c_rec)
+    #             # Encode fake signals
+    #             [hs, s_rec, c_rec, _] = self.Fx(X_fake, training=True)
+    #             #Q_cont_distribution = tfp.distributions.MultivariateNormalDiag(loc=μs_rec, scale_diag=logΣs_rec)
+    #             #RecSloss = -tf.reduce_mean(Q_cont_distribution.log_prob(s_rec))
+    #             RecSloss = self.RecSloss(s_prior, hs)
+    #             RecCloss = self.RecCloss(c_prior, c_rec)
                 
-                # Compute InfoGAN Q loos
-                Qloss = RecSloss + RecCloss
+    #             # Compute InfoGAN Q loos
+    #             Qloss = RecSloss + RecCloss
                                 
-                # Total ZXZ generator loss
-                GeneratorLossZXZ = AdvGlossX + Qloss
+    #             # Total ZXZ generator loss
+    #             GeneratorLossZXZ = AdvGlossX + Qloss
 
-            # Get the gradients w.r.t the generator loss
-            gradFx_w, gradGz_w = tape.gradient(GeneratorLossZXZ, (self.Fx.trainable_variables,
-                                                                  self.Gz.trainable_variables),
-                unconnected_gradients=tf.UnconnectedGradients.ZERO)
+    #         # Get the gradients w.r.t the generator loss
+    #         gradFx_w, gradGz_w = tape.gradient(GeneratorLossZXZ, (self.Fx.trainable_variables,
+    #                                                               self.Gz.trainable_variables),
+    #             unconnected_gradients=tf.UnconnectedGradients.ZERO)
             
-            # Update the weights of the generator using the generator optimizer
-            self.GzOpt.apply_gradients(zip(gradGz_w,self.Gz.trainable_variables))
-            self.FxOpt.apply_gradients(zip(gradFx_w,self.Fx.trainable_variables))
+    #         # Update the weights of the generator using the generator optimizer
+    #         self.GzOpt.apply_gradients(zip(gradGz_w,self.Gz.trainable_variables))
+    #         self.FxOpt.apply_gradients(zip(gradFx_w,self.Fx.trainable_variables))
 
-            self.loss_val["AdvGlossX"] = AdvGlossX
-            self.loss_val["RecSloss"] = RecSloss
-            self.loss_val["RecCloss"] = RecCloss
+    #         self.loss_val["AdvGlossX"] = AdvGlossX
+    #         self.loss_val["RecSloss"] = RecSloss
+    #         self.loss_val["RecCloss"] = RecCloss
 
-        return Dx_fake, Dx_real
+    #     return Dx_fake, Dx_real
 
     @tf.function
     def train_step(self, XC):
@@ -400,13 +399,13 @@ class ImplicitAE(tf.keras.Model):
         for _ in range(self.nXRepX):
             XZXout = self.train_XZX(X, damage_class)
         
-        for _ in range(self.nRepXRep):  
-            ZXZout = self.train_ZXZ(X, damage_class)
+        # for _ in range(self.nRepXRep):  
+        #     ZXZout = self.train_ZXZ(X, damage_class)
         
 
-        (Dx_fake,Dx_real) = ZXZout
+        # (Dx_fake,Dx_real) = ZXZout
 
-        (Dc_fake,Ds_fake,Dn_fake,Dc_real,Ds_real,Dn_real) = XZXout
+        (Dxz_fake,Dz_fake,Dxz_real,Dz_real) = XZXout
         
         # Compute our own metrics
         for k,v in self.loss_trackers.items():
@@ -485,21 +484,24 @@ class ImplicitAE(tf.keras.Model):
         ε = kl.Input(shape = self.Xshape[0]*self.Xshape[1], 
                      name="ε")
 
-        h_ε = LatentCodeConditioner(LCC=self.LCC,
-                                    batch_size=self.batchSize,
-                                    latent_length=self.Xshape[0],
-                                    n_channels=self.nZfirst,
-                                    SN=self.FxSN,
-                                    name="FxLCC")(ε)
+        h_ε0 = LatentCodeConditioner(LCC=self.LCC,
+                                     batch_size=self.batchSize,
+                                     latent_length=self.Xshape[0],
+                                     n_channels=self.nZfirst,
+                                     SN=self.FxSN,
+                                     name="FxLCC")(ε)
+        m_ε = tf.keras.Model(ε, h_ε0)
         if self.FxSN:
             # Initial CNN layer
-            h_X = tfal.SpectralNormalization(kl.Conv1D(self.nZfirst, 
-                                                       self.kernel, 
-                                                       1, 
-                                                       padding="same",
-                                                       data_format="channels_last", 
-                                                       name="FxCNN0"))(X)
-            h_X = kl.Add()([h_X, h_ε])
+            h_X0 = tfal.SpectralNormalization(kl.Conv1D(self.nZfirst, 
+                                                        self.kernel, 
+                                                        1, 
+                                                        padding="same",
+                                                        data_format="channels_last", 
+                                                        name="FxCNN0"))(X)
+            m_X = tf.keras.Model(X, h_X0)
+            h_X = kl.Add()([m_X.output, m_ε.output])
+            
             h_X = kl.BatchNormalization(momentum=0.95)(h_X)
             h_X = kl.LeakyReLU(alpha=0.1, 
                                name="FxA0")(h_X)
@@ -536,13 +538,14 @@ class ImplicitAE(tf.keras.Model):
                            name="FxDO{:>d}".format(l+1))(h_X)
         else:        
             # Initial CNN layer        
-            h_X = kl.Conv1D(self.nZfirst,
-                            self.kernel,
-                            1,
-                            padding="same",
-                            data_format="channels_last",
-                            name="FxCNN0")(X)
-            h_X = kl.Add()([h_X, h_ε])
+            h_X0 = kl.Conv1D(self.nZfirst,
+                             self.kernel,
+                             1,
+                             padding="same",
+                             data_format="channels_last",
+                             name="FxCNN0")(X)
+            m_X = keras.Model(X, h_X0)
+            h_X = kl.Add()([m_X.output, m_ε.output])
             h_X = kl.BatchNormalization(momentum=0.95)(h_X)
             h_X = kl.LeakyReLU(alpha=0.1,
                                name="FxA0")(h_X)
@@ -586,7 +589,9 @@ class ImplicitAE(tf.keras.Model):
         # z = kl.LeakyReLU(alpha=0.1)(z)
         # z = kl.Dense(self.latentNdim,name="FxFWN")(z)
 
-        F_x = tf.keras.Model(X, z, name="Fx")
+        F_x = tf.keras.Model(inputs=[m_X.input, m_ε.input], 
+                             outputs=z,
+                             name="Fx")
         return F_x
 
     def BuildGz(self):
@@ -594,40 +599,42 @@ class ImplicitAE(tf.keras.Model):
             Conv1D Gz structure CNN
         """
     
-        z = kl.Input(shape=self.Zshape, 
+        z = kl.Input(shape=self.Zshape,
                      name="z")
-        n = kl.Input(shape=self.Zshape[0]*self.Zshape[1], 
+        n = kl.Input(shape=self.Zshape[0]*self.Zshape[1],
                      name="n")
-        h_n = LatentCodeConditioner(LCC=self.LCC,
-                                    batch_size=self.batchSize,
-                                    latent_length=Zshape[1],
-                                    n_channels=1,
-                                    name="GzLCC")(n)
-    
+        h_n0 = LatentCodeConditioner(LCC=self.LCC,
+                                     batch_size=self.batchSize,
+                                     latent_length=self.Zshape[0],
+                                     n_channels=self.nZchannels,
+                                     SN=self.GzSN,
+                                     name="GzLCC")(n)
+        m_n = tf.keras.Model(n,h_n0)
         if self.GzSN:
-            h_z = tfal.SpectralNormalization(kl.Conv1DTranspose(self.nZchannels,
-                    self.kernel, 
-                    1, 
-                    padding="same", 
-                    data_format="channels_last"))(z)
-            h_z = kl.Add()([h_z, h_n])
+            h_z0 = tfal.SpectralNormalization(kl.Conv1DTranspose(self.nZchannels,
+                                                                 self.kernel, 
+                                                                 1, 
+                                                                 padding="same", 
+                                                                 data_format="channels_last"))(z)
+            m_z = tf.keras.Model(z,h_z0)
+            h_z = kl.Add()([m_z.output, m_n.output])
             h_z = kl.BatchNormalization(axis=-1, 
                                         momentum=0.95)(h_z)
             h_z = kl.LeakyReLU(alpha=0.1)(h_z)
         
             for l in range(1, self.nAElayers-1):
-                h_z = tfal.SpectralNormalization(kl.Conv1DTranspose(self.nZchannels//self.stride**(layer+1),
-                    self.kernel, 
-                    self.stride, 
-                    padding="same", 
-                    use_bias=False))(h_z)
+                h_z = tfal.SpectralNormalization(kl.Conv1DTranspose(self.nZchannels//self.stride**(l+1),
+                                                                    self.kernel, 
+                                                                    self.stride, 
+                                                                    padding="same", 
+                                                                    use_bias=False))(h_z)
                 h_z = kl.BatchNormalization(axis=-1, 
                                             momentum=0.95)(h_z)
                 h_z = kl.LeakyReLU(alpha=0.1)(h_z)
 
             layer = self.nAElayers-1
 
-            h_z = tfal.SpectralNormalization(kl.Conv1DTranspose(self.nZchannels//self.stride**(layer+1),
+            h_z = tfal.SpectralNormalization(kl.Conv1DTranspose(self.nZchannels//self.stride**(l+1),
                                                                 self.kernel, 
                                                                 self.stride, 
                                                                 padding="same", 
@@ -646,18 +653,19 @@ class ImplicitAE(tf.keras.Model):
                                                               activation='tanh', 
                                                               use_bias=False))(h_z)
         else:
-            h_z = kl.Conv1DTranspose(self.nZchannels, 
-                                     self.kernel, 
-                                     1, 
-                                     padding="same", 
-                                     data_format="channels_last")(z)
-            h_z = kl.Add()([h_z, hn])
+            h_z0 = kl.Conv1DTranspose(self.nZchannels, 
+                                      self.kernel, 
+                                      1, 
+                                      padding="same", 
+                                      data_format="channels_last")(z)
+            m_z = tf.keras.Model(z,h_z0)
+            h_z = kl.Add()([m_z.output, m_n.output])
             h_z = kl.BatchNormalization(axis=-1, 
                                         momentum=0.95)(h_z)
             h_z = kl.LeakyReLU(alpha=0.1)(h_z)
 
             for l in range(1, self.nAElayers-1):
-                h_z = kl.Conv1DTranspose(self.nZchannels//self.stride**(layer+1),
+                h_z = kl.Conv1DTranspose(self.nZchannels//self.stride**(l+1),
                                          self.kernel, 
                                          self.stride, 
                                          padding="same", 
@@ -668,7 +676,7 @@ class ImplicitAE(tf.keras.Model):
 
             layer = self.nAElayers-1
 
-            h_z = kl.Conv1DTranspose(self.nZchannels//self.stride**(layer+1),
+            h_z = kl.Conv1DTranspose(self.nZchannels//self.stride**(l+1),
                                      self.kernel, 
                                      self.stride, 
                                      padding="same", 
@@ -686,8 +694,8 @@ class ImplicitAE(tf.keras.Model):
                                                               padding="same", 
                                                               activation='tanh', 
                                                               use_bias=False))(h_z)
-        G_z = tf.keras.Model(inputs=z,
-                             outputs=X,
+        G_z = tf.keras.Model(inputs=[m_z.input, m_n.input], 
+                             outputs = X, 
                              name="Gz")
         return G_z
 
@@ -695,22 +703,22 @@ class ImplicitAE(tf.keras.Model):
         """
             Conv1D discriminator structure
         """
-        layer = 0
+        l = 0
         z = kl.Input(shape=self.Zshape,name="z")
         
         if self.DzSN:
-            h_z = tfal.SpectralNormalization(kl.Conv1D(self.Zsize*self.stride**(-(layer+1)),
+            h_z = tfal.SpectralNormalization(kl.Conv1D(self.Zsize*self.stride**(-(l+1)),
                                                        self.kernel,
                                                        self.stride,
                                                        padding="same",
                                                        data_format="channels_last",
                                                        name="DzCNN0"))(z)
             h_z = kl.LeakyReLU(alpha=0.1,
-                              name="DzA0")(h_z)
+                               name="DzA0")(h_z)
             h_z = kl.Dropout(self.dpout)(h_z)
 
             for l in range(1,self.nDlayers):
-                h_z = tfal.SpectralNormalization(kl.Conv1D(self.Zsize*self.stride**(-(layer+1)),
+                h_z = tfal.SpectralNormalization(kl.Conv1D(self.Zsize*self.stride**(-(l+1)),
                                                            self.kernel,
                                                            self.stride,
                                                            padding="same",
@@ -727,7 +735,7 @@ class ImplicitAE(tf.keras.Model):
             h_z = kl.Dropout(self.dpout)(h_z)
             P_z = tfal.SpectralNormalization(kl.Dense(1))(h_z)
         else:
-            h_z = kl.Conv1D(self.Zsize*self.stride**(-(layer+1)),
+            h_z = kl.Conv1D(self.Zsize*self.stride**(-(l+1)),
                             self.kernel,
                             self.stride,
                             padding="same",
@@ -738,17 +746,17 @@ class ImplicitAE(tf.keras.Model):
             h_z = kl.Dropout(self.dpout)(h_z)
 
             for l in range(1,self.nDlayers):
-                h_z = kl.Conv1D(self.Zsize*self.stride**(-(layer+1)),
+                h_z = kl.Conv1D(self.Zsize*self.stride**(-(l+1)),
                                 self.kernel,
                                 self.stride,
                                 padding="same",
                                 data_format="channels_last",
                                 name="DzCNN{:>d}".format(l+1))(h_z)
                 h_z = kl.LeakyReLU(alpha=0.1,
-                                 name="DzA{:>d}".format(l+1))(h_z)
+                                   name="DzA{:>d}".format(l+1))(h_z)
                 h_z = kl.Dropout(self.dpout)(h_z)
 
-            layer = self.nDlayers    
+            l = self.nDlayers    
             h_z = kl.Flatten(name="DxFL{:>d}".format(l+1))(h_z)
             h_z = kl.Dense(1024)(h_z)
             h_z = kl.LeakyReLU(alpha=0.1)(h_z)
@@ -772,16 +780,21 @@ class ImplicitAE(tf.keras.Model):
         if self.DxzSN:
             # Branch Dx
             f = int(self.Xsize*1**(-(l+1)))
-            h_X = tfal.SpectralNormalization(kl.Conv1D(f, k, strides=1,
+            h_X = tfal.SpectralNormalization(kl.Conv1D(f, 
+                                                       k, 
+                                                       strides=1,
                                                        padding="same",
                                                        data_format="channels_last",
                                                        name="DxCNN0"))(X)
-            h_X = kl.LeakyReLU(alpha=0.1, name="DxA0")(h_X)
+            h_X = kl.LeakyReLU(alpha=0.1, 
+                               name="DxA0")(h_X)
             h_X = kl.Dropout(self.dpout)(h_X)
 
             # Branch Dz
             f = int(self.Zsize*1**(-(l+1)))
-            h_z = tfal.SpectralNormalization(kl.Conv1D(f, k, strides=1,
+            h_z = tfal.SpectralNormalization(kl.Conv1D(f, 
+                                                       k, 
+                                                       strides=1,
                                                        padding="same",
                                                        data_format="channels_last",
                                                        name="DzCNN0"))(z)
