@@ -43,7 +43,7 @@ def ParseOptions():
                         default=[1, 2, 3, 4],
                         help="Channel 1")
     parser.add_argument("--nParams",
-                        type=str,
+                        type=int,
                         default=2,
                         help="Number of parameters")
     parser.add_argument("--case",
@@ -87,6 +87,14 @@ def ParseOptions():
                         type=int,
                         default=4,
                         help="Number of data channels")
+    parser.add_argument("--AEtype",
+                        type=str,
+                        default="RES",
+                        help="Type of AE (CNN or RES)")
+    parser.add_argument("--normalization",
+                        type=str,
+                        default="IN",
+                        help="Instance Normalization (IN), Adaptive IN (AdaIN) or BatchNormalizaion (BN)")
     parser.add_argument("--nAElayers",
                         type=int,
                         default=3,
@@ -131,10 +139,10 @@ def ParseOptions():
     #                     type=int,
     #                     default=2,
     #                     help="Latent space s dimension")
-    # parser.add_argument("--latentCdim",
-    #                     type=int,
-    #                     default=2,
-    #                     help="Number of classes")
+    parser.add_argument("--latentCdim",
+                        type=int,
+                        default=2,
+                        help="Number of classes")
     # parser.add_argument("--latentNdim",
     #                     type=int,
     #                     default=512,
@@ -362,6 +370,7 @@ def ParseOptions():
     options['nZchannels'] = options['nZfirst']*(options['stride']**options['nAElayers']) # options['latentZdim']//options['Zsize']
     options['Zshape'] = (options['Zsize'],options['nZchannels'])
 
+    options["AEtype"] = options["AEtype"].upper()
     # options['nSchannels'] = options['nZchannels']*options['Sstride']**options['nSlayers']
     # options['nCchannels'] = options['nZchannels']*options['Cstride']**options['nClayers']
     # options['nNchannels'] = options['nZchannels']*options['Nstride']**options['nNlayers']

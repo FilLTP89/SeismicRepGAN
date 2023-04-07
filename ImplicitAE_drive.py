@@ -49,8 +49,9 @@ def Train(options):
         # IAE.build(input_shape=(options['batchSize'],options['Xsize'],options['nXchannels']))
 
         # Build output shapes
-        IAE.compute_output_shape(input_shape=(options['batchSize'], options['Xsize'],
-                                options['nXchannels']))
+        IAE.compute_output_shape(input_shape=(options['batchSize'], 
+                                              options['Xsize'],
+                                              options['nXchannels']))
         
         if options['CreateData']:
             # Create the dataset

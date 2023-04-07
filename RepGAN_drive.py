@@ -1,6 +1,7 @@
 ## -*- coding: utf-8 -*-
 #!/usr/bin/env python3
 u"""General informations"""
+import datetime
 __author__ = "Giorgia Colombera, Filippo Gatti"
 __copyright__ = "Copyright 2021, CentraleSupélec (MSSMat UMR CNRS 8579)"
 __credits__ = ["Giorgia Colombera,Filippo Gatti"]
@@ -59,6 +60,11 @@ def Train(options):
             # Load the dataset
             train_dataset, val_dataset = mdof.LoadData(**options)
         
+        log_dir = "logs/fit/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+
+
+        tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1)
+
         # Train RepGAN
         history = GiorgiaGAN.fit(x=train_dataset,batch_size=options['batchSize'],
                                  epochs=options["epochs"],

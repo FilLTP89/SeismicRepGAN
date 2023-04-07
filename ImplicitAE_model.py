@@ -18,8 +18,9 @@ import tensorflow.keras.layers as kl
 import tensorflow.keras.metrics as km
 import tensorflow.keras.constraints as kc
 import tensorflow_addons.layers as tfal
-
+import ImplicitAE_layers as il
 tfd = tfp.distributions
+
 
 loss_names = [
     "AdvDlossXz",
@@ -183,9 +184,15 @@ class ImplicitAE(tf.keras.Model):
         self.Gz = self.BuildGz()
         
         # self.models = [self.Dx, self.Dz, self.Dxz, self.Fx, self.Gz]
-        self.models = [self.Dz, self.Dxz, self.Fx, self.Gz]
+        self.models = [self.Dz, 
+                       self.Dxz, 
+                       self.Fx, 
+                       self.Gz]
     
-    def compile(self,optimizers,losses,**kwargs):
+    def compile(self,
+                optimizers,
+                losses,
+                **kwargs):
         
         super(ImplicitAE, self).compile(**kwargs)
         """
@@ -214,7 +221,7 @@ class ImplicitAE(tf.keras.Model):
             with tf.GradientTape(persistent=True) as tape:
 
                 # Encode real signals X
-                z_hat = self.Fx((X,ε), training=True)
+                z_hat = self.Fx((X, ε), training=True)
                 
                 # Decode reconstructed signals X_hat
                 X_hat = self.Gz((z_hat,n), training=True)
@@ -243,10 +250,12 @@ class ImplicitAE(tf.keras.Model):
 
             # Update discriminators' weights
             self.DxzOpt.apply_gradients(
-                zip(gradDxz_w, self.Dxz.trainable_variables)
+                zip(gradDxz_w,
+                    self.Dxz.trainable_variables)
                 )
             self.DzOpt.apply_gradients(
-                zip(gradDz_w, self.Dz.trainable_variables)
+                zip(gradDz_w,
+                    self.Dz.trainable_variables)
                 )
 
         self.loss_val["AdvDlossXz"] = AdvDlossXz
@@ -281,7 +290,7 @@ class ImplicitAE(tf.keras.Model):
                 
                 # Total generator loss
                 # Compute total generator loss
-                AdvGloss = AdvGlossXz+AdvGlossZ+RecXloss
+                AdvGloss = AdvGlossXz+AdvGlossZ#+RecXloss
 
             # Get the gradients w.r.t the generator loss
             gradFx_w, gradGz_w = tape.gradient(AdvGloss,
@@ -295,99 +304,10 @@ class ImplicitAE(tf.keras.Model):
             
         self.loss_val["AdvGlossXz"] = AdvGlossXz
         self.loss_val["AdvGlossZ"] = AdvGlossZ
-        self.loss_val["RecXloss"] = RecXloss
+        # self.loss_val["RecXloss"] = RecXloss
             
-        return Dc_fake,Ds_fake,Dn_fake,Dc_real,Ds_real,Dn_real
-
-    # # @tf.function
-    # def train_ZXZ(self, X, c_prior):
-
-    #     # Sample factorial prior S
-    #     s_prior = self.ps.sample(self.batchSize)
-
-    #     # Sample factorial prior N
-    #     n_prior = self.pn.sample(self.batchSize)
-
-    #     # Train discriminative part
-    #     for _ in range(self.nCritic):
-
-    #         # Tape gradients
-    #         with tf.GradientTape(persistent=True) as tape:
-
-    #             # Decode factorial prior
-    #             X_fake = self.Gz((s_prior, c_prior, n_prior), training=True)
-
-    #             # Discriminate real and fake X
-    #             Dx_real = self.Dx(X, training=True)
-    #             Dx_fake = self.Dx(X_fake, training=True)
-
-    #             # Compute the discriminator loss GAN loss (penalized)
-    #             AdvDlossX = self.AdvDlossX(Dx_real, Dx_fake)
-                
-    #             AdvDlossZXZ = AdvDlossX
-    #             if self.DxTrainType.upper() == "WGANGP":
-                    
-    #                 # Regularize with Gradient Penalty (WGANGP)
-    #                 PenDxLoss = self.PenDxLoss(X,X_fake)
-                    
-    #                 AdvDlossZXZ += PenDxLoss
-                
-    #         # Compute the discriminator gradient
-    #         gradDx_w = tape.gradient(AdvDlossZXZ, self.Dx.trainable_variables,
-    #                                  unconnected_gradients=tf.UnconnectedGradients.ZERO)
-    #         # Update the weights of the discriminator using the discriminator optimizer
-    #         self.DxOpt.apply_gradients(zip(gradDx_w, self.Dx.trainable_variables))
-            
-    #         if self.DxTrainType.upper() == "WGANGP":
-    #             self.loss_val["PenDxLoss"] = PenDxLoss
-    #         else:
-    #             self.loss_val["PenDxLoss"] = None
-            
-    #         self.loss_val["AdvDlossX"] = AdvDlossX
-            
-    #     # Train generative part
-    #     for _ in range(self.nGenerator):
-            
-    #         # Tape gradients
-    #         with tf.GradientTape(persistent=True) as tape:
-
-    #             # Decode factorial prior
-    #             X_fake = self.Gz((s_prior, c_prior, n_prior), training=True)
-
-    #             # Discriminate real and fake X
-    #             Dx_fake = self.Dx(X_fake, training=True)
-
-    #             # Compute adversarial loos (penalized)
-    #             AdvGlossX = self.AdvGlossX(None, Dx_fake)
-                
-    #             # Encode fake signals
-    #             [hs, s_rec, c_rec, _] = self.Fx(X_fake, training=True)
-    #             #Q_cont_distribution = tfp.distributions.MultivariateNormalDiag(loc=μs_rec, scale_diag=logΣs_rec)
-    #             #RecSloss = -tf.reduce_mean(Q_cont_distribution.log_prob(s_rec))
-    #             RecSloss = self.RecSloss(s_prior, hs)
-    #             RecCloss = self.RecCloss(c_prior, c_rec)
-                
-    #             # Compute InfoGAN Q loos
-    #             Qloss = RecSloss + RecCloss
-                                
-    #             # Total ZXZ generator loss
-    #             GeneratorLossZXZ = AdvGlossX + Qloss
-
-    #         # Get the gradients w.r.t the generator loss
-    #         gradFx_w, gradGz_w = tape.gradient(GeneratorLossZXZ, (self.Fx.trainable_variables,
-    #                                                               self.Gz.trainable_variables),
-    #             unconnected_gradients=tf.UnconnectedGradients.ZERO)
-            
-    #         # Update the weights of the generator using the generator optimizer
-    #         self.GzOpt.apply_gradients(zip(gradGz_w,self.Gz.trainable_variables))
-    #         self.FxOpt.apply_gradients(zip(gradFx_w,self.Fx.trainable_variables))
-
-    #         self.loss_val["AdvGlossX"] = AdvGlossX
-    #         self.loss_val["RecSloss"] = RecSloss
-    #         self.loss_val["RecCloss"] = RecCloss
-
-    #     return Dx_fake, Dx_real
-
+        return
+    
     @tf.function
     def train_step(self, XC):
         if isinstance(XC, tuple):
@@ -419,62 +339,116 @@ class ImplicitAE(tf.keras.Model):
             X, c = XC
             c, mag, di = c
         # Compute predictions
-        X_rec, c_fake, s_fake, n_fake = self(X, training=False)
+        ε = self.px_flat.sample(self.batchSize)
+        n = self.pz_flat.sample(self.batchSize)
+        
+        z_hat = self.Fx((X, ε), training=False)
+        X_hat = self.Gz((z_hat, n), training=False)
 
         # Updates the metrics tracking the loss
-        self.RecXloss(X, X_rec)
+        self.RecXloss(X, X_hat)
         # Update the metrics.
-        self.RecGlossX_tracker.update_state(X, X_rec)
+        self.RecGlossX_tracker.update_state(X, X_hat)
         # Return a dict mapping metric names to current value.
         # Note that it will include the loss (tracked in self.metrics).
         return {"RecXloss": RecGlossX_tracker.result()}
 
 
     def call(self, X):
-        [_,s_fake,c_fake,n_fake] = self.Fx(X)
-        X_rec = self.Gz((s_fake,c_fake,n_fake))
-        return X_rec, c_fake, s_fake, n_fake
+        # Compute predictions
+        ε = self.px_flat.sample(self.batchSize)
+        n = self.pz_flat.sample(self.batchSize)
+        z_hat = self.Fx((X, ε), training=False)
+        X_hat = self.Gz((z_hat, n), training=False)
+        return X_hat, z_hat
 
     def plot(self,X,c):
-        [_,s_fake,c_fake,n_fake] = self.Fx(X,training=False)
-        s_prior = self.ps.sample(X.shape[0])
-        n_prior = self.pn.sample(X.shape[0])
-        fakeX = self.Gz((s_prior,c,n_prior),training=False)
-        X_rec = self.Gz((s_fake,c_fake,n_fake),training=False)
-        return X_rec, c_fake, s_fake, n_fake, fakeX
+        ε = self.px_flat.sample(self.batchSize)
+        n = self.pz_flat.sample(self.batchSize)
+        z = self.pz.sample(self.batchSize)
+
+        z_hat = self.Fx((X, ε), training=False)
+        X_hat = self.Gz((z_hat, n), training=False)
+        X_tilde = self.Gz((z, n), training=False)
+        return X_hat, z_hat, X_tilde
 
     def label_predictor(self, X, c):
-        [_,s_fake,c_fake,n_fake] = self.Fx(X)
-        s_prior = self.ps.sample(s_fake.shape[0])
-        n_prior = self.pn.sample(n_fake.shape[0])
-        fakeX = self.Gz((s_prior,c,n_prior),training=False)
-        [_,_,c_rec,_] = self.Fx(fakeX,training=False)
-        return c_fake, c_rec
+        ε = self.px_flat.sample(self.batchSize)
+        n = self.pz_flat.sample(self.batchSize)
+        z = self.pz.sample(self.batchSize)
+        
+        z_hat = self.Fx((X, ε), training=False)
+        X_tilde = self.Gz((z,n), training=False)
+        z_tilde = self.Fx((X_tilde, ε), training=False)
+        return z_tilde, z_hat
     
-    def distribution(self,X,c):
-        [hs_fake,s_fake,c_fake,n_fake] = self.Fx(X,training=False)
-        μs_fake,logΣs_fake = tf.split(hs_fake,num_or_size_splits=2, axis=1)
-        s_prior = self.ps.sample(X.shape[0])
-        n_prior = self.pn.sample(X.shape[0])
-        fakeX = self.Gz((s_prior,c,n_prior),training=False)
-        [hs_rec,s_rec,c_rec,n_rec] = self.Fx(fakeX,training=False)
-        μs_rec, logΣs_rec = tf.split(hs_fake,num_or_size_splits=2, axis=1)
-        return s_prior, n_prior, s_fake, n_fake, s_rec, n_rec, μs_fake, logΣs_fake, μs_rec, logΣs_rec
 
-    def reconstruct(self,X):
-        [_,s_fake,c_fake,n_fake] = self.Fx(X)
-        fakeX = self.Gz((s_fake,c_fake,n_fake),training=False)
-        return fakeX
+    def reconstruct(self, X):
+        ε = self.px_flat.sample(self.batchSize)
+        n = self.pz_flat.sample(self.batchSize)
+        return self.Gz((self.Fx(X, ε, training=False), n), training = False)
     
-    def generate(self, X, c_fake_new):
-        [_,s_fake,c_fake,n_fake] = self.Fx(X)
-        X_rec_new = self.Gz((s_fake,c_fake_new,n_fake),training=False)
-        return X_rec_new
+    def generate(self, c_fake_new):
+        z = self.pz.sample(self.batchSize)
+        n = self.pz_flat.sample(self.batchSize)
+        return self.Gz((z, n), training=False)
 
     # BN : do not apply batchnorm to the generator output layer and the discriminator input layer
     def BuildFx(self):
+        if self.AEtype=="CNN":
+            return self.BuildFx_CNN()
+        elif self.AEtype=="RES":
+            return self.BuildFx_RES()
+    
+    def BuildFx_RES(self):
+        
+        X = kl.Input(shape = self.Xshape, 
+                     name="X")
+        ε = kl.Input(shape = self.Xshape, 
+                     name="ε")
+        # c = kl.Input(shape=self.latentCdim,
+        #              name="c")
+        # p = kl.Input(shape=self.nParams,
+        #              name="p")
+        
+        # Initial CNN layer
+        layer = 0
+        h = il.FResBlock(out_channels=self.nZfirst,
+                         dilation_rate=3, 
+                         name='FRB0',
+                         )(X)
+        h = il.FiLM(self.nZfirst,
+                    name="FiLM4e_2")((h, ε))
+
+        # CNN layers
+        layer = 1
+        h = il.FResBlock(self.nZfirst*(2**(layer)),
+                         name='FRB{:>d}'.format(layer),
+                         dilation_rate=2)(h)
+        h = il.FiLM(self.nZfirst*(2**(layer)),
+                    name="FiLM4e_2")((h, ε))
+        
+        layer = 2
+        h = il.FResBlock(self.nZfirst*(2**(layer)),
+                         name='FRB{:>d}'.format(layer), 
+                         dilation_rate=1)(h)
+        h = il.FiLM(self.nZfirst*(2**(layer)),
+                    name="FiLM4e_2")((h, ε))
+
+        layer = 3
+        h = kl.Flatten(name="FxFLN{:>d}".format(layer))(h)
+        z = tfal.SpectralNormalization(kl.Dense(self.latentZdim),
+                                       name="FxD{:>d}".format(layer))(h)
+        # n = InstanceNormalization(axis=3)(h)
+
+        Fx = tf.keras.Model(inputs=X, 
+                            outputs=z, 
+                            name="Fx")
+        return Fx
+
+    def BuildFx_CNN(self):
         """
-            Fx encoder structure CNN
+            Fx encoder structure
         """
         # To build this model using the functional API
 
@@ -532,6 +506,12 @@ class ImplicitAE(tf.keras.Model):
                         name="FxCNN{:>d}".format(l+1)))(h_X)
             h_X = kl.BatchNormalization(momentum=0.95, 
                                         name="FxBN{:>d}".format(l+1))(h_X)
+                # h_X = tfal.InstanceNormalization(axis=-1,
+                #                                  epsilon=1e-6,
+                #                                  center=True,
+                #                                  scale=True,
+                #                                  beta_initializer="random_uniform",
+                #                                  gamma_initializer="random_uniform")
             h_X = kl.LeakyReLU(alpha=0.1, 
                                name="FxA{:>d}".format(l+1))(h_X)
             z = kl.Dropout(self.dpout, 
